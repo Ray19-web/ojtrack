@@ -1,0 +1,10 @@
+# Local secrets, databases and runtime uploads
+.env
+*.log
+uploads/**/*
+!uploads/**/
+!uploads/**/.htaccess
+
+# Local Python test artifacts
+__pycache__/
+*.pyc

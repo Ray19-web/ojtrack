@@ -128,7 +128,7 @@ if (isset($_GET['id'])) {
     );
 }
 
-$page_title = 'Student Management';
+$page_title = 'My Students';
 require_once __DIR__ . '/../includes/header.php';
 
 $status_labels = [
@@ -143,7 +143,7 @@ $status_labels = [
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Student Management</div>
+    <div class="page-title">My Students</div>
     <div class="page-sub">Assign companies, update OJT status, and manage student records under your department</div>
   </div>
 </div>
@@ -207,7 +207,7 @@ $status_labels = [
   <div class="modal">
     <div class="modal-title">Edit Student OJT Assignment</div>
     <p class="modal-sub"><?= e($detail['name']) ?> (<?= e($detail['student_id_no'] ?? '') ?>)</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="update_student">
       <input type="hidden" name="student_id" value="<?= $detail['id'] ?>">
       <div class="form-group">

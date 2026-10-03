@@ -7,10 +7,7 @@ require_login(['coordinator']);
 $user = current_user();
 $redirect = $_POST['redirect'] ?? ($_SERVER['HTTP_REFERER'] ?? '/ojtrack/coordinator/dashboard.php');
 
-// Guard: only allow redirects back into this app
-if (strpos($redirect, '/ojtrack/') === false) {
-    $redirect = '/ojtrack/coordinator/dashboard.php';
-}
+$redirect = safe_app_redirect($redirect, '/ojtrack/coordinator/dashboard.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     // Page removed — open modal via dashboard instead
@@ -65,7 +62,7 @@ if ($action === 'update_profile') {
             }
 
             $old = query_one("SELECT avatar FROM users WHERE id=?", [$user['id']], 'i');
-            $new_filename = 'avatar_' . $user['id'] . '_' . time() . '.' . $ext;
+            $new_filename = 'avatar_' . $user['id'] . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
 
             if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dest_dir . $new_filename)) {
                 $path = 'avatars/' . $new_filename;
@@ -92,7 +89,7 @@ if ($action === 'update_profile') {
     $confirm = $_POST['confirm_password'] ?? '';
     $db_user = query_one("SELECT password FROM users WHERE id=?", [$user['id']], 'i');
 
-    if (!password_verify($current, $db_user['password']) && !in_array($current, ['coord123', 'password'])) {
+    if (!password_verify($current, $db_user['password'])) {
         $flash_err = 'Current password is incorrect.';
     } elseif (strlen($new) < 6) {
         $flash_err = 'New password must be at least 6 characters.';
@@ -100,6 +97,8 @@ if ($action === 'update_profile') {
         $flash_err = 'New passwords do not match.';
     } else {
         query("UPDATE users SET password=? WHERE id=?", [password_hash($new, PASSWORD_DEFAULT), $user['id']], 'si');
+        $_SESSION['auth_fingerprint'] = hash('sha256', query_one("SELECT password FROM users WHERE id=?", [$user['id']], 'i')['password']);
+        session_regenerate_id(true);
         log_activity($user['id'], 'Password Changed', '');
         $flash_ok = 'Password changed successfully.';
     }

@@ -5,10 +5,7 @@ require_once __DIR__ . '/../config/auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!is_logged_in()) {
-    echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+require_login([], true);
 
 $user = current_user();
 $uid  = (int)$user['id'];
@@ -28,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $members = [];
         }
 
+
+        $members = array_values(array_unique(array_map('intval', $members)));
+        $members = array_values(array_filter($members, fn($id) => $id !== $uid));
+        if (!$members || ($thread_type === 'direct' && count($members) !== 1) || ($user['role'] !== 'coordinator' && $thread_type !== 'direct')) request_error(422, 'Invalid conversation participants or type.', true);
+        foreach ($members as $mid) if (!message_recipient_allowed($user, $mid)) request_error(403, 'A selected person is not an available contact.', true);
         if (empty($name)) {
             echo json_encode(['ok' => false, 'error' => 'Conversation title is required']);
             exit;

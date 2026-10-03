@@ -80,17 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
 
         } else {
 
-            $dest_dir = __DIR__ . '/../uploads/requirements/';
-
-            if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0777, true);
-            }
-
-            try {
-                $token = bin2hex(random_bytes(8));
-            } catch (Throwable $e) {
-                $token = (string)time();
-            }
+            $token = bin2hex(random_bytes(16));
 
             $new_filename =
                 'req_' .
@@ -103,9 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
                 $ext;
 
             if (
-                !move_uploaded_file(
+                !store_private_upload(
                     $_FILES['document']['tmp_name'],
-                    $dest_dir . $new_filename
+                    'requirements', $new_filename
                 )
             ) {
 
@@ -260,23 +250,7 @@ if (
 
             }
 
-            $dest_dir = __DIR__ . '/../uploads/requirements/';
-
-            if (!is_dir($dest_dir)) {
-
-                mkdir($dest_dir, 0777, true);
-
-            }
-
-            try {
-
-                $token = bin2hex(random_bytes(8));
-
-            } catch (Throwable $e) {
-
-                $token = (string)time();
-
-            }
+            $token = bin2hex(random_bytes(16));
 
             $new_filename =
                 'req_' .
@@ -289,9 +263,9 @@ if (
                 $ext;
 
             if (
-                !move_uploaded_file(
+                !store_private_upload(
                     $files['tmp_name'][$req_id],
-                    $dest_dir . $new_filename
+                    'requirements', $new_filename
                 )
             ) {
 
@@ -467,6 +441,7 @@ $current_step =
 <html lang="en">
 
 <head>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 
     <meta charset="UTF-8">
 
@@ -1516,7 +1491,7 @@ $current_step =
                 <form
                     method="POST"
                     enctype="multipart/form-data"
-                >
+                ><?= csrf_field() ?>
 
                     <input
                         type="hidden"
@@ -1650,7 +1625,7 @@ $current_step =
                                     <div style="margin-top:8px">
 
                                         <a
-                                            href="/ojtrack/uploads/<?= e($r['file_path']) ?>"
+                                            href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>"
                                             target="_blank"
                                             style="
                                                 font-size:11px;

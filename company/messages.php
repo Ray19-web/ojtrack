@@ -14,6 +14,7 @@ $success = ''; $error = '';
 // Handle creating thread
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'start_thread') {
     $recipient_id = (int)($_POST['recipient_id'] ?? 0);
+    if (!message_recipient_allowed($user, $recipient_id)) request_error(403, 'This person is not an available contact.');
     $initial_msg  = trim($_POST['message'] ?? '');
 
     if (!$recipient_id || !$initial_msg) {
@@ -48,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'start
             insert("INSERT INTO messages (thread_id, sender_id, message) VALUES (?, ?, ?)", [$thread_id, $uid, $initial_msg], 'iis');
             insert("INSERT IGNORE INTO message_reads (message_id, user_id) VALUES (LAST_INSERT_ID(), ?)", [$uid], 'i');
 
-            create_notification($recipient_id, "New message from {$company['company_name']}", 'info', '/ojtrack/company/messages.php');
+            create_notification($recipient_id, "New message from {$company['company_name']}", 'info', '/ojtrack/' . $recipient['role'] . '/messages.php?thread=' . $thread_id);
             header("Location: /ojtrack/company/messages.php?thread=" . $thread_id);
             exit;
         }
@@ -119,7 +120,7 @@ $coordinators = query(
     "SELECT u.id, u.name, c.department
      FROM coordinators c
      JOIN users u ON u.id=c.user_id
-     ORDER BY u.name ASC"
+     WHERE EXISTS (SELECT 1 FROM students s WHERE s.coordinator_id=c.id AND s.company_id=" . (int)$cid . ") ORDER BY u.name ASC"
 ) ?: [];
 
 $page_title = 'Messages';
@@ -243,7 +244,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">New Conversation</div>
     <p class="modal-sub">Start a discussion with a trainee or university coordinator</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="start_thread">
       <div class="form-group">
         <label class="form-label">Recipient <span class="text-danger">*</span></label>
@@ -303,7 +304,7 @@ async function handleSendChat(e) {
   try {
     const res = await fetch('/ojtrack/api/messages.php', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content},
       body: 'thread_id=<?= $active_id ?>&message=' + encodeURIComponent(msg)
     });
     const data = await res.json();

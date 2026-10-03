@@ -22,6 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'revie
 
     if (!$entry) {
         $error = 'Journal entry not found.';
+    } elseif ($status === 'rejected' && $remarks === '') {
+        $error = 'Explain what the student needs to revise.';
     } elseif (in_array($status, ['approved', 'rejected'])) {
         query("UPDATE journal_entries SET status=?, coordinator_remarks=?, reviewed_at=NOW() WHERE id=?", [$status, $remarks, $jid], 'ssi');
         log_activity($user['id'], 'Journal ' . ucfirst($status), "Journal ID: $jid for {$entry['student_name']}");
@@ -66,7 +68,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">OJT Monitoring</div>
+    <div class="page-title">Daily Journals</div>
     <div class="page-sub">Monitor student progress, journals, hours, and provide mentoring feedback</div>
   </div>
   <?php if ($student_id): ?>
@@ -127,7 +129,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
 
         <?php if ($j['status'] === 'pending'): ?>
-        <form method="POST" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+        <form method="POST" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)"><?= csrf_field() ?>
           <input type="hidden" name="action" value="review_journal">
           <input type="hidden" name="journal_id" value="<?= $j['id'] ?>">
           <div class="form-group mb-2">
@@ -149,7 +151,7 @@ require_once __DIR__ . '/../includes/header.php';
           <?php endif; ?>
           <div style="margin-top:8px">
             <button type="button" class="btn btn-ghost btn-xs text-muted" onclick="toggleEditRemarks(<?= $j['id'] ?>)">Change Feedback / Status</button>
-            <form id="editForm_<?= $j['id'] ?>" method="POST" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+            <form id="editForm_<?= $j['id'] ?>" method="POST" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)"><?= csrf_field() ?>
               <input type="hidden" name="action" value="review_journal">
               <input type="hidden" name="journal_id" value="<?= $j['id'] ?>">
               <div class="form-group mb-2">

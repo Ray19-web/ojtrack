@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 define('OJTRACK', true);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
             $success = 'Monthly report resubmitted for review.';
         } else {
             insert("INSERT INTO reports (student_id, report_name, report_type, deadline, status, remarks, submitted_at) VALUES (?,?,?,?,'for_review',?,NOW())",
-                [$sid, 'Monthly OJT Report â€” ' . date('F Y', strtotime($month . '-01')), 'monthly', $month . '-01', "Monthly compilation: $att_days DTR day(s), $journal_cnt journal entrie(s), $att_hours hour(s)."], 'issss');
+                [$sid, 'Monthly OJT Report — ' . date('F Y', strtotime($month . '-01')), 'monthly', $month . '-01', "Monthly compilation: $att_days DTR day(s), $journal_cnt journal entrie(s), $att_hours hour(s)."], 'issss');
             $success = 'Monthly report submitted. It compiles your journal entries and DTR for that month.';
         }
 
@@ -47,12 +47,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_report') {
-    $rep_id = (int)($_POST['rep_id'] ?: ($_POST['report_type'] ?? 0));
+    $rep_id = (int)(($_POST['rep_id'] ?? 0) ?: ($_POST['report_type'] ?? 0));
     $notes  = trim($_POST['notes'] ?? '');
 
     if (!$rep_id) {
         $error = 'Please select a report type to submit.';
     } else {
+        $assignment = query_one("SELECT * FROM reports WHERE id=? AND student_id=?", [$rep_id, $sid], 'ii');
+        if (!$assignment) request_error(404, 'Submission assignment not found.');
+        if ($assignment['status'] === 'approved') request_error(409, 'Approved submissions cannot be replaced.');
+        if (($_FILES['report_file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE && empty($assignment['file_path'])) {
+            request_error(422, 'Choose a document before submitting this assignment.');
+        }
         $file_path = null;
         if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] === UPLOAD_ERR_OK) {
             $orig_name = $_FILES['report_file']['name'];
@@ -62,11 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
             if (!in_array($ext, $allowed)) {
                 $error = 'Invalid format. Please submit PDF or Word document (.doc, .docx).';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/reports/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0777, true);
 
-                $new_filename = 'report_' . $sid . '_' . $rep_id . '_' . time() . '.' . $ext;
-                if (move_uploaded_file($_FILES['report_file']['tmp_name'], $dest_dir . $new_filename)) {
+                $new_filename = 'report_' . $sid . '_' . $rep_id . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+                if (store_private_upload($_FILES['report_file']['tmp_name'], 'reports', $new_filename)) {
                     $file_path = 'reports/' . $new_filename;
                 } else {
                     $error = 'Failed to upload report file. Please try again.';
@@ -146,14 +150,14 @@ require_once __DIR__ . '/../includes/header.php';
               <span class="badge badge-secondary"><?= ucfirst($r['report_type']) ?></span>
             </td>
             <td class="td-mono text-sm"><?= format_date($r['deadline']) ?></td>
-            <td class="td-mono text-sm"><?= $r['submitted_at'] ? date('M d, Y', strtotime($r['submitted_at'])) : 'â€”' ?></td>
+            <td class="td-mono text-sm"><?= $r['submitted_at'] ? date('M d, Y', strtotime($r['submitted_at'])) : '—' ?></td>
             <td><?= status_badge($r['status']) ?></td>
             <td class="text-xs text-muted" style="max-width:200px">
-              <?= $r['remarks'] ? e($r['remarks']) : 'â€”' ?>
+              <?= $r['remarks'] ? e($r['remarks']) : '—' ?>
             </td>
             <td>
               <?php if (!empty($r['file_path'])): ?>
-                <a href="/ojtrack/uploads/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View attached report">
+                <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View attached report">
                   View
                 </a>
               <?php else: ?>
@@ -196,7 +200,7 @@ if ($can_compile) {
 ?>
 <div class="card card-body mb-4">
   <div class="section-title mb-3">Monthly OJT Report (Journal + DTR Compilation)</div>
-  <p class="text-xs text-muted mb-3">Submit your monthly report once the month is complete. It compiles that month's DTR records and journal entries. Suggested page concept: merge your Daily Journal into this report pipeline.</p>
+  <p class="text-xs text-muted mb-3">Submit your monthly report once the month is complete. It compiles that month's DTR records and journal entries.</p>
   <form method="GET" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
     <div class="form-group" style="margin-bottom:0">
       <label class="form-label">Month</label>
@@ -214,7 +218,7 @@ if ($can_compile) {
         <div><div class="font-mono font-bold" style="font-size:22px"><?= $cm_journal ?></div><div class="text-xs text-muted">Journal entries</div></div>
         <div><div class="font-mono font-bold" style="font-size:22px"><?= number_format($cm_att_hours, 1) ?></div><div class="text-xs text-muted">DTR hours</div></div>
       </div>
-      <form method="POST" style="margin-top:12px">
+      <form method="POST" style="margin-top:12px"><?= csrf_field() ?>
         <input type="hidden" name="action" value="submit_monthly">
         <input type="hidden" name="month" value="<?= e($compile_month) ?>">
         <button type="submit" class="btn btn-primary">Compile &amp; Submit Report</button>
@@ -239,14 +243,14 @@ if ($can_compile) {
     <div class="modal-title">Submit OJT Report</div>
     <p class="modal-sub" id="reportModalSub">Attach your completed narrative report</p>
 
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="submit_report">
       <input type="hidden" name="rep_id" id="repId" value="">
 
       <div class="form-group" id="repSelectGroup">
         <label class="form-label">Report <span class="text-danger">*</span></label>
         <select name="report_type" id="repTypeSelect" class="form-control" onchange="document.getElementById('repId').value = this.value">
-          <option value="">â€” Select report â€”</option>
+          <option value="">— Select report —</option>
           <?php foreach ($reports as $r): ?>
             <?php if ($r['status'] !== 'approved'): ?>
               <option value="<?= $r['id'] ?>"><?= e($r['report_name']) ?> (<?= ucfirst($r['status']) ?>)</option>

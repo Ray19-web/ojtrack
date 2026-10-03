@@ -15,7 +15,7 @@ $student = query_one("SELECT s.*, u.name, u.email, co.company_name, cu.name AS s
     WHERE s.user_id = ?", [$uid], 'i');
 
 $pct = $student['required_hours'] > 0
-    ? round(($student['rendered_hours'] / $student['required_hours']) * 100)
+    ? min(100, round(($student['rendered_hours'] / $student['required_hours']) * 100))
     : 0;
 
 $req_total    = query_one("SELECT COUNT(*) AS c FROM ojt_requirements WHERE student_id=?", [$student['id']], 'i')['c'];
@@ -26,7 +26,7 @@ $notifications = query("SELECT * FROM notifications WHERE user_id=? ORDER BY cre
 
 $recent_reqs = query("SELECT * FROM ojt_requirements WHERE student_id=? ORDER BY FIELD(status,'rejected','pending','approved') LIMIT 5", [$student['id']], 'i');
 
-$announcements = query("SELECT a.*, u.name AS author FROM announcements a JOIN users u ON u.id=a.created_by WHERE (a.target_role='all' OR a.target_role='student') AND a.is_active=1 ORDER BY a.created_at DESC LIMIT 3");
+$announcements = query("SELECT a.*, u.name AS author FROM announcements a JOIN users u ON u.id=a.created_by WHERE " . announcement_scope($user) . " ORDER BY a.is_pinned DESC, a.created_at DESC LIMIT 3");
 
 $page_title = 'Student Dashboard';
 require_once __DIR__ . '/../includes/header.php';
@@ -105,7 +105,7 @@ $all_recorded = $today_attendance && $today_attendance['morning_in'] && $today_a
     </div>
     <div>
       <div class="stat-label"><span class="stat-value"><?= max(0, $student['required_hours'] - $student['rendered_hours']) ?>h</span>Remaining</div>
-      <div class="stat-sub">Est. ~<?= max(0, ceil(($student['required_hours'] - $student['rendered_hours']) / 9)) ?> working days</div>
+      <div class="stat-sub">Based on official attendance</div>
     </div>
   </div>
 </div>
@@ -188,4 +188,5 @@ $all_recorded = $today_attendance && $today_attendance['morning_in'] && $today_a
 </div>
 <?php endif; ?>
 
+<?php require __DIR__ . '/../includes/student-progress.php'; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

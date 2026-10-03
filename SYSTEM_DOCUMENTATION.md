@@ -1,3 +1,5 @@
+> Historical overview: legacy schema and workflow sections below are not fully current. See README.md and docs/FINALIZATION_REMAINING.md for setup, implemented fixes, and remaining work.
+
 # OJTRACK — Complete System Documentation
 
 **University of Science and Technology of Southern Philippines**  
@@ -479,7 +481,7 @@ DB_NAME = 'ojtrack'
 ### Login
 1. User submits email/student ID + password
 2. System queries `users` table with role-specific joins
-3. Password verified via `password_verify()` or demo passwords
+3. Password verified only via `password_verify()`; shared password bypasses have been removed.
 4. Session set: `user_id`, `role`, `name`, `sub`
 5. Activity logged
 6. Redirect to role-based dashboard
@@ -509,15 +511,9 @@ DB_NAME = 'ojtrack'
 
 ---
 
-## 11. Demo Accounts
+## 11. Test Accounts
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@ustp.edu.ph | admin123 |
-| Coordinator | jocelyn.rivera@ustp.edu.ph | coord123 |
-| Coordinator | mark.santos@ustp.edu.ph | coord123 |
-| Company | supervisor@mindanaoict.com | company123 |
-| Student | ana.reyes@ustp.edu.ph | student123 |
+There are no production default credentials. Import the schema-only database and create an administrator using the CLI setup command in README.md. Synthetic accounts in tests/seed.php are restricted to the isolated ojtrack_test database and must never be used in production.
 
 ---
 

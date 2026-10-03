@@ -3274,3 +3274,7 @@ body.role-admin .empty-state {
     width: 100%;
   }
 }
+
+/* Shared keyboard focus: retains the existing brand colors. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid var(--primary, #1764bb); outline-offset: 3px; }
+@media (max-width: 760px) { .page-heading { flex-wrap: wrap; gap: 12px; } .page-heading form { flex-wrap: wrap; max-width: 100%; } }

@@ -15,12 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email    = trim($_POST['email'] ?? '');
         $dept     = trim($_POST['department'] ?? '');
         $phone    = trim($_POST['contact_number'] ?? '');
-        $pass     = trim($_POST['password'] ?? 'coord123');
+        $pass     = trim($_POST['password'] ?? '');
 
         $prog = $dept !== '' ? query_one("SELECT code, name FROM programs WHERE code=? AND status='active'", [$dept], 's') : null;
 
-        if (!$name || !$email) {
-            $error = 'Name and email are required.';
+        if (!$name || !$email || strlen($pass) < 12 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Name, a valid email and a password of at least 12 characters are required.';
         } elseif (!$prog) {
             $error = 'Please select a valid academic program for Assigned Department.';
         } elseif (query_one("SELECT id FROM users WHERE email=?", [$email], 's')) {
@@ -143,7 +143,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <?php if (!empty($unassigned)): ?>
-    <form method="POST" style="margin-bottom:10px;display:flex;gap:6px" onclick="stopRowClick(event)">
+    <form method="POST" style="margin-bottom:10px;display:flex;gap:6px" onclick="stopRowClick(event)"><?= csrf_field() ?>
       <input type="hidden" name="action" value="assign_student">
       <input type="hidden" name="coord_id" value="<?= $c['id'] ?>">
       <select name="student_id" class="form-control" style="flex:1;font-size:12px" required>
@@ -168,7 +168,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addCoordModal">
   <div class="modal">
     <div class="modal-title">Add New OJT Coordinator</div>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_coord">
       <div class="form-group"><label class="form-label">Full Name <span style="color:red">*</span></label><input type="text" name="name" class="form-control" placeholder="e.g. Dr. Jocelyn Rivera" required></div>
       <div class="form-group"><label class="form-label">Email Address <span style="color:red">*</span></label><input type="email" name="email" class="form-control" placeholder="jocelyn.rivera@ustp.edu.ph" required></div>
@@ -191,7 +191,7 @@ require_once __DIR__ . '/../includes/header.php';
           <a href="/ojtrack/admin/programs.php" target="_blank" style="color:var(--primary);font-weight:600">+ Manage Programs</a>
         </div>
       </div>
-      <div class="form-group"><label class="form-label">Initial Password</label><input type="password" name="password" class="form-control" value="coord123" required></div>
+      <div class="form-group"><label class="form-label">Initial Password</label><input type="password" name="password" class="form-control" value="" required></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('addCoordModal')">Cancel</button>
         <button type="submit" class="btn btn-primary">Create Coordinator</button>
@@ -206,7 +206,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal-title">Coordinator Details</div>
     <p class="modal-sub" id="editCoordSubName"></p>
     <div id="editCoordStats" style="background:var(--bg);padding:10px 12px;border-radius:var(--radius);font-size:12px;margin-bottom:14px;display:none"></div>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit_coord">
       <input type="hidden" name="coord_id" id="editCoordId">
       <div class="form-group">

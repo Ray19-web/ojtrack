@@ -1,8 +1,9 @@
 <?php
-session_start();
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/config/auth.php';
+require_csrf();
 
-if (isset($_SESSION['user_id'])) {
+if (is_logged_in()) {
     $map = [
         'student' => 'student/dashboard.php',
         'coordinator' => 'coordinator/dashboard.php',
@@ -41,18 +42,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ss'
             );
 
-            $valid = $user && (
-                password_verify($password, $user['password']) ||
-                in_array($password, [
-                    'admin123',
-                    'coord123',
-                    'company123',
-                    'student123',
-                    'password'
-                ])
-            );
+            $valid = $user && password_verify($password, $user['password']);
 
             if ($valid) {
+                session_regenerate_id(true);
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                $_SESSION['auth_fingerprint'] = hash('sha256', $user['password']);
+                $_SESSION['last_activity'] = time();
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role']    = $user['role'];
                 $_SESSION['name']    = $user['name'];
@@ -105,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 
 <head>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 
     <meta charset="UTF-8">
 
@@ -1602,7 +1599,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form
             method="POST"
             action=""
-        >
+        ><?= csrf_field() ?>
 
             <input
                 type="hidden"

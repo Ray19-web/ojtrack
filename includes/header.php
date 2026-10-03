@@ -73,7 +73,7 @@ if ($uid > 0) {
         $comp = query_one("SELECT id FROM companies WHERE user_id=?", [$uid], 'i');
         $cid = $comp['id'] ?? 0;
         $pending_action_count = (int)(query_one(
-            "SELECT COUNT(*) AS c FROM evaluations e
+            "SELECT COUNT(*) AS c FROM eval_submissions e
              JOIN students s ON s.id=e.student_id
              WHERE s.company_id=? AND e.status='pending'",
             [$cid],
@@ -123,94 +123,79 @@ $nav_icons = [
 
 // Sidebar nav config per role — grouped under Sidebar Section Headers
 $nav_items = [
-  'student' => [
-    [
-      'section' => 'GENERAL',
-      'items' => [
-        ['page' => 'student/dashboard.php',    'label' => 'Dashboard',        'icon' => 'dashboard',    'badge' => 0],
-        ['page' => 'student/requirements.php', 'label' => 'OJT Requirements', 'icon' => 'requirements', 'badge' => $pending_action_count],
-        ['page' => 'student/attendance.php',   'label' => 'Attendance',       'icon' => 'attendance',   'badge' => 0],
-        ['page' => 'student/progress.php',     'label' => 'OJT Progress',     'icon' => 'progress',     'badge' => 0],
-        ['page' => 'student/journal.php',      'label' => 'Daily Journal',    'icon' => 'journal',      'badge' => 0],
-        ['page' => 'student/reports.php',      'label' => 'Reports',          'icon' => 'reports',      'badge' => 0],
-        ['page' => 'student/evaluation.php',   'label' => 'Evaluation',       'icon' => 'evaluation',   'badge' => 0],
-      ],
-    ],
-    [
-      'section' => 'COMMUNICATION',
-      'items' => [
-        ['page' => 'student/messages.php',      'label' => 'Messages',      'icon' => 'messages',      'badge' => $unread_msgs],
-        ['page' => 'student/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
-        ['page' => 'certificate.php',            'label' => 'Certificates',   'icon' => 'certificate',   'badge' => $cert_count],
-      ],
-    ],
+  'admin' => [
+    ['section' => 'OVERVIEW', 'items' => [
+      ['page' => 'admin/dashboard.php', 'label' => 'Dashboard', 'icon' => 'dashboard', 'badge' => 0],
+    ]],
+    ['section' => 'PEOPLE & PARTNERS', 'items' => [
+      ['page' => 'admin/students.php', 'label' => 'Students', 'icon' => 'students', 'badge' => 0],
+      ['page' => 'admin/coordinators.php', 'label' => 'Coordinators', 'icon' => 'coordinators', 'badge' => 0],
+      ['page' => 'admin/companies.php', 'label' => 'Companies', 'icon' => 'companies', 'badge' => 0],
+    ]],
+    ['section' => 'ACADEMIC SETUP', 'items' => [
+      ['page' => 'admin/programs.php', 'label' => 'Programs', 'icon' => 'programs', 'badge' => 0],
+    ]],
+    ['section' => 'ADMINISTRATION', 'items' => [
+      ['page' => 'admin/users.php', 'label' => 'User Accounts', 'icon' => 'users', 'badge' => 0],
+      ['page' => 'admin/archived-users.php', 'label' => 'Archived Accounts', 'icon' => 'archived', 'badge' => 0],
+      ['page' => 'admin/activity.php', 'label' => 'Activity Log', 'icon' => 'activity', 'badge' => 0],
+      ['page' => 'certificate.php', 'label' => 'Certificates', 'icon' => 'certificate', 'badge' => 0],
+    ]],
+    ['section' => 'COMMUNICATION', 'items' => [
+      ['page' => 'admin/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
+    ]],
   ],
   'coordinator' => [
-    [
-      'section' => 'GENERAL',
-      'items' => [
-        ['page' => 'coordinator/dashboard.php',    'label' => 'Dashboard',             'icon' => 'dashboard',    'badge' => 0],
-        ['page' => 'coordinator/students.php',     'label' => 'Student Management',    'icon' => 'students',     'badge' => 0],
-        ['page' => 'coordinator/requirements.php', 'label' => 'Requirements Review',   'icon' => 'requirements', 'badge' => $pending_action_count],
-        ['page' => 'coordinator/monitoring.php',   'label' => 'OJT Monitoring',        'icon' => 'monitoring',   'badge' => 0],
-        ['page' => 'coordinator/attendance.php',   'label' => 'Attendance Records',    'icon' => 'attendance',   'badge' => 0],
-        ['page' => 'coordinator/evaluation.php',  'label' => 'Evaluation Requests',   'icon' => 'evaluation',   'badge' => 0],
-      ],
-    ],
-    [
-      'section' => 'COMMUNICATION',
-      'items' => [
-        ['page' => 'coordinator/messages.php',      'label' => 'Messages',           'icon' => 'messages',      'badge' => $unread_msgs],
-        ['page' => 'coordinator/announcements.php', 'label' => 'Department Notices', 'icon' => 'announcements', 'badge' => 0],
-        ['page' => 'certificate.php',                'label' => 'Certificates',       'icon' => 'certificate',   'badge' => $cert_count],
-      ],
-    ],
+    ['section' => 'OVERVIEW', 'items' => [
+      ['page' => 'coordinator/dashboard.php', 'label' => 'Dashboard', 'icon' => 'dashboard', 'badge' => 0],
+    ]],
+    ['section' => 'OJT MANAGEMENT', 'items' => [
+      ['page' => 'coordinator/students.php', 'label' => 'My Students', 'icon' => 'students', 'badge' => 0],
+      ['page' => 'coordinator/attendance.php', 'label' => 'Attendance', 'icon' => 'attendance', 'badge' => 0],
+      ['page' => 'certificate.php', 'label' => 'Certificates', 'icon' => 'certificate', 'badge' => 0],
+    ]],
+    ['section' => 'SUBMISSIONS & REVIEWS', 'items' => [
+      ['page' => 'coordinator/requirements.php', 'label' => 'Requirements', 'icon' => 'requirements', 'badge' => $pending_action_count],
+      ['page' => 'coordinator/monitoring.php', 'label' => 'Daily Journals', 'icon' => 'journal', 'badge' => 0],
+      ['page' => 'coordinator/reports.php', 'label' => 'Reports', 'icon' => 'reports', 'badge' => 0],
+      ['page' => 'coordinator/evaluation.php', 'label' => 'Evaluations', 'icon' => 'evaluation', 'badge' => 0],
+    ]],
+    ['section' => 'COMMUNICATION', 'items' => [
+      ['page' => 'coordinator/messages.php', 'label' => 'Messages', 'icon' => 'messages', 'badge' => $unread_msgs],
+      ['page' => 'coordinator/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
+    ]],
   ],
   'company' => [
-    [
-      'section' => 'GENERAL',
-      'items' => [
-        ['page' => 'company/dashboard.php',   'label' => 'Dashboard',          'icon' => 'dashboard',    'badge' => 0],
-        ['page' => 'company/students.php',    'label' => 'Student Progress',   'icon' => 'students',     'badge' => 0],
-        ['page' => 'company/attendance.php',  'label' => 'Attendance Records', 'icon' => 'attendance',   'badge' => 0],
-        ['page' => 'company/evaluation.php',  'label' => 'Evaluations',        'icon' => 'evaluation',   'badge' => $pending_action_count],
-        ['page' => 'company/certificate.php', 'label' => 'Certificates',       'icon' => 'certificate',  'badge' => $cert_count],
-      ],
-    ],
-    [
-      'section' => 'COMMUNICATION',
-      'items' => [
-        ['page' => 'company/messages.php',      'label' => 'Messages',      'icon' => 'messages',      'badge' => $unread_msgs],
-        ['page' => 'company/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
-      ],
-    ],
+    ['section' => 'OVERVIEW', 'items' => [
+      ['page' => 'company/dashboard.php', 'label' => 'Dashboard', 'icon' => 'dashboard', 'badge' => 0],
+    ]],
+    ['section' => 'TRAINING', 'items' => [
+      ['page' => 'company/students.php', 'label' => 'My Trainees', 'icon' => 'students', 'badge' => 0],
+      ['page' => 'company/attendance.php', 'label' => 'Attendance', 'icon' => 'attendance', 'badge' => 0],
+      ['page' => 'company/evaluation.php', 'label' => 'Evaluations', 'icon' => 'evaluation', 'badge' => $pending_action_count],
+      ['page' => 'company/certificate.php', 'label' => 'Certificates', 'icon' => 'certificate', 'badge' => 0],
+    ]],
+    ['section' => 'COMMUNICATION', 'items' => [
+      ['page' => 'company/messages.php', 'label' => 'Messages', 'icon' => 'messages', 'badge' => $unread_msgs],
+      ['page' => 'company/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
+    ]],
   ],
-  'admin' => [
-    [
-      'section' => 'GENERAL',
-      'items' => [
-        ['page' => 'admin/dashboard.php',      'label' => 'System Overview',   'icon' => 'dashboard', 'badge' => 0],
-        ['page' => 'admin/users.php',          'label' => 'User Management',   'icon' => 'users',     'badge' => 0],
-        ['page' => 'admin/archived-users.php', 'label' => 'Archived Accounts', 'icon' => 'archived',  'badge' => 0],
-        ['page' => 'admin/programs.php',       'label' => 'Program Management','icon' => 'programs',  'badge' => 0],
-      ],
-    ],
-    [
-      'section' => 'MANAGEMENT',
-      'items' => [
-        ['page' => 'admin/students.php',     'label' => 'Student Records',    'icon' => 'students',     'badge' => 0],
-        ['page' => 'admin/coordinators.php', 'label' => 'Coordinators',       'icon' => 'coordinators', 'badge' => 0],
-        ['page' => 'admin/companies.php',    'label' => 'Company Management', 'icon' => 'companies',    'badge' => 0],
-      ],
-    ],
-    [
-      'section' => 'SYSTEM',
-      'items' => [
-        ['page' => 'admin/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
-        ['page' => 'admin/activity.php',      'label' => 'Activity Log',  'icon' => 'activity',      'badge' => 0],
-        ['page' => 'certificate.php',        'label' => 'Certificates',  'icon' => 'certificate',  'badge' => $cert_count],
-      ],
-    ],
+  'student' => [
+    ['section' => 'OVERVIEW', 'items' => [
+      ['page' => 'student/dashboard.php', 'label' => 'Dashboard', 'icon' => 'dashboard', 'badge' => 0],
+    ]],
+    ['section' => 'MY OJT', 'items' => [
+      ['page' => 'student/requirements.php', 'label' => 'Requirements', 'icon' => 'requirements', 'badge' => $pending_action_count],
+      ['page' => 'student/attendance.php', 'label' => 'Attendance', 'icon' => 'attendance', 'badge' => 0],
+      ['page' => 'student/journal.php', 'label' => 'Daily Journal', 'icon' => 'journal', 'badge' => 0],
+      ['page' => 'student/reports.php', 'label' => 'Reports', 'icon' => 'reports', 'badge' => 0],
+      ['page' => 'student/evaluation.php', 'label' => 'Evaluations', 'icon' => 'evaluation', 'badge' => 0],
+      ['page' => 'student/certificate.php', 'label' => 'Certificate', 'icon' => 'certificate', 'badge' => 0],
+    ]],
+    ['section' => 'COMMUNICATION', 'items' => [
+      ['page' => 'student/messages.php', 'label' => 'Messages', 'icon' => 'messages', 'badge' => $unread_msgs],
+      ['page' => 'student/announcements.php', 'label' => 'Announcements', 'icon' => 'announcements', 'badge' => 0],
+    ]],
   ],
 ];
 
@@ -238,10 +223,11 @@ $has_avatar = !empty($user_avatar);
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= e($page_title) ?> — OJTRACK</title>
-  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261002a">
+  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261003-phase1">
   <script>
     (function () {
       try {

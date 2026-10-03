@@ -1,21 +1,38 @@
 /* OJTRACK — Main JavaScript */
 
 // ── Modals ──────────────────────────────────────────────────
+const modalOpeners = new Map();
 function openModal(id) {
   const el = document.getElementById(id);
-  if (el) {
-    el.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
+  if (!el) return;
+  modalOpeners.set(id, document.activeElement);
+  el.classList.add('open');
+  const dialog = el.querySelector('.modal') || el;
+  dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true'); dialog.tabIndex = -1;
+  const title = dialog.querySelector('.modal-title');
+  if (title) { if (!title.id) title.id = id + '-title'; dialog.setAttribute('aria-labelledby', title.id); }
+  document.body.style.overflow = 'hidden';
+  (dialog.querySelector('input:not([type="hidden"]), textarea, select, button') || dialog).focus();
 }
-
 function closeModal(id) {
   const el = document.getElementById(id);
-  if (el) {
-    el.classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (!el) return;
+  el.classList.remove('open');
+  if (!document.querySelector('.modal-overlay.open')) document.body.style.overflow = '';
+  modalOpeners.get(id)?.focus(); modalOpeners.delete(id);
 }
+document.addEventListener('keydown', event => {
+  const overlays = document.querySelectorAll('.modal-overlay.open');
+  const el = overlays[overlays.length - 1];
+  if (!el) return;
+  if (event.key === 'Escape') { event.preventDefault(); closeModal(el.id); }
+  if (event.key !== 'Tab') return;
+  const focusable = [...el.querySelectorAll('a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]')].filter(node => node.getClientRects().length);
+  if (!focusable.length) { event.preventDefault(); return; }
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (event.shiftKey && (document.activeElement === first || !focusable.includes(document.activeElement))) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
 
 /** Prevent nested controls (buttons, links, forms) from triggering row/card click handlers */
 function stopRowClick(e) {
@@ -25,8 +42,7 @@ function stopRowClick(e) {
 // Close modal on overlay click
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-overlay')) {
-    e.target.classList.remove('open');
-    document.body.style.overflow = '';
+    closeModal(e.target.id);
   }
 });
 
@@ -95,84 +111,45 @@ function closeUserDropdown() {
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
-// Handle notification click - mark read and redirect
-function handleNotificationClick(id, link, el) {
-  if (id) {
-    fetch('/ojtrack/api/notifications.php?action=mark_read&id=' + encodeURIComponent(id), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }).catch(() => {});
-  }
-  if (el) {
-    el.classList.remove('unread');
-    el.classList.add('read');
-    const dot = el.querySelector('.notif-unread-dot');
-    if (dot) dot.remove();
-  }
+// Notification mutations use the same form encoding as the PHP API.
+async function updateNotificationRead(id, all = false) {
+  const body = new URLSearchParams({action: 'mark_read', ...(all ? {all: '1'} : {id: String(id)})});
+  const response = await fetch('/ojtrack/api/notifications.php', {
+    method: 'POST',
+    headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content},
+    body
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error || 'Unable to update notification.');
+}
+function reflectNotificationRead(el) {
+  if (!el || !el.classList.contains('unread')) return;
+  el.classList.remove('unread'); el.classList.add('read');
+  el.querySelector('.notif-unread-dot')?.remove();
   const badge = document.getElementById('notifCounterBadge');
   if (badge) {
-    const current = parseInt(badge.textContent, 10);
-    if (current > 1) {
-      badge.textContent = current - 1;
-    } else {
-      badge.remove();
-    }
-  }
-  if (link) {
-    window.location.href = link;
+    const count = Math.max(0, (parseInt(badge.textContent, 10) || 0) - 1);
+    if (count) badge.textContent = count; else badge.remove();
   }
 }
-
+async function handleNotificationClick(id, link, el) {
+  try {
+    await updateNotificationRead(id);
+    reflectNotificationRead(el);
+    if (link && link.startsWith('/ojtrack/') && !link.includes('\\')) window.location.href = link;
+  } catch (error) { alert(error.message); }
+}
 async function markAllNotificationsRead(e) {
-  if (e) {
-    e.stopPropagation();
-    e.preventDefault();
-  }
+  e?.stopPropagation(); e?.preventDefault();
   try {
-    const res = await fetch('/ojtrack/api/notifications.php?action=mark_read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await res.json();
-    if (data.success) {
-      const badge = document.getElementById('notifCounterBadge');
-      if (badge) badge.remove();
-      document.querySelectorAll('.notif-item.unread').forEach(item => {
-        item.classList.remove('unread');
-        item.classList.add('read');
-      });
-      document.querySelectorAll('.notif-unread-dot').forEach(dot => dot.remove());
-    }
-  } catch (err) {
-    console.error('Failed to mark notifications read:', err);
-  }
+    await updateNotificationRead(null, true);
+    document.querySelectorAll('.notif-item.unread').forEach(reflectNotificationRead);
+    document.getElementById('notifCounterBadge')?.remove();
+  } catch (error) { alert(error.message); }
 }
-
 async function markNotificationSingle(id, el) {
-  if (!id) return;
-  try {
-    await fetch('/ojtrack/api/notifications.php?action=mark_read&id=' + encodeURIComponent(id), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (el) {
-      el.classList.remove('unread');
-      el.classList.add('read');
-      const dot = el.querySelector('.notif-unread-dot');
-      if (dot) dot.remove();
-    }
-    const badge = document.getElementById('notifCounterBadge');
-    if (badge) {
-      const current = parseInt(badge.textContent, 10);
-      if (current > 1) {
-        badge.textContent = current - 1;
-      } else {
-        badge.remove();
-      }
-    }
-  } catch (err) {
-    console.error('Error marking notification as read:', err);
-  }
+  try { await updateNotificationRead(id); reflectNotificationRead(el); }
+  catch (error) { alert(error.message); }
 }
 
 // ── Sidebar Toggle for Mobile ───────────────────────────────
@@ -361,20 +338,17 @@ function sendChatMessage() {
 
   fetch('/ojtrack/api/messages.php', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content },
     body: `thread_id=${encodeURIComponent(threadId)}&message=${encodeURIComponent(msg)}`
   })
   .then(r => r.json())
   .then(data => {
-    if (data.success) {
+    if (data.ok) {
       appendMessage(msg, 'Me', 'mine');
       textarea.value = '';
     }
   })
-  .catch(() => {
-    appendMessage(msg, 'Me', 'mine');
-    textarea.value = '';
-  });
+  .catch(() => { alert('Message was not sent. Please try again.'); });
 }
 
 function appendMessage(text, sender, type) {

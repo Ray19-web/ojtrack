@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!is_dir($dest_dir)) {
                         mkdir($dest_dir, 0755, true);
                     }
-                    $new_filename = 'ann_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $new_filename = 'ann_' . bin2hex(random_bytes(16)) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                     if (move_uploaded_file($_FILES['attachment']['tmp_name'], $dest_dir . $new_filename)) {
                         $attachment_file = 'announcements/' . $new_filename;
                         $attachment_name = $orig;
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!is_dir($dest_dir)) {
                         mkdir($dest_dir, 0755, true);
                     }
-                    $new_filename = 'ann_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $new_filename = 'ann_' . bin2hex(random_bytes(16)) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                     if (move_uploaded_file($_FILES['attachment']['tmp_name'], $dest_dir . $new_filename)) {
                         $attachment_file = 'announcements/' . $new_filename;
                         $attachment_name = $orig;
@@ -283,7 +283,7 @@ require_once __DIR__ . '/../includes/header.php';
               <?= format_date($a['created_at']) ?>
             </td>
             <td onclick="stopRowClick(event)">
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_pin">
                 <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
                 <button type="submit" class="btn btn-secondary btn-sm" title="<?= $a['is_pinned'] ? 'Unpin' : 'Pin to top' ?>">
@@ -306,7 +306,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Post New Announcement</div>
     <p class="modal-sub">Create an official announcement for students, coordinators, or company partners</p>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -369,7 +369,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Announcement Details</div>
     <p class="modal-sub" id="viewEditAnnMeta"></p>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit">
       <input type="hidden" name="ann_id" id="editAnnId">
       <div class="form-group">

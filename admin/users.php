@@ -9,6 +9,15 @@ $success = ''; $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    if (in_array($action, ['edit_user','archive_user','toggle_status'], true)) {
+        $target = query_one("SELECT id,role,status FROM users WHERE id=?", [(int)($_POST['user_id'] ?? 0)], 'i');
+        if (!$target) request_error(404, 'Account not found.');
+        if ($action === 'edit_user' && ($_POST['role'] ?? '') !== $target['role']) request_error(422, 'Account roles cannot be changed. Create the correct role account and reassign records explicitly.');
+        if ((int)$target['id'] === (int)$user['id'] && ($action !== 'edit_user' || ($_POST['status'] ?? '') !== 'active')) request_error(422, 'You cannot deactivate or archive your own administrator account.');
+        if ($action === 'edit_user' && !in_array($_POST['status'] ?? '', ['active','inactive','archived'], true)) request_error(422, 'Invalid account status.');
+    }
+    if ($action === 'add_user' && !in_array($_POST['role'] ?? '', ['admin','student','coordinator','company'], true)) request_error(422, 'Invalid account role.');
+
 
     if ($action === 'add_user') {
         $name    = trim($_POST['name'] ?? '');
@@ -175,13 +184,13 @@ $programs_list = query("SELECT id, code, name FROM programs WHERE status='active
 $next_student_id = generate_student_id();
 $next_coord_id   = generate_coordinator_id();
 
-$page_title = 'User Management';
+$page_title = 'User Accounts';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">User Management</div>
+    <div class="page-title">User Accounts</div>
     <div class="page-sub">Manage system accounts, access privileges, and security across all user roles</div>
   </div>
   <div class="page-heading-actions">
@@ -236,13 +245,13 @@ require_once __DIR__ . '/../includes/header.php';
           <td onclick="stopRowClick(event)">
             <div style="display:flex;gap:4px">
               <button type="button" class="btn btn-secondary btn-xs" onclick='openEditModal(<?= htmlspecialchars(json_encode($u, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Edit</button>
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_status">
                 <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
                 <button type="submit" class="btn btn-ghost btn-xs"><?= ($u['status'] ?? 'active') === 'active' ? 'Deactivate' : 'Activate' ?></button>
               </form>
               <?php if ((int)$u['id'] !== (int)$user['id']): ?>
-              <form method="POST" style="display:inline" onsubmit="return confirm('Archive this <?= e($u['role']) ?> account? They will lose login access, but all records will be preserved.')">
+              <form method="POST" style="display:inline" onsubmit="return confirm('Archive this <?= e($u['role']) ?> account? They will lose login access, but all records will be preserved.')"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="archive_user">
                 <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
                 <button type="submit" class="btn btn-warning btn-xs">Archive</button>
@@ -262,7 +271,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addUserModal">
   <div class="modal">
     <div class="modal-title">Add New User Account</div>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_user">
       <div class="form-group"><label class="form-label">Full Name / Display Name <span style="color:red">*</span></label><input type="text" name="name" class="form-control" placeholder="e.g. Juan Dela Cruz" required></div>
       <div class="form-group"><label class="form-label">Email Address <span style="color:red">*</span></label><input type="email" name="email" class="form-control" placeholder="user@ustp.edu.ph" required></div>
@@ -336,7 +345,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">User Account Details</div>
     <p class="modal-sub" id="editUserMeta"></p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit_user">
       <input type="hidden" name="user_id" id="editUserId">
       <div class="form-group"><label class="form-label">Full Name <span style="color:red">*</span></label><input type="text" name="name" id="editName" class="form-control" required></div>
