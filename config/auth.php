@@ -1,20 +1,48 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/communications.php';
 
 function is_logged_in() {
-    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+    if (empty($_SESSION['user_id']) || empty($_SESSION['auth_fingerprint'])) return false;
+    $account = query_one("SELECT id, name, role, status, password, avatar FROM users WHERE id=?", [(int)$_SESSION['user_id']], 'i');
+    $expired = time() - (int)($_SESSION['last_activity'] ?? 0) > 1800;
+    if (!$account || $account['status'] !== 'active' || $account['role'] !== ($_SESSION['role'] ?? '') || $expired ||
+        !hash_equals($_SESSION['auth_fingerprint'], hash('sha256', $account['password']))) {
+        $_SESSION = [];
+        session_regenerate_id(true);
+        return false;
+    }
+    $_SESSION['last_activity'] = time();
+    $_SESSION['name'] = $account['name'];
+    $_SESSION['avatar'] = $account['avatar'] ?? '';
+    return true;
 }
 
-function require_login($allowed_roles = []) {
+function require_login($allowed_roles = [], $json = false) {
     if (!is_logged_in()) {
+        if ($json) request_error(401, 'Please sign in again.', true);
         header('Location: ' . base_url('login.php'));
         exit;
     }
-    if (!empty($allowed_roles) && !in_array($_SESSION['role'], $allowed_roles)) {
-        header('Location: ' . base_url('login.php?error=unauthorized'));
-        exit;
+    if ($allowed_roles && !in_array($_SESSION['role'], $allowed_roles, true)) {
+        request_error(403, 'You do not have access to this page.', $json);
+    }
+    require_csrf($json);
+    if ($_SESSION['role'] === 'student') {
+        $profile = query_one("SELECT id FROM students WHERE user_id=?", [(int)$_SESSION['user_id']], 'i');
+        if (!$profile) request_error(403, 'Your student profile is missing. Contact your administrator.', $json);
+        $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+        if (!in_array($path, ['/ojtrack/student/onboarding.php', '/ojtrack/download.php'], true) && student_onboarding_required($_SESSION['user_id'])) {
+            if ($json || ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+                request_error(403, 'Complete your OJT onboarding before using this action.', $json);
+            }
+            redirect('student/onboarding.php');
+        }
+    } elseif (in_array($_SESSION['role'], ['company', 'coordinator'], true)) {
+        $table = $_SESSION['role'] === 'company' ? 'companies' : 'coordinators';
+        if (!query_one("SELECT id FROM $table WHERE user_id=?", [(int)$_SESSION['user_id']], 'i')) {
+            request_error(403, 'Your role profile is missing. Contact your administrator.', $json);
+        }
     }
 }
 

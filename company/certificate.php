@@ -90,7 +90,7 @@ if ($selected) {
     $rendered_body = strtr($template['body_text'], $replace);
 }
 
-$page_title = 'Certificate Generator';
+$page_title = 'Certificates';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -123,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal-title">Editable Template</div>
     <p class="modal-sub">Saved to your company account. Placeholders: {student_name}, {program}, {company_name}, {rendered_hours}, {coordinator_name}, {date}</p>
     <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
-      <form method="POST" enctype="multipart/form-data">
+      <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
         <input type="hidden" name="action" value="save_template">
         <div class="form-group">
           <label class="form-label">Company Logo</label>

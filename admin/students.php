@@ -384,14 +384,14 @@ require_once __DIR__ . '/../includes/header.php';
           <td onclick="stopRowClick(event)">
             <div style="display:flex;gap:4px;align-items:center">
               <?php if ($is_arch): ?>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Restore this student to active status?')">
+                <form method="POST" style="display:inline" onsubmit="return confirm('Restore this student to active status?')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="restore_student">
                   <input type="hidden" name="student_id" value="<?= (int)$s['id'] ?>">
                   <button type="submit" class="btn btn-secondary btn-xs" style="color:var(--success);border-color:var(--success);font-weight:600">Restore</button>
                 </form>
               <?php else: ?>
                 <button type="button" class="btn btn-secondary btn-xs" onclick='openAssignModal(<?= htmlspecialchars(json_encode($modal_payload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Assign / Edit</button>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Are you sure you want to archive this student? All historical logs, hours, and evaluations will be preserved.')">
+                <form method="POST" style="display:inline" onsubmit="return confirm('Are you sure you want to archive this student? All historical logs, hours, and evaluations will be preserved.')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="archive_student">
                   <input type="hidden" name="student_id" value="<?= (int)$s['id'] ?>">
                   <button type="submit" class="btn btn-warning btn-xs">Archive</button>
@@ -415,7 +415,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal-title">Student Assignment Details</div>
     <p class="modal-sub" id="assignModalSub"></p>
     <div id="assignDetailSummary" style="background:var(--bg);padding:10px 12px;border-radius:var(--radius);font-size:12px;margin-bottom:14px;display:none"></div>
-    <form method="POST" id="assignStudentForm" onsubmit="return validateAssignForm()">
+    <form method="POST" id="assignStudentForm" onsubmit="return validateAssignForm()"><?= csrf_field() ?>
       <input type="hidden" name="action" value="assign_student">
       <input type="hidden" name="student_id" id="assignStudentId">
 

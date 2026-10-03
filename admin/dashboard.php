@@ -124,13 +124,8 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div class="dashboard-side">
     <div class="card card-body">
-      <div class="section-title mb-3">System Health</div>
-      <?php $health = [['label' => 'Database', 'status' => 'ok'], ['label' => 'File Storage', 'status' => 'ok'], ['label' => 'Session Handling', 'status' => 'ok']]; foreach ($health as $h): ?>
-      <div class="health-row">
-        <span class="text-sm"><?= $h['label'] ?></span>
-        <span class="health-pill">Operational</span>
-      </div>
-      <?php endforeach; ?>
+      <div class="section-title mb-3">Administration</div>
+      <p class="text-sm text-muted">Review assignments and account status regularly. Keep a tested backup of your database and uploaded documents.</p>
     </div>
 
     <div class="card card-body">

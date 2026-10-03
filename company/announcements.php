@@ -143,12 +143,12 @@ require_once __DIR__ . '/../includes/header.php';
             <td><span class="text-xs font-bold text-600"><?= e($n['tag'] ?: 'General') ?></span></td>
             <td class="td-mono text-xs"><?= format_date($n['created_at']) ?></td>
             <td>
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_pin">
                 <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
                 <button type="submit" class="btn btn-secondary btn-sm"><?= $n['is_pinned'] ? 'Unpin' : 'Pin' ?></button>
               </form>
-              <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')">
+              <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
@@ -167,7 +167,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Post a Company Notice</div>
     <p class="modal-sub">Send a notice to your trainees, the OJT Coordinator, or both</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>

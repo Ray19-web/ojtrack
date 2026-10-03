@@ -21,13 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$rep) {
         $error = 'Report not found.';
+    } elseif ($action === 'approve_report' && (empty($rep['submitted_at']))) {
+        $error = 'A submission is required before approval.';
+    } elseif (in_array($action, ['reject', 'reject_report'], true) && $remarks === '') {
+        $error = 'Explain what the student needs to revise.';
     } elseif ($action === 'approve_report' && $report_id) {
-        query("UPDATE reports SET status='approved', remarks=?, reviewed_at=NOW() WHERE id=?", [$remarks, $report_id], 'si');
+        query("UPDATE reports SET status='approved', remarks=?, reviewed_at=NOW(), reviewed_by={$user['id']} WHERE id=?", [$remarks, $report_id], 'si');
         log_activity($user['id'], 'Report Approved', "Report ID: $report_id ({$rep['report_name']}) for {$rep['student_name']}");
         create_notification($rep['user_id'], "Your narrative report '{$rep['report_name']}' has been approved.", 'report', '/ojtrack/student/reports.php');
         $success = 'Report approved successfully.';
     } elseif ($action === 'reject_report' && $report_id) {
-        query("UPDATE reports SET status='rejected', remarks=?, reviewed_at=NOW() WHERE id=?", [$remarks, $report_id], 'si');
+        query("UPDATE reports SET status='rejected', remarks=?, reviewed_at=NOW(), reviewed_by={$user['id']} WHERE id=?", [$remarks, $report_id], 'si');
         log_activity($user['id'], 'Report Rejected', "Report ID: $report_id ({$rep['report_name']}) for {$rep['student_name']}");
         create_notification($rep['user_id'], "Your narrative report '{$rep['report_name']}' was returned with remarks: $remarks", 'report', '/ojtrack/student/reports.php');
         $success = 'Report returned with remarks.';
@@ -146,7 +150,7 @@ require_once __DIR__ . '/../includes/header.php';
           <td><?= status_badge($ev['status'] ?? 'completed') ?></td>
           <td class="td-mono text-xs"><?= $ev['evaluated_at'] ? date('M d, Y h:i A', strtotime($ev['evaluated_at'])) : '—' ?></td>
           <td>
-            <button class="btn btn-secondary btn-xs" onclick='viewEvaluation(<?= json_encode($ev) ?>)'>View Details</button>
+            <button class="btn btn-secondary btn-xs" onclick='viewEvaluation(<?= e(json_encode($ev, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) ?>)'>View Details</button>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -199,7 +203,7 @@ function viewEvaluation(ev) {
   if (ev.comments) {
     html += '<div class="card card-body" style="background:#fff;border:1px solid var(--border)">' +
       '<div class="text-xs font-bold text-muted mb-2">SUPERVISOR COMMENTS & FEEDBACK</div>' +
-      '<p style="font-size:13px;line-height:1.6;color:var(--text-800)">' + ev.comments.replace(/\n/g, '<br>') + '</p>' +
+      '<p style="font-size:13px;line-height:1.6;color:var(--text-800)">' + escapeHtml(ev.comments).replace(/\n/g, '<br>') + '</p>' +
     '</div>';
   }
 
@@ -241,7 +245,7 @@ function viewEvaluation(ev) {
           <td class="font-bold text-sm"><?= e($r['report_name']) ?></td>
           <td>
             <?php if (!empty($r['file_path'])): ?>
-              <a href="/ojtrack/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-xs" style="display:inline-flex;align-items:center;gap:4px">
+              <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-xs" style="display:inline-flex;align-items:center;gap:4px">
                 View Document
               </a>
             <?php else: ?>
@@ -275,7 +279,7 @@ function viewEvaluation(ev) {
   <div class="modal">
     <div class="modal-title" id="repModalTitle">Review Report</div>
     <p class="modal-sub" id="repModalSub"></p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="report_id" id="repId">
       <input type="hidden" name="action" id="repAction">
       <div class="form-group">

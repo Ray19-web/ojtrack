@@ -128,7 +128,7 @@ require_once __DIR__ . '/../includes/header.php';
             </td>
             <td>
               <?php if (!empty($r['file_path'])): ?>
-                <a href="/ojtrack/uploads/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View uploaded file">
+                <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View uploaded file">
                   View
                 </a>
               <?php else: ?>
@@ -164,7 +164,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal-title">Submit Requirement</div>
     <p class="modal-sub" id="uploadDocSub">Select document and attach file</p>
 
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="upload">
       <input type="hidden" name="req_id" id="uploadReqId" value="">
 

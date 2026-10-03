@@ -12,11 +12,28 @@ $success = ''; $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $draft_actions = ['save_form', 'add_section', 'rename_section', 'delete_section', 'add_criterion', 'delete_criterion', 'move_section_up', 'move_section_down', 'move_criterion_up', 'move_criterion_down', 'add_rule', 'delete_rule', 'reorder_sections', 'reorder_criteria', 'publish_form'];
+    $posted_form_id = (int)($_POST['form_id'] ?? 0);
+    if (in_array($action, $draft_actions, true) && !($action === 'save_form' && $posted_form_id === 0)) {
+        $owned = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$posted_form_id, $uid], 'ii');
+        if (!$owned) request_error(403, 'Form not found or not owned by you.');
+        $used = query_one("SELECT id FROM eval_submissions WHERE form_id=? LIMIT 1", [$posted_form_id], 'i');
+        if ($owned['status'] !== 'draft' || $used) request_error(409, 'Published or assigned forms are read-only. Create a new draft version.');
+        if (isset($_POST['section_id']) && !query_one("SELECT id FROM eval_sections WHERE id=? AND form_id=?", [(int)$_POST['section_id'], $posted_form_id], 'ii')) {
+            request_error(403, 'Section does not belong to this form.');
+        }
+        $criterion_ids = $action === 'reorder_criteria' ? ($_POST['order'] ?? []) : (isset($_POST['criterion_id']) ? [$_POST['criterion_id']] : []);
+        if (!is_array($criterion_ids)) request_error(422, 'Invalid criterion order.');
+        foreach ($criterion_ids as $criterion_id) {
+            if (!query_one("SELECT c.id FROM eval_criteria c JOIN eval_sections s ON s.id=c.section_id WHERE c.id=? AND s.form_id=?", [(int)$criterion_id, $posted_form_id], 'ii')) request_error(403, 'Criterion does not belong to this form.');
+        }
+    }
+
 
     if ($action === 'send_form') {
         $form_id = (int)($_POST['form_id'] ?? 0);
         $company_id = (int)($_POST['company_id'] ?? 0);
-        $form = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=? AND status='active'", [$form_id, $uid], 'ii');
+        $form = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=? AND status='active' AND score_mode='percentage'", [$form_id, $uid], 'ii');
 
         if (!$form || !$company_id) {
             $error = 'Select a form and a company.';
@@ -52,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = trim($_POST['title'] ?? '');
         $desc  = trim($_POST['description'] ?? '');
         $mode  = $_POST['score_mode'] ?? 'percentage';
-        if (!in_array($mode, ['percentage', 'raw', 'rating'], true)) $mode = 'percentage';
+        if ($mode !== 'percentage') request_error(422, 'Only percentage scoring is currently supported.');
 
         if (!$title) {
             $error = 'Title is required.';
@@ -62,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_id = $id;
                 $success = 'Form details updated.';
             } else {
-                $form_id = insert("INSERT INTO evaluation_forms (created_by, title, description, score_mode, status, version) VALUES (?,?,?,?,'draft',1)", [$uid, $title, $desc, $mode], 'issss');
+                $form_id = insert("INSERT INTO evaluation_forms (created_by, title, description, score_mode, status, version) VALUES (?,?,?,?,'draft',1)", [$uid, $title, $desc, $mode], 'isss');
                 header('Location: /ojtrack/coordinator/evaluation.php?build=' . $form_id . '&new=1');
                 exit;
             }
@@ -101,9 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['form_id'] ?? 0);
         $f = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$id, $uid], 'ii');
         if ($f) {
-            $new_status = $f['status'] === 'archived' ? 'draft' : 'archived';
+            $has_assignments = query_one("SELECT id FROM eval_submissions WHERE form_id=? LIMIT 1", [$id], 'i');
+            $new_status = $f['status'] === 'archived' ? ($has_assignments ? 'active' : 'draft') : 'archived';
             query("UPDATE evaluation_forms SET status=? WHERE id=?", [$new_status, $id], 'si');
-            $success = $new_status === 'archived' ? 'Form archived.' : 'Form restored to draft.';
+            $success = $new_status === 'archived' ? 'Form archived.' : 'Form restored as ' . $new_status . '.';
         }
     } elseif ($action === 'publish_form') {
         $id = (int)($_POST['form_id'] ?? 0);
@@ -118,9 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Create a new draft version to preserve existing submissions
         $id = (int)($_POST['form_id'] ?? 0);
         $f = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        if ($f && $f['status'] === 'active') {
-            $has = query_one("SELECT COUNT(*) AS c FROM eval_submissions WHERE form_id=?", [$id], 'i')['c'];
-            if ($has > 0) {
+        if ($f && in_array($f['status'], ['active', 'archived'], true)) {
+
                 $new_id = insert("INSERT INTO evaluation_forms (created_by, title, description, score_mode, status, version, parent_id) VALUES (?,?,?,?,'draft',?,?)",
                     [$uid, $f['title'], $f['description'], $f['score_mode'], $f['version'] + 1, $f['id']], 'isssii');
                 $sections = query("SELECT * FROM eval_sections WHERE form_id=? ORDER BY sort_order", [$f['id']], 'i') ?: [];
@@ -137,7 +154,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 header('Location: /ojtrack/coordinator/evaluation.php?build=' . $new_id);
                 exit;
-            }
         }
         header('Location: /ojtrack/coordinator/evaluation.php?build=' . $id);
         exit;
@@ -182,7 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 case 'add_rule':
                     $mn = (int)($_POST['score_min'] ?? 0); $mx = (int)($_POST['score_max'] ?? 0); $eq = (float)($_POST['equivalent'] ?? 0);
                     $dsc = trim($_POST['description'] ?? '');
-                    if ($mn <= $mx && $eq > 0) insert("INSERT INTO eval_rating_rules (form_id,score_min,score_max,equivalent,description) VALUES (?,?,?,?,?)", [$form_id, $mn, $mx, $eq, $dsc], 'iiids');
+                    if ($mn < 0 || $mx > 100 || $mn > $mx || $eq < 0 || $eq > 99.99 || query_one("SELECT id FROM eval_rating_rules WHERE form_id=? AND score_min<=? AND score_max>=?", [$form_id, $mx, $mn], 'iii')) request_error(422, 'Use a non-overlapping score range from 0 to 100 and a valid equivalent.');
+                    insert("INSERT INTO eval_rating_rules (form_id,score_min,score_max,equivalent,description) VALUES (?,?,?,?,?)", [$form_id, $mn, $mx, $eq, $dsc], 'iiids');
                     break;
                 case 'delete_rule':
                     query("DELETE FROM eval_rating_rules WHERE id=? AND form_id=?", [(int)$_POST['rule_id'], $form_id], 'ii');
@@ -205,6 +222,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $build_id = isset($_GET['build']) ? (int)$_GET['build'] : 0;
 $build = $build_id ? query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$build_id, $uid], 'ii') : null;
+
+if ($build && ($build['status'] !== 'draft' || query_one("SELECT id FROM eval_submissions WHERE form_id=? LIMIT 1", [$build_id], 'i'))) {
+    request_error(409, 'This form is read-only. Use Edit from the forms list to create a new version.');
+}
 
 $forms = query(
     "SELECT f.*, (SELECT COUNT(*) FROM eval_submissions s WHERE s.form_id=f.id) AS sub_count,
@@ -253,7 +274,7 @@ require_once __DIR__ . '/../includes/header.php';
     <span class="badge <?= $build['status']==='active'?'badge-approved':($build['status']==='archived'?'badge-rejected':'badge-pending') ?>"><?= ucfirst($build['status']) ?></span>
     <span class="text-xs text-muted">Version <?= (int)$build['version'] ?> · <?= ucfirst($build['score_mode']) ?> scoring</span>
     <span style="flex:1"></span>
-    <form method="POST" style="display:inline">
+    <form method="POST" style="display:inline"><?= csrf_field() ?>
       <input type="hidden" name="action" value="publish_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <button class="btn btn-primary btn-sm">Publish</button>
@@ -262,7 +283,7 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div class="card card-body mb-4">
     <div class="section-title mb-3">Form Details</div>
-    <form method="POST" class="form-row" style="align-items:end;gap:12px;flex-wrap:wrap">
+    <form method="POST" class="form-row" style="align-items:end;gap:12px;flex-wrap:wrap"><?= csrf_field() ?>
       <input type="hidden" name="action" value="save_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <div class="form-group" style="flex:2">
@@ -277,7 +298,7 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="form-label">Scoring Mode</label>
         <select name="score_mode" class="form-control">
           <option value="percentage" <?= $build['score_mode']==='percentage'?'selected':'' ?>>Percentage (0–100)</option>
-          <option value="raw" <?= $build['score_mode']==='raw'?'selected':'' ?>>Raw Score</option>
+
         </select>
       </div>
       <button type="submit" class="btn btn-secondary btn-sm" style="margin-bottom:0">Save</button>
@@ -295,7 +316,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="flex-between mb-2" style="align-items:center">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="drag-handle" style="cursor:grab;color:var(--text-400)">⠿</span>
-            <form method="POST" style="display:flex;gap:6px">
+            <form method="POST" style="display:flex;gap:6px"><?= csrf_field() ?>
               <input type="hidden" name="action" value="rename_section">
               <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
               <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -303,7 +324,7 @@ require_once __DIR__ . '/../includes/header.php';
               <button class="btn btn-ghost btn-sm">Rename</button>
             </form>
           </div>
-          <form method="POST" onsubmit="return confirm('Delete this section and its criteria?')">
+          <form method="POST" onsubmit="return confirm('Delete this section and its criteria?')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_section">
             <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
             <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -316,7 +337,7 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="eval-criterion" draggable="true" data-id="<?= $cr['id'] ?>" style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px dashed var(--border-light)">
             <span class="drag-handle" style="cursor:grab;color:var(--text-400)">⠿</span>
             <span class="text-sm" style="flex:1"><?= e($cr['label']) ?></span>
-            <form method="POST" onsubmit="return confirm('Delete this criterion?')">
+            <form method="POST" onsubmit="return confirm('Delete this criterion?')"><?= csrf_field() ?>
               <input type="hidden" name="action" value="delete_criterion">
               <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
               <input type="hidden" name="criterion_id" value="<?= $cr['id'] ?>">
@@ -326,7 +347,7 @@ require_once __DIR__ . '/../includes/header.php';
           <?php endforeach; ?>
         </div>
 
-        <form method="POST" style="display:flex;gap:6px;margin-top:8px;padding-left:26px">
+        <form method="POST" style="display:flex;gap:6px;margin-top:8px;padding-left:26px"><?= csrf_field() ?>
           <input type="hidden" name="action" value="add_criterion">
           <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
           <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -337,7 +358,7 @@ require_once __DIR__ . '/../includes/header.php';
       <?php endforeach; ?>
     </div>
 
-    <form method="POST" style="display:flex;gap:6px">
+    <form method="POST" style="display:flex;gap:6px"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_section">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <input type="text" name="section_title" class="form-control" style="width:300px" placeholder="+ Add Section (e.g. Attendance and Punctuality)" required>
@@ -359,7 +380,7 @@ require_once __DIR__ . '/../includes/header.php';
               <td><strong><?= e($r['equivalent']) ?></strong></td>
               <td class="text-sm text-muted"><?= e($r['description']) ?></td>
               <td>
-                <form method="POST" onsubmit="return confirm('Delete this rule?')">
+                <form method="POST" onsubmit="return confirm('Delete this rule?')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="delete_rule">
                   <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
                   <input type="hidden" name="rule_id" value="<?= $r['id'] ?>">
@@ -372,7 +393,7 @@ require_once __DIR__ . '/../includes/header.php';
         </tbody>
       </table>
     </div>
-    <form method="POST" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+    <form method="POST" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_rule">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <input type="number" name="score_min" class="form-control" style="width:90px" placeholder="Min" required>
@@ -385,7 +406,7 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div style="display:flex;gap:8px">
     <button class="btn btn-secondary" onclick="openModal('previewModal')">Preview Form</button>
-    <form method="POST" style="display:inline" onsubmit="return confirm('Publish this form and set it Active?')">
+    <form method="POST" style="display:inline" onsubmit="return confirm('Publish this form and set it Active?')"><?= csrf_field() ?>
       <input type="hidden" name="action" value="publish_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <button class="btn btn-primary">Publish Form</button>
@@ -433,7 +454,7 @@ require_once __DIR__ . '/../includes/header.php';
             const fd = new FormData();
             fd.append('action', action); fd.append('form_id', formId);
             ids.forEach(id => fd.append('order[]', id));
-            fetch('', { method: 'POST', body: fd }).then(() => location.reload());
+            fetch('', { method: 'POST', headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content}, body: fd }).then(() => location.reload());
           }
         });
       });
@@ -460,17 +481,17 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="text-xs text-muted mb-3">Version <?= (int)$f['version'] ?> · <?= ucfirst($f['score_mode']) ?> · <?= (int)$f['done_count'] ?>/<?= (int)$f['sub_count'] ?> submitted</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <?php if ($f['status'] === 'active'): ?>
-            <form method="POST" style="display:inline"><input type="hidden" name="action" value="edit_active"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-secondary btn-sm">Edit (v<?= (int)$f['version'] + 1 ?>)</button></form>
+            <form method="POST" style="display:inline"><?= csrf_field() ?><input type="hidden" name="action" value="edit_active"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-secondary btn-sm">Edit (v<?= (int)$f['version'] + 1 ?>)</button></form>
           <?php else: ?>
             <a href="?build=<?= $f['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
           <?php endif; ?>
-          <form method="POST" style="display:inline"><input type="hidden" name="action" value="duplicate_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-ghost btn-sm">Duplicate</button></form>
-          <form method="POST" style="display:inline" onsubmit="return confirm('<?= $f['status']==='archived'?'Restore this form?':'Archive this form? Companies can no longer fill it.' ?>')">
+          <form method="POST" style="display:inline"><?= csrf_field() ?><input type="hidden" name="action" value="duplicate_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-ghost btn-sm">Duplicate</button></form>
+          <form method="POST" style="display:inline" onsubmit="return confirm('<?= $f['status']==='archived'?'Restore this form?':'Archive this form? This stops new assignments; existing requests remain available.' ?>')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="archive_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>">
             <button class="btn btn-ghost btn-sm"><?= $f['status']==='archived'?'Restore':'Archive' ?></button>
           </form>
           <?php if ($f['sub_count'] == 0): ?>
-          <form method="POST" style="display:inline" onsubmit="return confirm('Permanently delete this form?')">
+          <form method="POST" style="display:inline" onsubmit="return confirm('Permanently delete this form?')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>">
             <button class="btn btn-danger btn-sm">Delete</button>
           </form>
@@ -487,7 +508,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Create Evaluation Form</div>
     <p class="modal-sub">Start with the basics, then build sections and criteria</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="save_form">
       <div class="form-group">
         <label class="form-label">Form Title <span class="text-danger">*</span></label>
@@ -517,7 +538,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Send Form to Company</div>
     <p class="modal-sub">Select an active form and a company related to your students</p>
-    <form method="POST" action="">
+    <form method="POST" action=""><?= csrf_field() ?>
       <input type="hidden" name="action" value="send_form">
       <div class="form-group">
         <label class="form-label">Evaluation Form</label>

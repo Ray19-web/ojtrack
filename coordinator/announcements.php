@@ -10,7 +10,7 @@ $coord = query_one("SELECT * FROM coordinators WHERE user_id=?", [$uid], 'i');
 $success = '';
 $error   = '';
 
-// Department notices only — notify students under this coordinator (no general/campus-wide messaging)
+// Announcements only — notify students under this coordinator (no general/campus-wide messaging)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
 
             log_activity($uid, 'Department Notice Posted', $title);
-            $success = 'Department notice published. Students under your supervision were notified.';
+            $success = 'Announcement published. Students under your supervision were notified.';
 
             $students = query(
                 "SELECT s.user_id FROM students s WHERE s.coordinator_id=? AND s.is_archived=0",
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'i'
             ) ?: [];
             foreach ($students as $st) {
-                create_notification($st['user_id'], "Department notice: $title", 'info', '/ojtrack/student/announcements.php');
+                create_notification($st['user_id'], "Announcement: $title", 'info', '/ojtrack/student/announcements.php');
             }
         }
     } elseif ($action === 'edit') {
@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             query(
                 "UPDATE announcements SET title=?, body=?, tag=?, target_role='student', is_pinned=?, expires_at=?, attachment_file=?, attachment_name=? WHERE id=? AND created_by=?",
                 [$title, $body, $tag, $pinned, $expires, $attachment_file, $attachment_name, $id, $uid],
-                'sssisissi'
+                'sssisssii'
             );
             log_activity($uid, 'Department Notice Updated', $title);
             $success = 'Notice updated successfully.';
@@ -149,7 +149,7 @@ $announcements = query(
     "SELECT a.*, u.name AS author_name, u.role AS author_role
      FROM announcements a
      LEFT JOIN users u ON u.id=a.created_by
-     WHERE a.created_by=?
+     WHERE (a.created_by=? OR (" . announcement_scope($user) . "))
      ORDER BY a.is_pinned DESC, a.created_at DESC",
     [$uid],
     'i'
@@ -162,13 +162,13 @@ $dept_student_count = (int)(query_one(
     'i'
 )['c'] ?? 0);
 
-$page_title = 'Department Notices';
+$page_title = 'Announcements';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Department Notices</div>
+    <div class="page-title">Announcements</div>
     <div class="page-sub">Notify only students under your department (<?= e($coord['department'] ?? 'your program') ?>) · <?= $dept_student_count ?> recipients</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('composeModal')">+ Post Notice</button>
@@ -197,6 +197,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach ($announcements as $a):
           $ann_payload = [
               'id' => (int)$a['id'],
+              'editable' => (int)$a['created_by'] === $uid,
               'title' => $a['title'] ?? '',
               'body' => $a['body'] ?? '',
               'tag' => $a['tag'] ?? 'Department',
@@ -207,7 +208,7 @@ require_once __DIR__ . '/../includes/header.php';
               'attachment_name' => $a['attachment_name'] ?? '',
           ];
         ?>
-          <tr class="row-clickable" onclick='openViewEditAnn(<?= htmlspecialchars(json_encode($ann_payload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)' title="Click to view &amp; edit">
+          <tr class="row-clickable" onclick='openViewEditAnn(<?= htmlspecialchars(json_encode($ann_payload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)' title="View announcement">
             <td style="max-width:360px">
               <div class="flex-items-center gap-2 mb-1">
                 <?php if ($a['is_pinned']): ?>
@@ -230,23 +231,23 @@ require_once __DIR__ . '/../includes/header.php';
               <?php endif; ?>
             </td>
             <td onclick="stopRowClick(event)">
-              <div class="flex-items-center gap-1">
-                <form method="POST" style="display:inline">
+              <?php if ((int)$a['created_by'] === $uid): ?><div class="flex-items-center gap-1">
+                <form method="POST" style="display:inline"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="toggle_pin">
                   <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
                   <button type="submit" class="btn btn-secondary btn-sm"><?= $a['is_pinned'] ? 'Unpin' : 'Pin' ?></button>
                 </form>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')">
+                <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
                   <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                 </form>
-              </div>
+              </div><?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
         <?php if (empty($announcements)): ?>
-          <tr><td colspan="5" class="text-center text-muted py-6">No department notices yet. Post one to notify your students.</td></tr>
+          <tr><td colspan="5" class="text-center text-muted py-6">No announcements yet. Post one to notify your students.</td></tr>
         <?php endif; ?>
       </tbody>
     </table>
@@ -258,7 +259,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Post Department Notice</div>
     <p class="modal-sub">This notifies only students assigned to you — not campus-wide</p>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -313,7 +314,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">View &amp; Edit Notice</div>
     <p class="modal-sub" id="viewEditAnnMeta"></p>
-    <form method="POST" id="viewEditAnnForm" enctype="multipart/form-data">
+    <form method="POST" id="viewEditAnnForm" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit">
       <input type="hidden" name="ann_id" id="editAnnId">
       <div class="form-group">
@@ -390,6 +391,7 @@ function openViewEditAnn(a) {
   } else {
     fw.style.display = 'none';
   }
+  document.querySelectorAll('#viewEditAnnModal input:not([type=hidden]), #viewEditAnnModal textarea, #viewEditAnnModal select, #viewEditAnnModal button[type=submit]').forEach(el => el.disabled = !a.editable);
   openModal('viewEditAnnModal');
 }
 </script>

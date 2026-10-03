@@ -283,7 +283,7 @@ require_once __DIR__ . '/../includes/header.php';
               <?= format_date($a['created_at']) ?>
             </td>
             <td onclick="stopRowClick(event)">
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_pin">
                 <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
                 <button type="submit" class="btn btn-secondary btn-sm" title="<?= $a['is_pinned'] ? 'Unpin' : 'Pin to top' ?>">
@@ -306,7 +306,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Post New Announcement</div>
     <p class="modal-sub">Create an official announcement for students, coordinators, or company partners</p>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -369,7 +369,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Announcement Details</div>
     <p class="modal-sub" id="viewEditAnnMeta"></p>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit">
       <input type="hidden" name="ann_id" id="editAnnId">
       <div class="form-group">

@@ -1,13 +1,17 @@
 <?php
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'ojtrack');
+date_default_timezone_set(getenv('OJTRACK_TIMEZONE') ?: 'Asia/Manila');
+define('DB_HOST', getenv('OJTRACK_DB_HOST') ?: 'localhost');
+define('DB_USER', getenv('OJTRACK_DB_USER') ?: 'root');
+define('DB_PASS', getenv('OJTRACK_DB_PASS') ?: '');
+define('DB_NAME', getenv('OJTRACK_DB_NAME') ?: 'ojtrack');
 
-$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-
-if ($conn->connect_error) {
-    die(json_encode(['error' => 'Database connection failed: ' . $conn->connect_error]));
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+try {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+} catch (mysqli_sql_exception $error) {
+    error_log('OJTrack database connection failed.');
+    http_response_code(503);
+    exit('OJTrack is temporarily unavailable. Please try again later.');
 }
 
 $conn->set_charset('utf8mb4');
@@ -76,10 +80,11 @@ function format_time($time) {
 }
 
 function create_notification($user_id, $message, $notif_type = 'info', $link = null) {
+    if (!in_array($notif_type, ['info', 'warning', 'error', 'success'], true)) $notif_type = 'info';
     return insert(
         "INSERT INTO notifications (user_id, message, notif_type, link, is_read) VALUES (?, ?, ?, ?, 0)",
         [$user_id, $message, $notif_type, $link],
-        $link !== null ? 'isss' : 'iss'
+        'isss'
     );
 }
 

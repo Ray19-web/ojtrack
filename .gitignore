@@ -1,0 +1,6 @@
+# Local secrets, databases and runtime uploads
+.env
+*.log
+uploads/**/*
+!uploads/**/
+!uploads/**/.htaccess

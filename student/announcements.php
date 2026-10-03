@@ -19,14 +19,8 @@ $tag_filter = trim($_GET['tag'] ?? '');
 $search     = trim($_GET['q'] ?? '');
 
 // Campus/admin notices + notices from THIS student's coordinator only
-$where = "a.is_active=1 AND (a.expires_at IS NULL OR a.expires_at >= CURDATE())
-          AND a.target_role IN ('all','student')
-          AND (
-            a.created_by=?
-            OR EXISTS (SELECT 1 FROM users au WHERE au.id=a.created_by AND au.role='admin')
-          )";
-$params = [$coord_uid];
-$types  = 'i';
+$where = announcement_scope($user);
+$params = []; $types = '';
 
 if ($tag_filter) {
     $where .= " AND a.tag=?";
@@ -50,15 +44,7 @@ $announcements = query(
     $types
 ) ?: [];
 
-$all_tags = query(
-    "SELECT DISTINCT a.tag FROM announcements a
-     LEFT JOIN users u ON u.id=a.created_by
-     WHERE a.target_role IN ('all','student') AND a.is_active=1
-       AND a.tag IS NOT NULL AND a.tag != ''
-       AND (a.created_by=? OR u.role='admin')",
-    [$coord_uid],
-    'i'
-) ?: [];
+$all_tags = query("SELECT DISTINCT a.tag FROM announcements a WHERE " . announcement_scope($user) . " AND a.tag IS NOT NULL AND a.tag!=''") ?: [];
 
 $page_title = 'Announcements';
 require_once __DIR__ . '/../includes/header.php';

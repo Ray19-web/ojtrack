@@ -73,7 +73,7 @@
         <?php endif; ?>
         <div class="text-xs text-muted"><?= status_badge($profile_user['status'] ?? 'active') ?></div>
       </div>
-      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" enctype="multipart/form-data" style="flex:1">
+      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" enctype="multipart/form-data" style="flex:1"><?= csrf_field() ?>
         <input type="hidden" name="action" value="upload_avatar">
         <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
         <label class="form-label">Profile Picture</label>
@@ -83,7 +83,7 @@
       </form>
     </div>
 
-    <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" class="mb-4">
+    <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" class="mb-4"><?= csrf_field() ?>
       <input type="hidden" name="action" value="update_profile">
       <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
       <div class="form-row">
@@ -136,7 +136,7 @@
 
     <div style="border-top:1px solid var(--border-light);padding-top:14px">
       <div class="section-title mb-2" style="font-size:14px">Change Password</div>
-      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php">
+      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php"><?= csrf_field() ?>
         <input type="hidden" name="action" value="change_password">
         <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
         <div class="form-group">
@@ -170,6 +170,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php endif; ?>
 
-<script src="/ojtrack/assets/js/main.js?v=20261001f"></script>
+<script src="/ojtrack/assets/js/main.js?v=20261003-phase1"></script>
 </body>
 </html>

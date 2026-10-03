@@ -467,6 +467,7 @@ $current_step =
 <html lang="en">
 
 <head>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 
     <meta charset="UTF-8">
 
@@ -1516,7 +1517,7 @@ $current_step =
                 <form
                     method="POST"
                     enctype="multipart/form-data"
-                >
+                ><?= csrf_field() ?>
 
                     <input
                         type="hidden"
@@ -1650,7 +1651,7 @@ $current_step =
                                     <div style="margin-top:8px">
 
                                         <a
-                                            href="/ojtrack/uploads/<?= e($r['file_path']) ?>"
+                                            href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>"
                                             target="_blank"
                                             style="
                                                 font-size:11px;

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 define('OJTRACK', true);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -9,70 +9,30 @@ $company = query_one("SELECT * FROM companies WHERE user_id=?", [$user['id']], '
 
 $success = ''; $error = '';
 
-// Submit a coordinator-sent evaluation form
+require_once __DIR__ . '/../config/evaluations.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_submission') {
-    $sub_id   = (int)($_POST['submission_id'] ?? 0);
-    $comments = trim($_POST['comments'] ?? '');
-
-    $sub = query_one(
-        "SELECT s.*, f.title AS form_title, f.score_mode FROM eval_submissions s
-         JOIN evaluation_forms f ON f.id=s.form_id
-         WHERE s.id=? AND s.company_id=? AND s.status='pending'",
-        [$sub_id, $company['id']], 'ii');
-
-    if (!$sub) {
-        $error = 'Evaluation form not found or already submitted.';
-    } else {
-        $sections = query("SELECT * FROM eval_sections WHERE form_id=? ORDER BY sort_order", [$sub['form_id']], 'i') ?: [];
-        $rules    = query("SELECT * FROM eval_rating_rules WHERE form_id=?", [$sub['form_id']], 'i') ?: [];
-        $total = 0; $count = 0;
-
-        foreach ($sections as $sec) {
-            $crits = query("SELECT * FROM eval_criteria WHERE section_id=? ORDER BY sort_order", [$sec['id']], 'i') ?: [];
-            foreach ($crits as $ci => $cr) {
-                $val = max(0, min(100, (float)($_POST['criterion_' . $cr['id']] ?? 0)));
-                $equiv = $val;
-                foreach ($rules as $r) {
-                    if ($val >= $r['score_min'] && $val <= $r['score_max']) { $equiv = (float)$r['equivalent']; break; }
-                }
-                insert("INSERT INTO eval_answers (submission_id, section_title, criterion_label, score, equivalent) VALUES (?,?,?,?,?)",
-                    [$sub_id, $sec['title'], $cr['label'], $val, $equiv], 'isssd');
-                $total += $val; $count++;
-            }
-        }
-        $overall = $count > 0 ? round($total / $count, 2) : 0;
-        $overall_eq = null;
-        foreach ($rules as $r) {
-            if ($overall >= $r['score_min'] && $overall <= $r['score_max']) { $overall_eq = (float)$r['equivalent']; break; }
-        }
-
-        query("UPDATE eval_submissions SET status='completed', overall_score=?, overall_equivalent=?, comments=?, submitted_at=NOW() WHERE id=?",
-            [$overall, $overall_eq, $comments, $sub_id], 'ddsi');
-
-        $stu = query_one("SELECT u.name, u.id AS uid, co.user_id AS coord_user_id FROM students s JOIN users u ON u.id=s.user_id LEFT JOIN coordinators co ON co.id=s.coordinator_id WHERE s.id=?", [$sub['student_id']], 'i');
-        if ($stu) {
-            create_notification($stu['uid'], "Your evaluation form was submitted by {$company['company_name']}.", 'evaluation', '/ojtrack/student/evaluation.php');
-            if (!empty($stu['coord_user_id'])) {
-                create_notification($stu['coord_user_id'], "Evaluation \"{$sub['form_title']}\" submitted by {$company['company_name']} for {$stu['name']} (score {$overall}/100).", 'evaluation', '/ojtrack/coordinator/evaluation.php');
-            }
-        }
-        log_activity($user['id'], 'Evaluation Form Submitted', "Submission #$sub_id, Score: $overall");
-        $success = "Evaluation submitted successfully with an overall score of " . number_format($overall, 1) . '/100.';
-        header('Location: /ojtrack/company/evaluation.php?done=' . $sub_id);
+    try {
+        submit_evaluation((int)$company['id'], (int)($_POST['submission_id'] ?? 0), $_POST, trim($_POST['comments'] ?? ''), (int)$user['id']);
+        header('Location: /ojtrack/company/evaluation.php?done=1');
         exit;
+    } catch (DomainException $exception) {
+        $error = $exception->getMessage();
+    } catch (Throwable $exception) {
+        error_log('OJTrack evaluation submission failed: ' . $exception->getMessage());
+        $error = 'Evaluation was not saved. Please try again.';
     }
 }
 
 $students = query("SELECT s.*, u.name, s.student_id_no FROM students s JOIN users u ON u.id=s.user_id WHERE s.company_id=? ORDER BY u.name", [$company['id']], 'i');
 $sel_id   = isset($_GET['student']) ? (int)$_GET['student'] : 0;
 
-$page_title = 'Trainee Evaluation';
+$page_title = 'Evaluations';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Trainee Performance Evaluation</div>
+    <div class="page-title">Evaluations</div>
     <div class="page-sub">Evaluate trainee performance across key competency dimensions</div>
   </div>
   <?php if (!empty($students)): ?>
@@ -143,7 +103,7 @@ if ($sub):
     <?php endforeach; ?>
     <?php if ($sub['comments']): ?><div class="text-sm mt-3"><strong>Comments:</strong> <?= nl2br(e($sub['comments'])) ?></div><?php endif; ?>
   <?php else: ?>
-  <form method="POST">
+  <form method="POST"><?= csrf_field() ?>
     <input type="hidden" name="action" value="submit_submission">
     <input type="hidden" name="submission_id" value="<?= $sub['id'] ?>">
     <?php foreach ($sub_sections as $sec): $crits = query("SELECT * FROM eval_criteria WHERE section_id=? ORDER BY sort_order", [$sec['id']], 'i') ?: []; ?>
@@ -153,15 +113,15 @@ if ($sub):
       <div style="background:var(--bg);padding:14px 16px;border-radius:var(--radius)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <label class="text-sm font-bold"><?= e($cr['label']) ?></label>
-          <span class="font-mono font-bold text-primary text-base" id="sc_<?= $cr['id'] ?>">85</span>
+          <span class="text-xs text-muted">0–100</span>
         </div>
-        <input type="range" name="criterion_<?= $cr['id'] ?>" min="0" max="100" value="85" style="width:100%" oninput="document.getElementById('sc_<?= $cr['id'] ?>').textContent=this.value">
+        <input type="number" class="form-control" name="criterion_<?= $cr['id'] ?>" min="0" max="100" step="1" required aria-label="<?= e($cr['label']) ?> score" value="<?= e($_POST['criterion_' . $cr['id']] ?? '') ?>">
       </div>
       <?php endforeach; ?>
     </div>
     <?php endforeach; ?>
     <?php if ($sub_rules): ?>
-    <div class="text-xs text-muted mb-3">Rating guide: <?= implode(' · ', array_map(fn($r) => $r['score_min'] . '–' . $r['score_max'] . ' = ' . $r['equivalent'], $sub_rules)) ?></div>
+    <div class="text-xs text-muted mb-3">Overall band lookup rounds the average to the nearest whole number. Rating guide: <?= implode(' · ', array_map(fn($r) => $r['score_min'] . '–' . $r['score_max'] . ' = ' . $r['equivalent'], $sub_rules)) ?></div>
     <?php endif; ?>
     <div class="form-group mb-4">
       <label class="form-label font-bold">Comments &amp; Feedback</label>

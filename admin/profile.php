@@ -7,10 +7,7 @@ require_login(['admin']);
 $user = current_user();
 $redirect = $_POST['redirect'] ?? ($_SERVER['HTTP_REFERER'] ?? '/ojtrack/admin/dashboard.php');
 
-// Guard: only allow redirects back into this app
-if (strpos($redirect, '/ojtrack/') === false) {
-    $redirect = '/ojtrack/admin/dashboard.php';
-}
+$redirect = safe_app_redirect($redirect, '/ojtrack/admin/dashboard.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     // Page removed — open modal via dashboard instead
@@ -86,7 +83,7 @@ if ($action === 'update_profile') {
     $confirm = $_POST['confirm_password'] ?? '';
     $db_user = query_one("SELECT password FROM users WHERE id=?", [$user['id']], 'i');
 
-    if (!password_verify($current, $db_user['password']) && !in_array($current, ['admin123', 'password'], true)) {
+    if (!password_verify($current, $db_user['password'])) {
         $flash_err = 'Current password is incorrect.';
     } elseif (strlen($new) < 6) {
         $flash_err = 'New password must be at least 6 characters.';
@@ -94,6 +91,8 @@ if ($action === 'update_profile') {
         $flash_err = 'New passwords do not match.';
     } else {
         query("UPDATE users SET password=? WHERE id=?", [password_hash($new, PASSWORD_DEFAULT), $user['id']], 'si');
+        $_SESSION['auth_fingerprint'] = hash('sha256', query_one("SELECT password FROM users WHERE id=?", [$user['id']], 'i')['password']);
+        session_regenerate_id(true);
         log_activity($user['id'], 'Password Changed', '');
         $flash_ok = 'Administrator password updated.';
     }

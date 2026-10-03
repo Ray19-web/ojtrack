@@ -5,17 +5,14 @@ require_once __DIR__ . '/../config/auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!is_logged_in()) {
-    echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+require_login([], true);
 
 $user = current_user();
 $uid  = (int)$user['id'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $notifications = query(
-        "SELECT id, message, notif_type, is_read, created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
+        "SELECT id, message, notif_type, link, is_read, created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
         [$uid],
         'i'
     ) ?: [];
@@ -47,8 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'mark_read') {
         if ($notif_id > 0) {
             query("UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?", [$notif_id, $uid], 'ii');
-        } else {
+        } elseif (($_POST['all'] ?? '') === '1') {
             query("UPDATE notifications SET is_read=1 WHERE user_id=?", [$uid], 'i');
+        } else {
+            request_error(422, 'Specify a notification ID or an explicit mark-all action.', true);
         }
         echo json_encode(['ok' => true]);
         exit;

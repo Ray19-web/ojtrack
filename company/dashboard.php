@@ -11,7 +11,7 @@ $stats = [
     'trainees'    => query_one("SELECT COUNT(*) AS c FROM students WHERE company_id=?", [$company['id']], 'i')['c'],
     'active'      => query_one("SELECT COUNT(*) AS c FROM students WHERE company_id=? AND ojt_status='ongoing'", [$company['id']], 'i')['c'],
     'completed'   => query_one("SELECT COUNT(*) AS c FROM students WHERE company_id=? AND ojt_status='completed'", [$company['id']], 'i')['c'],
-    'pending_eval'=> query_one("SELECT COUNT(*) AS c FROM evaluations e JOIN students s ON s.id=e.student_id WHERE s.company_id=? AND e.status='pending'", [$company['id']], 'i')['c'],
+    'pending_eval'=> query_one("SELECT COUNT(*) AS c FROM eval_submissions e JOIN students s ON s.id=e.student_id WHERE s.company_id=? AND e.status='pending'", [$company['id']], 'i')['c'],
 ];
 
 $trainees = query("SELECT s.*, u.name, u.email FROM students s JOIN users u ON u.id=s.user_id WHERE s.company_id=? ORDER BY u.name", [$company['id']], 'i');

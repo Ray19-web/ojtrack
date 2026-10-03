@@ -222,7 +222,7 @@ require_once __DIR__ . '/../includes/header.php';
               <td><?= status_badge($r['status']) ?></td>
               <td>
                 <?php if (!empty($r['file_path'])): ?>
-                  <a href="/ojtrack/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-xs">View File</a>
+                  <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-xs">View File</a>
                 <?php else: ?>
                   <span class="text-xs text-muted">No file</span>
                 <?php endif; ?>
@@ -245,7 +245,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Bulk Time In / Time Out</div>
     <p class="modal-sub">Records the current time for the selected trainees — <span id="bulkTimeLive"></span></p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="bulk_time">
       <input type="hidden" name="client_time" id="clientTime" value="">
       <div class="form-group">

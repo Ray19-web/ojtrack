@@ -17,6 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
     $thread_type = in_array($_POST['thread_type'] ?? '', ['group', 'direct']) ? $_POST['thread_type'] : 'group';
     $desc        = trim($_POST['description'] ?? '');
     $member_ids  = $_POST['member_ids'] ?? [];
+    if (!is_array($member_ids)) request_error(422, 'Invalid participant list.');
+    $member_ids = array_values(array_unique(array_map('intval', $member_ids)));
+    foreach ($member_ids as $mid) if (!message_recipient_allowed($user, $mid)) request_error(403, 'A selected person is not an available contact.');
+    if ($thread_type === 'direct' && count($member_ids) !== 1) request_error(422, 'Direct conversations require exactly one other person.');
+
     $initial_msg = trim($_POST['initial_message'] ?? '');
 
     if (!$title) {
@@ -35,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
             $mid = (int)$mid;
             if ($mid > 0) {
                 insert("INSERT IGNORE INTO thread_members (thread_id, user_id) VALUES (?, ?)", [$thread_id, $mid], 'ii');
-                create_notification($mid, "You were added to conversation: $title", 'info', '/ojtrack/coordinator/messages.php');
+                $recipient = query_one("SELECT role FROM users WHERE id=?", [$mid], 'i');
+                create_notification($mid, "You were added to conversation: $title", 'info', '/ojtrack/' . $recipient['role'] . '/messages.php?thread=' . $thread_id);
             }
         }
 
@@ -113,7 +119,7 @@ $available_companies = query(
     "SELECT u.id, co.company_name, u.name AS supervisor_name
      FROM companies co
      JOIN users u ON u.id=co.user_id
-     ORDER BY co.company_name ASC"
+     WHERE EXISTS (SELECT 1 FROM students s WHERE s.company_id=co.id AND s.coordinator_id=" . (int)$cid . ") ORDER BY co.company_name ASC"
 ) ?: [];
 
 $page_title = 'Messages';
@@ -237,7 +243,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Create Conversation</div>
     <p class="modal-sub">Start a discussion with students or company representatives</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="create_thread">
       <div class="form-row">
         <div class="form-group">
@@ -322,7 +328,7 @@ async function handleSendChat(e) {
   try {
     const res = await fetch('/ojtrack/api/messages.php', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content},
       body: 'thread_id=<?= $active_id ?>&message=' + encodeURIComponent(msg)
     });
     const data = await res.json();
