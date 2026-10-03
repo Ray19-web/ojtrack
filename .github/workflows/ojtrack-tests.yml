@@ -1,0 +1,27 @@
+name: OJTrack regression checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install test runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y php-cli php-mysql php-gd php-zip mariadb-server
+      - name: Run isolated synthetic checks
+        env:
+          OJTRACK_TEST_CONFIRM: synthetic
+        run: bash tests/run-ci.sh
