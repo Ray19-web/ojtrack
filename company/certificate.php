@@ -41,12 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
     if (!empty($_FILES['logo']['name']) && ($_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
         $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
-        if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'], true)) {
-            $error = 'Logo must be JPG, PNG, GIF, WEBP, or SVG.';
+        if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+            $error = 'Logo must be JPG, PNG, GIF, or WEBP.';
         } else {
             $dest_dir = __DIR__ . '/../uploads/cert_logos/';
             if (!is_dir($dest_dir)) { mkdir($dest_dir, 0755, true); }
-            $filename = 'certlogo_' . $company['id'] . '_' . time() . '.' . $ext;
+            $filename = 'certlogo_' . $company['id'] . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
             if (move_uploaded_file($_FILES['logo']['tmp_name'], $dest_dir . $filename)) {
                 $t['logo'] = 'cert_logos/' . $filename;
             } else {
@@ -130,7 +130,7 @@ require_once __DIR__ . '/../includes/header.php';
           <?php if (!empty($template['logo'])): ?>
             <img src="/ojtrack/uploads/<?= e($template['logo']) ?>" alt="Logo" style="height:48px;margin-bottom:6px;display:block">
           <?php endif; ?>
-          <input type="file" name="logo" class="form-control" accept="image/*">
+          <input type="file" name="logo" class="form-control" accept=".jpg,.jpeg,.png,.gif,.webp">
         </div>
         <div class="form-group">
           <label class="form-label">Organization Name</label>

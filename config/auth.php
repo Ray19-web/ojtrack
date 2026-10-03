@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/communications.php';
+require_once __DIR__ . '/uploads.php';
 
 function is_logged_in() {
     if (empty($_SESSION['user_id']) || empty($_SESSION['auth_fingerprint'])) return false;
@@ -44,6 +45,7 @@ function require_login($allowed_roles = [], $json = false) {
             request_error(403, 'Your role profile is missing. Contact your administrator.', $json);
         }
     }
+    validate_request_uploads($json);
 }
 
 function current_user() {

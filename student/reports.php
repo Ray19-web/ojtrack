@@ -47,12 +47,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_report') {
-    $rep_id = (int)($_POST['rep_id'] ?: ($_POST['report_type'] ?? 0));
+    $rep_id = (int)(($_POST['rep_id'] ?? 0) ?: ($_POST['report_type'] ?? 0));
     $notes  = trim($_POST['notes'] ?? '');
 
     if (!$rep_id) {
         $error = 'Please select a report type to submit.';
     } else {
+        $assignment = query_one("SELECT * FROM reports WHERE id=? AND student_id=?", [$rep_id, $sid], 'ii');
+        if (!$assignment) request_error(404, 'Submission assignment not found.');
+        if ($assignment['status'] === 'approved') request_error(409, 'Approved submissions cannot be replaced.');
+        if (($_FILES['report_file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE && empty($assignment['file_path'])) {
+            request_error(422, 'Choose a document before submitting this assignment.');
+        }
         $file_path = null;
         if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] === UPLOAD_ERR_OK) {
             $orig_name = $_FILES['report_file']['name'];
@@ -63,9 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
                 $error = 'Invalid format. Please submit PDF or Word document (.doc, .docx).';
             } else {
                 $dest_dir = __DIR__ . '/../uploads/reports/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0777, true);
+                if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
 
-                $new_filename = 'report_' . $sid . '_' . $rep_id . '_' . time() . '.' . $ext;
+                $new_filename = 'report_' . $sid . '_' . $rep_id . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
                 if (move_uploaded_file($_FILES['report_file']['tmp_name'], $dest_dir . $new_filename)) {
                     $file_path = 'reports/' . $new_filename;
                 } else {

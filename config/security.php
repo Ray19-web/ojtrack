@@ -32,6 +32,13 @@ function request_error($status, $message, $json = false) {
 }
 function require_csrf($json = false) {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') return;
+    $limit = trim(ini_get('post_max_size'));
+    $bytes = (float)$limit;
+    $unit = strtolower(substr($limit, -1));
+    $bytes *= match ($unit) { 'g' => 1073741824, 'm' => 1048576, 'k' => 1024, default => 1 };
+    if ($bytes > 0 && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $bytes) {
+        request_error(413, 'The upload request is too large. Choose fewer or smaller files.', $json);
+    }
     $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
     if (!is_string($token) || !hash_equals(csrf_token(), $token)) {
         request_error(403, 'Your form has expired. Reload the page and try again.', $json);

@@ -4,7 +4,7 @@ Updated: 3 October 2026
 Repository: Ray19-web/ojtrack  
 Working branch: codex/finalization-phase-1  
 Baseline audited: b7a4926cc4d886815bc30e81e4267afdb36dbbec  
-Status: **first implementation batch; not final release approval**
+Status: **phase 1 plus upload-validation follow-up; not final release approval**
 
 This is the continuation checkpoint requested after the full audit. The original audit remains the reference for baseline evidence. Status below describes this branch only, not main or a deployed installation. No normalization migration has been run on real records.
 
@@ -21,15 +21,29 @@ This is the continuation checkpoint requested after the full audit. The original
 - Added shared modal keyboard focus behavior, focus outlines and small mobile heading improvements.
 - Added schema-only installation, CLI first-admin setup, environment settings, deployment instructions and synthetic regression tests.
 
+## Upload-validation follow-up
+
+- Shared preflight runs after authentication/role/onboarding checks and before page mutations across upload fields.
+- Real content is checked instead of trusting the browser-provided MIME or filename alone.
+- Images are decoded and re-encoded, stripping metadata/trailing data; animated GIF becomes one frame.
+- Files use 5 MB image / 10 MB document limits. Office XML archives have type, expansion, VBA and encryption checks.
+- SVG uploads are no longer accepted for certificate logos; existing files remain untouched.
+- PHP body-limit failures return 413; invalid individual uploads return 422.
+- New filenames use random tokens instead of timestamps. Onboarding no longer falls back to a timestamp if randomness fails.
+- Student requirement/report uploads now check assignment ownership and approved status before storing; an initial submission needs a document.
+- Enable PHP GD and ZIP and configure upload limits as described in README.md before using these changes.
+- This is still partial SEC-08: storage transactions, private storage migration, orphan cleanup, antivirus and inline error recovery remain outstanding. Legacy binary Office macros are not inspected.
+- Repository data cleanup remains pending; the populated SQL dump and existing tracked uploads were preserved.
+
 ## Verified, and what remains unverified
 
-- All 67 PHP files passed syntax checks, including the new setup and test scripts.
+- All 68 PHP files passed syntax checks, including the new setup and test scripts.
 - Fresh schema imported successfully into isolated MariaDB 10.11.
-- Expanded regression suite: **414 checks passed** on PHP 8.3.
+- Regression suite: **414 checks passed** on PHP 8.3; additional real multipart-upload suite: **67 checks passed**.
 - Covered all four role page directories; rendered inline JavaScript syntax; rendered POST tokens; login/bypass rejection; cross-role denial; CSRF; onboarding; session revocation; notification ownership; form creation/ownership/version clone; 0/100 evaluation scores, rollback and retry; message participant/member scope; returned-journal correction; scoped announcements; private document ownership.
 - JavaScript syntax and HTTP page responses are not a visual/accessibility sign-off.
 - Direct-upload denial was tested through a local router that emulates deny rules. Apache/XAMPP/Nginx behavior is **not verified**.
-- Real file uploads, concurrent requests, full assignment/review/completion cycles, browser rendering, printing and restoration remain unverified.
+- Real multipart uploads were tested for synthetic PDFs, DOCX, images, invalid types, size limits, batch preflight, ownership and approved-record preservation. Concurrent requests, full assignment/review/completion cycles, browser rendering, printing, malware scanning and restoration remain unverified.
 - Existing data has not been migrated or sanitized in a live installation. Existing tracked uploads and the populated dump remain present. Any later cleanup will not erase Git history.
 
 ## Before checking out or merging this branch
@@ -66,7 +80,7 @@ This is the continuation checkpoint requested after the full audit. The original
 | SEC-05 | Partial | Protect documents and sanitize committed data | Authorized requirement/report/proof endpoint and Apache denies added; existing tracked runtime records remain unchanged because deletion approval was blocked. Verify hosting rules; move private storage outside web root; review history exposure and rotate any exposed credentials. |
 | SEC-06 | Partial | Fix HTML/JavaScript output escaping | Coordinator report output escaping repaired. Audit remaining inline handlers, certificate template HTML and uploaded/public content. |
 | SEC-07 | Implemented | Apply activation checks before mutations | Repeat acceptance on staging; keep regression coverage. |
-| SEC-08 | Partial | Unify upload validation and storage | Implement one upload service with MIME, extension, size and error checks; random names, safe image decoding and orphan cleanup. Existing validation remains inconsistent. |
+| SEC-08 | Partial | Unify upload validation and storage | Shared preflight now validates upload errors, actual size, extension/content agreement, image decode/re-encode and Office packages; new names use random tokens. Finish centralized storage outside web root, malware scanning, revision/file lifecycle, rollback/orphan cleanup and consistent inline error feedback. |
 | SEC-09 | Implemented | Validate profile redirect targets | Repeat acceptance on staging; keep regression coverage. |
 | CORE-01 | Implemented | Repair evaluation form creation binding | Repeat acceptance on staging; keep regression coverage. |
 | CORE-02 | Implemented | Repair notification schema and helper | Repeat acceptance on staging; keep regression coverage. |
@@ -97,7 +111,7 @@ This is the continuation checkpoint requested after the full audit. The original
 | STU-01 | Partial | Allow returned journals to be corrected | Returned journals can be revised/resubmitted. Add immutable revision/review history; refresh submission timestamps and test rejection cycles. |
 | STU-02 | Partial | Validate journal data and week calculation | Date range, future date, hours, duplicate date precheck and week calculation repaired. Enforce uniqueness in DB, handle upload errors consistently, and validate calendar/timezone edge cases. |
 | STU-03 | Partial | Make progress reflect actual requirements | Hardcoded progress replaced with live counts and old progress page redirects to dashboard. Unify evaluation pipeline and calculate official attendance/completion eligibility. |
-| STU-04 | Remaining | Unify submission rules and feedback | Unify pending/submitted/returned/approved behavior, required feedback and permitted replacements across requirements/reports/journals. |
+| STU-04 | Partial | Unify submission rules and feedback | Requirements/reports now reject missing/foreign assignments, approved replacements and first submission without a document. Finish concurrency-safe state transitions, consistent feedback, reviewer history and permitted replacements across all submission types. |
 | STU-05 | Remaining | Show next action and onboarding support | Add clear next-action cards and onboarding contact/help, not progress-only counters. |
 | DB-01 | Remaining | Normalize academic program relationships | Make program_id authoritative; backfill/verify mismatched program and department text before retiring duplicate columns. |
 | DB-02 | Remaining | Separate student identity from OJT attempts and placements | Introduce academic_terms, ojt_enrollments and placements; move attempt-specific hours, dates and status off student identity. |

@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $dest_dir = __DIR__ . '/../uploads/journal_proofs/';
                 if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
-                $filename = 'proof_' . $sid . '_' . time() . '.' . $ext;
+                $filename = 'proof_' . $sid . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
                 if (move_uploaded_file($_FILES['proof_image']['tmp_name'], $dest_dir . $filename)) {
                     $proof_image = 'journal_proofs/' . $filename;
                 } else {
@@ -235,7 +235,7 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Documentation / Proof Image</label>
-        <input type="file" name="proof_image" class="form-control" accept="image/*">
+        <input type="file" name="proof_image" class="form-control" accept=".jpg,.jpeg,.png,.gif,.webp">
         <?php if (!empty($edit_entry['proof_image'])): ?>
           <div class="text-xs text-muted mt-1">Current: <a href="/ojtrack/download.php?file=<?= rawurlencode($edit_entry['proof_image']) ?>" target="_blank">view proof</a> (upload new to replace)</div>
         <?php else: ?>

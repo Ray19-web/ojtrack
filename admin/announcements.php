@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!is_dir($dest_dir)) {
                         mkdir($dest_dir, 0755, true);
                     }
-                    $new_filename = 'ann_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $new_filename = 'ann_' . bin2hex(random_bytes(16)) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                     if (move_uploaded_file($_FILES['attachment']['tmp_name'], $dest_dir . $new_filename)) {
                         $attachment_file = 'announcements/' . $new_filename;
                         $attachment_name = $orig;
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!is_dir($dest_dir)) {
                         mkdir($dest_dir, 0755, true);
                     }
-                    $new_filename = 'ann_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $new_filename = 'ann_' . bin2hex(random_bytes(16)) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                     if (move_uploaded_file($_FILES['attachment']['tmp_name'], $dest_dir . $new_filename)) {
                         $attachment_file = 'announcements/' . $new_filename;
                         $attachment_name = $orig;

@@ -6,7 +6,7 @@ This branch is the first finalization batch. It is **not a production readiness 
 
 ## Fresh local setup
 
-1. Use PHP 8.1+ with mysqli and fileinfo, MariaDB/MySQL, and Apache 2.4. This batch was tested with PHP 8.3 and MariaDB 10.11.
+1. Use PHP 8.1+ with mysqli, fileinfo, GD and ZIP, MariaDB/MySQL, and Apache 2.4. This batch was tested with PHP 8.3 and MariaDB 10.11.
 2. Put the project at /ojtrack/ under the web root. Existing links and session cookie paths still assume that path.
 3. Create an empty UTF-8 database and import database/schema.sql. It contains schema only, no students, passwords, documents or demo accounts. **Do not import it over an existing database.**
 4. Configure OJTRACK_DB_HOST, OJTRACK_DB_USER, OJTRACK_DB_PASS, OJTRACK_DB_NAME and optionally OJTRACK_TIMEZONE in your server environment. Defaults remain localhost/root/blank/ojtrack for local compatibility; production requires a dedicated database account and password. An .env file is ignored by git but is not automatically loaded.
@@ -30,6 +30,20 @@ The included Apache .htaccess files require overrides that support Require and O
 
 Document authorization in PHP does not protect a host that serves the same upload file directly. Test both the authorized endpoint and direct path before releasing.
 
+## Upload validation
+
+All supplied files pass a shared preflight before page mutations. It checks PHP upload errors, actual size, extension/content agreement, and supported document containers. Images are decoded and re-encoded; metadata and trailing payloads are removed, and animated GIF uploads become a static first frame.
+
+- Avatars, logos and journal proofs: 5 MB; images at most 6000 pixels per side and 12 megapixels.
+- Requirements, reports and announcement attachments: 10 MB.
+- Office XML documents: matching DOCX/XLSX/PPTX package content, no VBA payload, no encrypted entries, maximum 2000 archive entries and 50 MB expanded size.
+- SVG uploads are rejected. Existing stored SVG files are not retroactively converted.
+- Legacy DOC/XLS/PPT checks validate the container; they do not inspect macros. PDF/container checks are not malware scanning. Open documents only in suitable viewers; external scanning and private storage remain follow-up work.
+- Enable PHP GD and ZIP before deploying this batch. Missing extensions produce a controlled rejection for the relevant upload type.
+- Set upload_max_filesize=10M and post_max_size=32M (or document another deliberate limit). Keep max_file_uploads at least 20 for onboarding batches. Requests larger than the body limit receive HTTP 413; other invalid uploads receive 422.
+- A bad supplied file rejects the entire preflight before page handlers run. The subsequent multi-file storage/database writes are not yet one transaction.
+- New filenames use random tokens. Existing files and names remain unchanged.
+
 ## Updating an existing installation
 
 1. Back up the database **and** all runtime uploads outside this repository; rehearse restoration.
@@ -47,4 +61,4 @@ Removing files from the branch does not remove them from Git history. Credential
 
 See [tests/README.md](tests/README.md). The suite is for a disposable ojtrack_test database, uses only synthetic data, and modifies it. Never point it at real records.
 
-The first batch includes role-page HTTP smoke tests, rendered inline-JavaScript syntax checks, CSRF checks, session revocation, evaluation ownership and atomic submission, scoped messages, returned journals, announcements, and document access. Browser layout, print, real upload validation, concurrency races, and live Apache behavior still need separate verification.
+The first batch includes role-page HTTP smoke tests, rendered inline-JavaScript syntax checks, CSRF checks, session revocation, evaluation ownership and atomic submission, scoped messages, returned journals, announcements, and document access. Browser layout, print, malware scanning, concurrency races, and live Apache behavior still need separate verification.

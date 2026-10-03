@@ -55,7 +55,7 @@ if ($action === 'update_profile') {
             }
 
             $old = query_one("SELECT avatar FROM users WHERE id=?", [$user['id']], 'i');
-            $new_filename = 'avatar_' . $user['id'] . '_' . time() . '.' . $ext;
+            $new_filename = 'avatar_' . $user['id'] . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
 
             if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dest_dir . $new_filename)) {
                 $path = 'avatars/' . $new_filename;

@@ -83,14 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
             $dest_dir = __DIR__ . '/../uploads/requirements/';
 
             if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0777, true);
+                mkdir($dest_dir, 0755, true);
             }
 
-            try {
-                $token = bin2hex(random_bytes(8));
-            } catch (Throwable $e) {
-                $token = (string)time();
-            }
+            $token = bin2hex(random_bytes(16));
 
             $new_filename =
                 'req_' .
@@ -264,19 +260,11 @@ if (
 
             if (!is_dir($dest_dir)) {
 
-                mkdir($dest_dir, 0777, true);
+                mkdir($dest_dir, 0755, true);
 
             }
 
-            try {
-
-                $token = bin2hex(random_bytes(8));
-
-            } catch (Throwable $e) {
-
-                $token = (string)time();
-
-            }
+            $token = bin2hex(random_bytes(16));
 
             $new_filename =
                 'req_' .
