@@ -2,6 +2,7 @@
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/communications.php';
 require_once __DIR__ . '/uploads.php';
+require_once __DIR__ . '/storage.php';
 
 function is_logged_in() {
     if (empty($_SESSION['user_id']) || empty($_SESSION['auth_fingerprint'])) return false;

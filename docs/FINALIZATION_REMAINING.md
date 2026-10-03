@@ -1,10 +1,10 @@
 # OJTrack — Phase 1 implementation and remaining finalization
 
-Updated: 3 October 2026  
+Updated: 4 October 2026  
 Repository: Ray19-web/ojtrack  
 Working branch: codex/finalization-phase-1  
 Baseline audited: b7a4926cc4d886815bc30e81e4267afdb36dbbec  
-Status: **phase 1 plus upload-validation follow-up; not final release approval**
+Status: **private-storage follow-up drafted; runtime verification pending; not final release approval**
 
 This is the continuation checkpoint requested after the full audit. The original audit remains the reference for baseline evidence. Status below describes this branch only, not main or a deployed installation. No normalization migration has been run on real records.
 
@@ -35,11 +35,23 @@ This is the continuation checkpoint requested after the full audit. The original
 - This is still partial SEC-08: storage transactions, private storage migration, orphan cleanup, antivirus and inline error recovery remain outstanding. Legacy binary Office macros are not inspected.
 - Repository data cleanup remains pending; the populated SQL dump and existing tracked uploads were preserved.
 
+## Private-storage follow-up — verification pending
+
+- New requirements, reports and journal proofs use OJTRACK_PRIVATE_UPLOAD_DIR outside the public web root and application directory.
+- A single storage helper validates categories/paths, refuses symbolic links, reserves new destinations exclusively and sets restrictive permissions.
+- Downloads retain ownership checks and resolve private files first, then existing legacy files. Existing documents, database paths and repository files are preserved.
+- Missing configuration blocks new private uploads with a controlled error; legacy reads remain available. Invalid configured roots fail closed.
+- A CLI migration command defaults to dry-run. Copy mode verifies hashes, never overwrites a differing destination and never deletes source files or changes DB references.
+- Added isolated filesystem tests and adapted the multipart suite to private storage. Python test-script syntax and git diff whitespace checks passed.
+- **PHP/MariaDB were unavailable in the new execution environment. Package installation failed due to unavailable process permissions; no runtime test passes are claimed for this follow-up.** Run PHP lint, tests/storage.php, the 414-check suite, the adapted multipart suite, and copy dry-run/copy/retry/conflict scenarios before merging.
+- Required setup and XAMPP/Linux examples are in README.md. Configure the root before deploying, or new student document uploads will return 503.
+- Remaining: transactional file/reference lifecycle, orphan cleanup, malware scanning, public announcement-attachment policy, real-host verification and approved legacy/repository cleanup.
+
 ## Verified, and what remains unverified
 
-- All 68 PHP files passed syntax checks, including the new setup and test scripts.
+- Previous upload-validation commit (5d6b144): all 68 PHP files passed syntax checks. The private-storage follow-up has not been PHP-linted or runtime-tested in this environment.
 - Fresh schema imported successfully into isolated MariaDB 10.11.
-- Regression suite: **414 checks passed** on PHP 8.3; additional real multipart-upload suite: **67 checks passed**.
+- Previous upload-validation commit (5d6b144): **414 regression checks and 67 multipart-upload checks passed**. These results do not certify the later private-storage changes.
 - Covered all four role page directories; rendered inline JavaScript syntax; rendered POST tokens; login/bypass rejection; cross-role denial; CSRF; onboarding; session revocation; notification ownership; form creation/ownership/version clone; 0/100 evaluation scores, rollback and retry; message participant/member scope; returned-journal correction; scoped announcements; private document ownership.
 - JavaScript syntax and HTTP page responses are not a visual/accessibility sign-off.
 - Direct-upload denial was tested through a local router that emulates deny rules. Apache/XAMPP/Nginx behavior is **not verified**.
@@ -77,10 +89,10 @@ This is the continuation checkpoint requested after the full audit. The original
 | SEC-02 | Implemented | Revalidate sessions and account status | Repeat acceptance on staging; keep regression coverage. |
 | SEC-03 | Implemented | Add CSRF protection | Repeat acceptance on staging; keep regression coverage. |
 | SEC-04 | Implemented | Enforce evaluation child-record ownership | Repeat acceptance on staging; keep regression coverage. |
-| SEC-05 | Partial | Protect documents and sanitize committed data | Authorized requirement/report/proof endpoint and Apache denies added; existing tracked runtime records remain unchanged because deletion approval was blocked. Verify hosting rules; move private storage outside web root; review history exposure and rotate any exposed credentials. |
+| SEC-05 | Partial | Protect documents and sanitize committed data | Authorized requirement/report/proof endpoint and Apache denies added; existing tracked runtime records remain unchanged because deletion approval was blocked. Private storage and a copy-only migration helper are now drafted; validate them in staging and configure the root before deployment. Verify hosting rules, legacy exposure, repository history and any necessary credential rotation. |
 | SEC-06 | Partial | Fix HTML/JavaScript output escaping | Coordinator report output escaping repaired. Audit remaining inline handlers, certificate template HTML and uploaded/public content. |
 | SEC-07 | Implemented | Apply activation checks before mutations | Repeat acceptance on staging; keep regression coverage. |
-| SEC-08 | Partial | Unify upload validation and storage | Shared preflight now validates upload errors, actual size, extension/content agreement, image decode/re-encode and Office packages; new names use random tokens. Finish centralized storage outside web root, malware scanning, revision/file lifecycle, rollback/orphan cleanup and consistent inline error feedback. |
+| SEC-08 | Partial | Unify upload validation and storage | Shared preflight now validates upload errors, actual size, extension/content agreement, image decode/re-encode and Office packages; new names use random tokens. Centralized private storage for student documents is now drafted with runtime tests pending. Finish malware scanning, public attachment policy, revision/file lifecycle, rollback/orphan cleanup and consistent inline error feedback. |
 | SEC-09 | Implemented | Validate profile redirect targets | Repeat acceptance on staging; keep regression coverage. |
 | CORE-01 | Implemented | Repair evaluation form creation binding | Repeat acceptance on staging; keep regression coverage. |
 | CORE-02 | Implemented | Repair notification schema and helper | Repeat acceptance on staging; keep regression coverage. |

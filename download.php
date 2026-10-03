@@ -15,9 +15,14 @@ foreach ($refs as $ref) {
     // Companies already review trainee reports; pre-OJT private requirements remain academic-only.
     if ($user['role'] === 'company' && $ref['kind'] === 'report' && query_one("SELECT id FROM companies WHERE id=? AND user_id=?", [$ref['company_id'],$user['id']], 'ii')) $allowed = true;
 }
-$root = realpath(__DIR__ . '/uploads');
-$path = realpath(__DIR__ . '/uploads/' . $file);
-if (!$allowed || !$root || !$path || !str_starts_with($path, $root . DIRECTORY_SEPARATOR) || !is_file($path)) request_error(404, 'Document not found.');
+if (!$allowed) request_error(404, 'Document not found.');
+try {
+    $path = resolve_private_document($file);
+} catch (RuntimeException $error) {
+    error_log('OJTrack private download storage unavailable.');
+    request_error(503, 'Document storage is temporarily unavailable.');
+}
+if (!$path) request_error(404, 'Document not found.');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: private, no-store');
 $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);

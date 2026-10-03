@@ -6,6 +6,7 @@ if os.environ.get('OJTRACK_TEST_CONFIRM') != 'synthetic':
 BASE=os.environ.get('OJTRACK_TEST_URL','http://127.0.0.1:8087/ojtrack/')
 SOCKET=os.environ.get('OJTRACK_TEST_SOCKET','/tmp/ojtrack-mariadb.sock')
 ROOT=Path(__file__).resolve().parents[1]
+PRIVATE=Path(os.environ['OJTRACK_PRIVATE_UPLOAD_DIR'])
 count=0
 def check(value,label):
     global count
@@ -59,7 +60,7 @@ check(s.post('student/requirements.php',{'action':'upload','req_id':2},[('docume
 check(s.post('student/requirements.php',{'action':'upload','req_id':3},[('document','valid.pdf',pdf)])[0]==200,'valid PDF upload')
 path=sql('SELECT file_path FROM ojt_requirements WHERE id=3')
 check(bool(re.search(r'_[0-9a-f]{32}\.pdf$',path)),'random file name')
-check((ROOT/'uploads'/path).read_bytes()==pdf,'PDF stored')
+check((PRIVATE/path).read_bytes()==pdf,'PDF stored')
 sql("UPDATE ojt_requirements SET status='approved' WHERE id=3")
 check(s.post('student/requirements.php',{'action':'upload','req_id':3},[('document','valid.pdf',pdf)])[0]==409,'approved upload preserved')
 check(sql('SELECT file_path FROM ojt_requirements WHERE id=3')==path,'approved file unchanged')
@@ -91,7 +92,8 @@ check(s.post('student/profile.php',{'action':'upload_avatar'},[('avatar','large.
 journal={'action':'submit_journal','edit_id':1,'entry_date':'2026-09-08','activities':'Upload test','learnings':'Test','challenges':'Test','hours_rendered':8}
 check(s.post('student/journal.php',journal,[('proof_image','proof.png',image)])[0]==200,'journal proof accepted')
 path=sql('SELECT proof_image FROM journal_entries WHERE id=1')
-check(b'synthetic_tail' not in (ROOT/'uploads'/path).read_bytes(),'journal proof normalized')
+check(b'synthetic_tail' not in (PRIVATE/path).read_bytes(),'journal proof normalized')
+check(not (ROOT/'uploads'/path).exists(),'new journal proof stays outside public uploads')
 check(s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(11*1024*1024))])[0]==422,'PHP upload limit handled')
 check(s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(33*1024*1024))])[0]==413,'PHP post limit handled')
 print({'upload_checks_passed':count,'result':'PASS'})

@@ -68,11 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
             if (!in_array($ext, $allowed)) {
                 $error = 'Invalid format. Please submit PDF or Word document (.doc, .docx).';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/reports/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
 
                 $new_filename = 'report_' . $sid . '_' . $rep_id . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
-                if (move_uploaded_file($_FILES['report_file']['tmp_name'], $dest_dir . $new_filename)) {
+                if (store_private_upload($_FILES['report_file']['tmp_name'], 'reports', $new_filename)) {
                     $file_path = 'reports/' . $new_filename;
                 } else {
                     $error = 'Failed to upload report file. Please try again.';

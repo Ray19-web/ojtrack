@@ -2,7 +2,7 @@
 
 PHP/MySQL OJT monitoring system for administrators, OJT coordinators, companies and students.
 
-This branch is the first finalization batch. It is **not a production readiness sign-off**. See [the remaining work](docs/FINALIZATION_REMAINING.md), including database normalization and UI arrangement. SYSTEM_DOCUMENTATION.md is a historical overview and has outdated sections.
+This branch is the finalization work in progress. It is **not a production readiness sign-off**. See [the remaining work](docs/FINALIZATION_REMAINING.md), including database normalization and UI arrangement. SYSTEM_DOCUMENTATION.md is a historical overview and has outdated sections.
 
 ## Fresh local setup
 
@@ -29,6 +29,30 @@ The included Apache .htaccess files require overrides that support Require and O
 - Do not deploy test fixtures or development scripts.
 
 Document authorization in PHP does not protect a host that serves the same upload file directly. Test both the authorized endpoint and direct path before releasing.
+
+## Private document storage (required for new student uploads)
+
+Create a directory outside both the web document root and this application, then configure OJTRACK_PRIVATE_UPLOAD_DIR with its absolute path. For example, on a typical XAMPP setup whose public root is C:/xampp/htdocs, use C:/ojtrack-private (not a directory beneath htdocs). On Linux you might use /srv/ojtrack-private. Grant the PHP service account read/write access; do not give the folder a public alias or static route.
+
+- New requirements, reports and journal proofs use that private directory. Avatars, announcement attachments and certificate logos retain their existing public storage in this batch.
+- The root must already exist. Category directories are created with 0700 and stored documents with 0600 where the operating system supports those modes; configure equivalent Windows ACLs.
+- Database paths and authorized download links stay the same. Downloads try private storage first, then the legacy uploads directory.
+- Without a configured private root, old downloads still work, but new private uploads fail with a controlled HTTP 503. Set the environment variable before deploying this change.
+- A configured but invalid/overlapping root fails closed. Do not use the public root, an application subdirectory, or an ancestor of either.
+- Keep direct-access denies on old uploads. The compatibility fallback does not make old public copies private.
+- Back up and restore the database, private storage and any retained legacy uploads together.
+
+### Copying existing documents without deleting them
+
+Set OJTRACK_PUBLIC_ROOT to the actual web document root when running CLI commands, along with OJTRACK_PRIVATE_UPLOAD_DIR and your database connection environment.
+
+1. Run php bin/copy-private-documents.php --dry-run (the default).
+2. Review missing paths and destination conflicts. Resolve these deliberately; the command does not overwrite different files.
+3. Run php bin/copy-private-documents.php --copy only after reviewing the dry run and backup.
+4. The command copies only database-referenced requirements/reports/journal proofs, verifies SHA-256 hashes, and leaves source files and database references unchanged. Repeating the command verifies matching copies instead of duplicating them.
+5. Verify authorized downloads and access denial using each role. Removing legacy public copies is a separate approved cleanup step.
+
+Neither this change nor the helper rewrites Git history, deletes the populated dump, or removes existing tracked uploads. Run this first on a staging copy.
 
 ## Upload validation
 

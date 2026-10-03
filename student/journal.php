@@ -41,10 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
                 $error = 'Proof image must be a JPG, PNG, GIF, or WEBP file.';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/journal_proofs/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
                 $filename = 'proof_' . $sid . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
-                if (move_uploaded_file($_FILES['proof_image']['tmp_name'], $dest_dir . $filename)) {
+                if (store_private_upload($_FILES['proof_image']['tmp_name'], 'journal_proofs', $filename)) {
                     $proof_image = 'journal_proofs/' . $filename;
                 } else {
                     $error = 'Failed to upload proof image.';

@@ -33,11 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
             if (!in_array($ext, $allowed)) {
                 $error = 'Invalid file format. Please upload PDF, JPG, PNG, or DOC files.';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/requirements/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
 
                 $new_filename = 'req_' . $sid . '_' . $req_id . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
-                if (move_uploaded_file($_FILES['document']['tmp_name'], $dest_dir . $new_filename)) {
+                if (store_private_upload($_FILES['document']['tmp_name'], 'requirements', $new_filename)) {
                     $file_path = 'requirements/' . $new_filename;
                 } else {
                     $error = 'Failed to save the uploaded file. Please try again.';

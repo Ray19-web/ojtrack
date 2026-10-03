@@ -80,12 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
 
         } else {
 
-            $dest_dir = __DIR__ . '/../uploads/requirements/';
-
-            if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0755, true);
-            }
-
             $token = bin2hex(random_bytes(16));
 
             $new_filename =
@@ -99,9 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
                 $ext;
 
             if (
-                !move_uploaded_file(
+                !store_private_upload(
                     $_FILES['document']['tmp_name'],
-                    $dest_dir . $new_filename
+                    'requirements', $new_filename
                 )
             ) {
 
@@ -256,14 +250,6 @@ if (
 
             }
 
-            $dest_dir = __DIR__ . '/../uploads/requirements/';
-
-            if (!is_dir($dest_dir)) {
-
-                mkdir($dest_dir, 0755, true);
-
-            }
-
             $token = bin2hex(random_bytes(16));
 
             $new_filename =
@@ -277,9 +263,9 @@ if (
                 $ext;
 
             if (
-                !move_uploaded_file(
+                !store_private_upload(
                     $files['tmp_name'][$req_id],
-                    $dest_dir . $new_filename
+                    'requirements', $new_filename
                 )
             ) {
 
