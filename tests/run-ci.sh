@@ -8,22 +8,22 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 work="$(mktemp -d /tmp/ojtrack-ci.XXXXXXXX)"
 db_pid=""
-php_pid=""
+web_pid=""
 cleanup() {
   outcome=$?
   trap - EXIT
   if [[ $outcome -ne 0 ]]; then
-    for log in "$work/db.log" "$work/php.log" "$work/install.log"; do
+    for log in "$work/db.log" "$work/php.log" "$work/apache.log" "$work/install.log"; do
       if [[ -f "$log" ]]; then tail -n 50 "$log"; fi
     done
   fi
-  if [[ -n "$php_pid" ]]; then kill "$php_pid" 2>/dev/null || true; wait "$php_pid" 2>/dev/null || true; fi
+  if [[ -n "$web_pid" ]]; then kill "$web_pid" 2>/dev/null || true; wait "$web_pid" 2>/dev/null || true; fi
   if [[ -n "$db_pid" ]]; then kill "$db_pid" 2>/dev/null || true; wait "$db_pid" 2>/dev/null || true; fi
   # Keep the temporary fixture for failure diagnosis; hosted runners discard it afterwards.
   exit "$outcome"
 }
 trap cleanup EXIT
-mkdir -p "$work/db" "$work/sessions" "$work/public" "$work/private"
+mkdir -p "$work/db" "$work/sessions" "$work/public" "$work/private" "$work/apache-runtime"
 ln -s "$repo" "$work/public/ojtrack"
 export OJTRACK_DB_HOST=localhost OJTRACK_DB_USER=root OJTRACK_DB_PASS="" OJTRACK_DB_NAME=ojtrack_test
 export OJTRACK_TEST_SOCKET="$work/db.sock"
@@ -45,11 +45,57 @@ echo "PHP lint passed"
 node --check assets/js/main.js
 php tests/storage.php
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/seed.php
-php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" -d session.save_path="$work/sessions" -d display_errors=1 -d upload_max_filesize=10M -d post_max_size=32M -S 127.0.0.1:8087 -t "$work/public" "$repo/tests/router.php" >"$work/php.log" 2>&1 &
-php_pid=$!
+# Use the same web-server family as XAMPP and exercise real .htaccess denies.
+php_module="$(find /usr/lib/apache2/modules -maxdepth 1 -name 'libphp*.so' -print -quit)"
+if [[ -z "$php_module" ]]; then echo "Install libapache2-mod-php" >&2; exit 1; fi
+cat > "$work/apache.conf" <<CONF
+ServerRoot /etc/apache2
+DefaultRuntimeDir "$work/apache-runtime"
+PidFile "$work/apache.pid"
+Listen 127.0.0.1:8087
+ServerName localhost
+User $(id -un)
+Group $(id -gn)
+LoadModule mpm_prefork_module /usr/lib/apache2/modules/mod_mpm_prefork.so
+LoadModule authz_core_module /usr/lib/apache2/modules/mod_authz_core.so
+LoadModule dir_module /usr/lib/apache2/modules/mod_dir.so
+LoadModule mime_module /usr/lib/apache2/modules/mod_mime.so
+LoadModule php_module "$php_module"
+TypesConfig /etc/mime.types
+ErrorLog "$work/apache.log"
+DocumentRoot "$work/public"
+DirectoryIndex index.php
+LimitRequestBody 0
+<Directory />
+  Require all denied
+</Directory>
+<Directory "$work/public">
+  Options FollowSymLinks
+  AllowOverride All
+  Require all granted
+</Directory>
+<Directory "$repo">
+  Options FollowSymLinks
+  AllowOverride All
+  Require all granted
+</Directory>
+<FilesMatch "[.]php$">
+  SetHandler application/x-httpd-php
+</FilesMatch>
+php_admin_value mysqli.default_socket "$OJTRACK_TEST_SOCKET"
+php_admin_value session.save_path "$work/sessions"
+php_admin_value upload_max_filesize 10M
+php_admin_value post_max_size 32M
+php_admin_flag display_errors Off
+php_admin_flag log_errors On
+php_admin_value error_log "$work/php.log"
+CONF
+apache2 -t -f "$work/apache.conf"
+apache2 -f "$work/apache.conf" -DFOREGROUND &
+web_pid=$!
 for attempt in {1..30}; do
   if curl --fail --silent "${OJTRACK_TEST_URL}login.php" >/dev/null; then break; fi
-  if ! kill -0 "$php_pid" 2>/dev/null; then exit 1; fi
+  if ! kill -0 "$web_pid" 2>/dev/null; then exit 1; fi
   sleep 1
 done
 python3 tests/integration.py
