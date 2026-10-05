@@ -101,6 +101,17 @@ $currentCount=(int)(query_one(
     "SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE()"
 )['c'] ?? 0);
 
+if (!$missingActive && !$restoredLegacy && count($missingArtifacts)===count($artifactTables) && $phase9 && $currentCount===count($activeTables)) {
+    echo json_encode([
+        'cleanup'=>'normalized_migration_artifacts',
+        'mode'=>$dryRun?'dry-run':'apply',
+        'result'=>'ALREADY_CLEAN',
+        'tables_remaining'=>$currentCount,
+        'active_tables_preserved'=>true
+    ],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
+    exit(0);
+}
+
 $out=[
     'cleanup'=>'normalized_migration_artifacts',
     'mode'=>$dryRun?'dry-run':'apply',
