@@ -243,18 +243,28 @@ require_once __DIR__ . '/../includes/header.php';
           <td class="td-mono text-sm"><?= isset($u['created_at']) ? date('M d, Y', strtotime($u['created_at'])) : '—' ?></td>
           <td><?= status_badge($u['status'] ?? 'active') ?></td>
           <td onclick="stopRowClick(event)">
-            <div style="display:flex;gap:4px">
-              <button type="button" class="btn btn-secondary btn-xs" onclick='openEditModal(<?= htmlspecialchars(json_encode($u, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Edit</button>
-              <form method="POST" style="display:inline"><?= csrf_field() ?>
+            <div class="table-actions">
+              <button type="button" class="table-action-icon is-primary"
+                      title="Edit user" aria-label="Edit user"
+                      onclick='openEditModal(<?= htmlspecialchars(json_encode($u, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+              <form method="POST"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_status">
                 <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                <button type="submit" class="btn btn-ghost btn-xs"><?= ($u['status'] ?? 'active') === 'active' ? 'Deactivate' : 'Activate' ?></button>
+                <button type="submit" class="table-action-icon <?= ($u['status'] ?? 'active') === 'active' ? 'is-danger' : 'is-success' ?>"
+                        title="<?= ($u['status'] ?? 'active') === 'active' ? 'Deactivate user' : 'Activate user' ?>"
+                        aria-label="<?= ($u['status'] ?? 'active') === 'active' ? 'Deactivate user' : 'Activate user' ?>">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>
+                </button>
               </form>
               <?php if ((int)$u['id'] !== (int)$user['id']): ?>
-              <form method="POST" style="display:inline" onsubmit="return confirm('Archive this <?= e($u['role']) ?> account? They will lose login access, but all records will be preserved.')"><?= csrf_field() ?>
+              <form method="POST" onsubmit="return confirm('Archive this <?= e($u['role']) ?> account? They will lose login access, but all records will be preserved.')"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="archive_user">
                 <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                <button type="submit" class="btn btn-warning btn-xs">Archive</button>
+                <button type="submit" class="table-action-icon is-warning" title="Archive user" aria-label="Archive user">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M9 13h6"/></svg>
+                </button>
               </form>
               <?php endif; ?>
             </div>
