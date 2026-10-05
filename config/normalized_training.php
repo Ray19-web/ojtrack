@@ -137,16 +137,26 @@ function normalized_attendance_rows_for_coordinator_date(int $coordinatorId,stri
     $rows=[];
     foreach ($students as $student) {
         $att=normalized_attendance_for_student_date((int)$student['id'],$date);
-        $rows[]=array_merge([
+        $base=[
+            'id'=>(int)$student['id'],
             'student_id'=>(int)$student['id'],
+            'name'=>$student['name'],
             'student_name'=>$student['name'],
             'student_id_no'=>$student['student_id_no'],
             'company_name'=>$student['company_name'] ?? null,
+            'program'=>$student['program'] ?? null,
             'date'=>$date,
             'status'=>null,
+            'att_status'=>null,
             'morning_in'=>null,'morning_out'=>null,'afternoon_in'=>null,'afternoon_out'=>null,
             'time_in'=>null,'time_out'=>null,'hours_rendered'=>0,'remarks'=>null,
-        ],$att ?: []);
+        ];
+        if ($att) {
+            $att['att_status']=$att['status'];
+            $rows[]=array_merge($base,$att);
+        } else {
+            $rows[]=$base;
+        }
     }
     return $rows;
 }
