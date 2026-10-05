@@ -352,12 +352,12 @@ CREATE TABLE requirement_submission_attachments (
 
 CREATE TABLE report_templates (
   id INT NOT NULL AUTO_INCREMENT,
-  created_by INT NOT NULL,
+  created_by INT DEFAULT NULL,
   title VARCHAR(200) NOT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
-  CONSTRAINT fk_report_templates_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_report_templates_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_template_versions (
@@ -368,7 +368,7 @@ CREATE TABLE report_template_versions (
   instructions TEXT DEFAULT NULL,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
   published_at TIMESTAMP NULL DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_report_template_version (report_template_id, version_no),
   CONSTRAINT fk_report_template_versions_template FOREIGN KEY (report_template_id) REFERENCES report_templates(id) ON DELETE RESTRICT
@@ -378,17 +378,17 @@ CREATE TABLE report_assignments (
   id BIGINT NOT NULL AUTO_INCREMENT,
   report_template_version_id INT NOT NULL,
   ojt_enrollment_id INT NOT NULL,
-  assigned_by INT NOT NULL,
+  assigned_by INT DEFAULT NULL,
   period_start DATE DEFAULT NULL,
   period_end DATE DEFAULT NULL,
   due_date DATE DEFAULT NULL,
   status ENUM('assigned','closed','waived') NOT NULL DEFAULT 'assigned',
-  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  assigned_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
   KEY idx_report_assignments_enrollment (ojt_enrollment_id, status),
   CONSTRAINT fk_report_assignments_version FOREIGN KEY (report_template_version_id) REFERENCES report_template_versions(id) ON DELETE RESTRICT,
   CONSTRAINT fk_report_assignments_enrollment FOREIGN KEY (ojt_enrollment_id) REFERENCES ojt_enrollments(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_report_assignments_assigner FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_report_assignments_assigner FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_submissions (
@@ -397,7 +397,8 @@ CREATE TABLE report_submissions (
   version_no INT NOT NULL,
   submitted_by INT NOT NULL,
   status ENUM('submitted','returned','approved') NOT NULL DEFAULT 'submitted',
-  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  submitted_at TIMESTAMP NOT NULL,
+  student_note TEXT DEFAULT NULL,
   reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
