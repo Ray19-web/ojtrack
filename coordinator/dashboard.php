@@ -7,26 +7,22 @@ require_login(['coordinator']);
 $user = current_user();
 $coord = query_one("SELECT * FROM coordinators WHERE user_id=?", [$user['id']], 'i');
 
+$coord_students = normalized_students_for_coordinator((int)$coord['id']);
+$pending_all = normalized_requirement_rows_for_coordinator((int)$coord['id'], 'pending');
 $stats = [
-    'total'     => query_one("SELECT COUNT(*) AS c FROM students WHERE coordinator_id=?", [$coord['id']], 'i')['c'],
-    'active'    => query_one("SELECT COUNT(*) AS c FROM students WHERE coordinator_id=? AND ojt_status='ongoing'", [$coord['id']], 'i')['c'],
-    'on_hold'   => query_one("SELECT COUNT(*) AS c FROM students WHERE coordinator_id=? AND ojt_status IN ('on_hold','withdrawn')", [$coord['id']], 'i')['c'],
-    'pending'   => query_one("SELECT COUNT(*) AS c FROM ojt_requirements r JOIN students s ON s.id=r.student_id WHERE s.coordinator_id=? AND r.status='pending'", [$coord['id']], 'i')['c'],
+    'total'   => count($coord_students),
+    'active'  => count(array_filter($coord_students, fn($row) => ($row['ojt_status'] ?? '') === 'ongoing')),
+    'on_hold' => count(array_filter($coord_students, fn($row) => in_array(($row['ojt_status'] ?? ''), ['on_hold','withdrawn'], true))),
+    'pending' => count($pending_all),
 ];
 
-$pending_reqs = query("SELECT r.*, u.name AS student_name, s.program FROM ojt_requirements r
-    JOIN students s ON s.id=r.student_id JOIN users u ON u.id=s.user_id
-    WHERE s.coordinator_id=? AND r.status='pending' ORDER BY r.submitted_at DESC LIMIT 8",
-    [$coord['id']], 'i');
+$pending_reqs = array_slice($pending_all, 0, 8);
 
-$students = query("SELECT s.*, u.name FROM students s JOIN users u ON u.id=s.user_id WHERE s.coordinator_id=? ORDER BY s.rendered_hours DESC LIMIT 6", [$coord['id']], 'i');
+$students = $coord_students;
+usort($students, fn($a,$b) => ((float)($b['rendered_hours'] ?? 0)) <=> ((float)($a['rendered_hours'] ?? 0)));
+$students = array_slice($students, 0, 6);
 
-$announcements = query(
-    "SELECT a.*, u.name AS author FROM announcements a
-     LEFT JOIN users u ON u.id=a.created_by
-     WHERE a.target_role IN ('all','coordinator') AND a.is_active=1 AND (a.expires_at IS NULL OR a.expires_at >= CURDATE())
-     ORDER BY a.is_pinned DESC, a.created_at DESC LIMIT 4"
-);
+$announcements = array_slice(normalized_announcements_for_user((int)$user['id']), 0, 4);
 
 $page_title = 'Coordinator Dashboard';
 require_once __DIR__ . '/../includes/header.php';
