@@ -49,7 +49,8 @@ def office(kind='docx',macro=False):
         if macro:z.writestr('word/vbaProject.bin',b'not-a-real-macro')
     return b.getvalue()
 s=Client(4);onboard=Client(8);company=Client(3);admin=Client(1);coord=Client(2)
-sql("INSERT INTO reports(id,student_id,report_name,report_type) VALUES(1,1,'Synthetic upload report','final')")
+report_id=int(sql("SELECT COALESCE(MAX(id),0)+1 FROM reports"))
+sql(f"INSERT INTO reports(id,student_id,report_name,report_type) VALUES({report_id},1,'Synthetic upload report','final')")
 pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF'
 # MIME spoof, empty upload and explicit no-file submission.
 for name,content in [('fake.pdf',b'<?php echo "bad"; ?>'),('fake.jpg',b'not an image'),('empty.pdf',b'')]:
@@ -78,10 +79,10 @@ for name,content in [('fake.docx',b'PKinvalid'),('macro.docx',office(macro=True)
     who=admin if name.endswith('xlsx') else s
     route='admin/announcements.php' if name.endswith('xlsx') else 'student/reports.php'
     field='attachment' if name.endswith('xlsx') else 'report_file'
-    data={'action':'post','title':'Bad','body':'Bad','target_role':'all'} if name.endswith('xlsx') else {'action':'submit_report','rep_id':1}
+    data={'action':'post','title':'Bad','body':'Bad','target_role':'all'} if name.endswith('xlsx') else {'action':'submit_report','rep_id':report_id}
     check(who.post(route,data,[(field,name,content)])[0]==422,'reject Office '+name)
-check(s.post('student/reports.php',{'action':'submit_report','rep_id':1},[('report_file','valid.docx',office())])[0]==200,'DOCX accepted')
-check(sql('SELECT status FROM reports WHERE id=1')=='for_review','report submitted')
+check(s.post('student/reports.php',{'action':'submit_report','rep_id':report_id},[('report_file','valid.docx',office())])[0]==200,'DOCX accepted')
+check(sql(f'SELECT status FROM reports WHERE id={report_id}')=='for_review','report submitted')
 # Entire onboarding batch is validated before any page mutation.
 old=sql('SELECT file_path FROM ojt_requirements WHERE id=2')
 check(onboard.post('student/onboarding.php',{'action':'upload_all'},[('documents[2]','valid.pdf',pdf),('documents[999]','bad.pdf',b'bad')])[0]==422,'bad batch blocked')
