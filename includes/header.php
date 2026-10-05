@@ -62,32 +62,22 @@ if ($uid > 0) {
     if ($role === 'coordinator') {
         $coord = query_one("SELECT id FROM coordinators WHERE user_id=?", [$uid], 'i');
         $cid = $coord['id'] ?? 0;
-        $pending_action_count = (int)(query_one(
-            "SELECT COUNT(*) AS c FROM ojt_requirements r
-             JOIN students s ON s.id=r.student_id
-             WHERE s.coordinator_id=? AND r.status='pending' AND r.submitted_at IS NOT NULL",
-            [$cid],
-            'i'
-        )['c'] ?? 0);
+        $pending_rows = normalized_requirement_rows_for_coordinator((int)$cid, 'pending');
+        $pending_action_count = count(array_filter($pending_rows, fn($row) => !empty($row['submitted_at'])));
     } elseif ($role === 'company') {
         $comp = query_one("SELECT id FROM companies WHERE user_id=?", [$uid], 'i');
         $cid = $comp['id'] ?? 0;
-        $pending_action_count = (int)(query_one(
-            "SELECT COUNT(*) AS c FROM eval_submissions e
-             JOIN students s ON s.id=e.student_id
-             WHERE s.company_id=? AND e.status='pending'",
-            [$cid],
-            'i'
-        )['c'] ?? 0);
+        $pending_action_count = count(array_filter(
+            normalized_eval_requests_for_company((int)$cid),
+            fn($row) => ($row['status'] ?? '') === 'pending'
+        ));
     } elseif ($role === 'student') {
         $stud = query_one("SELECT id FROM students WHERE user_id=?", [$uid], 'i');
         $sid = $stud['id'] ?? 0;
-        $pending_action_count = (int)(query_one(
-            "SELECT COUNT(*) AS c FROM ojt_requirements
-             WHERE student_id=? AND (status='rejected' OR submitted_at IS NULL)",
-            [$sid],
-            'i'
-        )['c'] ?? 0);
+        $pending_action_count = count(array_filter(
+            normalized_requirement_rows_for_student((int)$sid),
+            fn($row) => ($row['status'] ?? '') === 'rejected' || empty($row['submitted_at'])
+        ));
     }
 }
 
