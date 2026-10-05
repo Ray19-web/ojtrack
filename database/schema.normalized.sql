@@ -281,11 +281,13 @@ CREATE TABLE requirement_submissions (
   reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
+  attachment_id BIGINT DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_requirement_submission_version (requirement_assignment_id, version_no),
   CONSTRAINT fk_requirement_submissions_assignment FOREIGN KEY (requirement_assignment_id) REFERENCES requirement_assignments(id) ON DELETE RESTRICT,
   CONSTRAINT fk_requirement_submissions_submitter FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_requirement_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_requirement_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_requirement_submissions_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -347,7 +349,8 @@ CREATE TABLE report_submissions (
   UNIQUE KEY uq_report_submission_version (report_assignment_id, version_no),
   CONSTRAINT fk_report_submissions_assignment FOREIGN KEY (report_assignment_id) REFERENCES report_assignments(id) ON DELETE RESTRICT,
   CONSTRAINT fk_report_submissions_submitter FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_report_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_report_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_report_submissions_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
