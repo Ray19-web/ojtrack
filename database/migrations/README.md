@@ -72,3 +72,28 @@ A successful apply:
 - records `002_attendance` in `schema_migrations`.
 
 The PHP application continues using the legacy attendance table until attendance read/write cutover is implemented and verified.
+
+
+### Resolving an attendance row with missing historical placement
+
+If migration 002 reports `attendance_without_exactly_one_placement`, do not guess or directly edit the legacy attendance row.
+
+List the attendance details and current company candidates:
+
+```powershell
+C:\xampp\php\php.exe bin\resolve-legacy-attendance.php --attendance-id=18 --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+After confirming the real historical company, preview the exact mapping:
+
+```powershell
+C:\xampp\php\php.exe bin\resolve-legacy-attendance.php --attendance-id=18 --academic-year=2026-2027 --semester=1st --company-id=<COMPANY_ID> --dry-run
+```
+
+Then apply the explicit resolution:
+
+```powershell
+C:\xampp\php\php.exe bin\resolve-legacy-attendance.php --attendance-id=18 --academic-year=2026-2027 --semester=1st --company-id=<COMPANY_ID> --apply
+```
+
+The resolver does not change `attendance` or `students.company_id`. It creates or reuses a historical normalized placement and records the explicit attendance-to-placement mapping in `legacy_attendance_resolutions`.
