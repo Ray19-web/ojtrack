@@ -91,7 +91,14 @@ require_once __DIR__ . '/../includes/header.php';
                 <td><strong><?= e($r['student_name']) ?></strong><div class="text-xs text-muted"><?= e($r['program']) ?></div></td>
                 <td><?= e($r['document_name']) ?></td>
                 <td class="td-mono"><?= format_date($r['submitted_at']) ?></td>
-                <td><a href="/ojtrack/coordinator/requirements.php?review=<?= $r['id'] ?>" class="btn btn-primary btn-sm">Review</a></td>
+                <td>
+                  <div class="table-actions">
+                    <a href="/ojtrack/coordinator/requirements.php?review=<?= $r['id'] ?>"
+                       class="table-action-icon is-primary" title="Review requirement" aria-label="Review requirement">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h4"/><path d="m14.5 17 1.5 1.5 3-3"/></svg>
+                    </a>
+                  </div>
+                </td>
               </tr>
               <?php endforeach; ?>
             <?php endif; ?>
