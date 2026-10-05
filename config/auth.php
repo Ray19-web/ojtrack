@@ -76,56 +76,14 @@ function redirect($path) {
  */
 function student_onboarding_required($user_id) {
     $user_id = (int)$user_id;
-    if ($user_id <= 0) {
-        return false;
-    }
-
-    $student = query_one(
-        "SELECT id, onboarding_completed_at FROM students WHERE user_id=? LIMIT 1",
-        [$user_id],
-        'i'
-    );
-
-    if (!$student || !empty($student['onboarding_completed_at'])) {
-        return false;
-    }
-
-    return true;
+    if ($user_id <= 0) return false;
+    $student = normalized_student_context_by_user($user_id);
+    if (!$student) return false;
+    return empty($student['onboarding_completed_at']);
 }
 
 function student_onboarding_complete($student_id) {
-    $student_id = (int)$student_id;
-    if ($student_id <= 0) {
-        return false;
-    }
-
-    $total = (int)(query_one(
-        "SELECT COUNT(*) AS c FROM ojt_requirements WHERE student_id=?",
-        [$student_id],
-        'i'
-    )['c'] ?? 0);
-
-    if ($total === 0) {
-        return false;
-    }
-
-    $pending = (int)(query_one(
-        "SELECT COUNT(*) AS c FROM ojt_requirements WHERE student_id=? AND status!='approved'",
-        [$student_id],
-        'i'
-    )['c'] ?? 0);
-
-    if ($pending > 0) {
-        return false;
-    }
-
-    query(
-        "UPDATE students SET onboarding_completed_at=COALESCE(onboarding_completed_at, NOW()) WHERE id=?",
-        [$student_id],
-        'i'
-    );
-
-    return true;
+    return normalized_set_onboarding_complete_if_ready((int)$student_id);
 }
 
 function role_home() {
