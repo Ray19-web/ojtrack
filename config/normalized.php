@@ -21,6 +21,20 @@ function normalized_cutover_ready(): bool
     return $ready;
 }
 
+function normalized_lean_schema_ready(): bool
+{
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        $ready = (bool)query_one(
+            "SELECT 1 FROM schema_migrations WHERE version='010_lean_schema' LIMIT 1"
+        );
+    } catch (Throwable $error) {
+        $ready = false;
+    }
+    return $ready;
+}
+
 function normalized_active_term(): ?array
 {
     static $term = false;
@@ -363,16 +377,26 @@ function normalized_update_training_assignment(
         $currentCoord=normalized_current_coordinator_for_enrollment($enrollmentId);
         $currentCoordId=$currentCoord ? (int)$currentCoord['coordinator_id'] : null;
         if ($currentCoordId!==$coordinatorId) {
-            if ($currentCoord) {
-                query("UPDATE enrollment_coordinators SET ended_at=NOW() WHERE id=?",[(int)$currentCoord['id']],'i');
-            }
-            if ($coordinatorId) {
-                insert(
-                    "INSERT INTO enrollment_coordinators(ojt_enrollment_id,coordinator_id,assigned_by)
-                     VALUES(?,?,?)",
-                    [$enrollmentId,$coordinatorId,$actorUserId],
+            if (normalized_lean_schema_ready()) {
+                query(
+                    "UPDATE ojt_enrollments
+                     SET coordinator_id=?,coordinator_assigned_by=?,coordinator_assigned_at=NOW()
+                     WHERE id=?",
+                    [$coordinatorId ?: null,$actorUserId,$enrollmentId],
                     'iii'
                 );
+            } else {
+                if ($currentCoord) {
+                    query("UPDATE enrollment_coordinators SET ended_at=NOW() WHERE id=?",[(int)$currentCoord['id']],'i');
+                }
+                if ($coordinatorId) {
+                    insert(
+                        "INSERT INTO enrollment_coordinators(ojt_enrollment_id,coordinator_id,assigned_by)
+                         VALUES(?,?,?)",
+                        [$enrollmentId,$coordinatorId,$actorUserId],
+                        'iii'
+                    );
+                }
             }
         }
 
@@ -389,12 +413,14 @@ function normalized_update_training_assignment(
                 [$oldStatus,date('Y-m-d'),(int)$currentPlacement['id']],
                 'ssi'
             );
-            query(
-                "UPDATE placement_supervisors SET ended_at=COALESCE(ended_at,NOW())
-                 WHERE placement_id=? AND ended_at IS NULL",
-                [(int)$currentPlacement['id']],
-                'i'
-            );
+            if (!normalized_lean_schema_ready()) {
+                query(
+                    "UPDATE placement_supervisors SET ended_at=COALESCE(ended_at,NOW())
+                     WHERE placement_id=? AND ended_at IS NULL",
+                    [(int)$currentPlacement['id']],
+                    'i'
+                );
+            }
             $currentPlacement=null;
         }
 
@@ -418,18 +444,20 @@ function normalized_update_training_assignment(
                 );
             }
 
-            $primary=normalized_company_user($companyId);
-            if ($primary && !query_one(
-                "SELECT id FROM placement_supervisors
-                 WHERE placement_id=? AND company_user_id=? AND ended_at IS NULL LIMIT 1",
-                [$placementId,(int)$primary['id']],
-                'ii'
-            )) {
-                insert(
-                    "INSERT INTO placement_supervisors(placement_id,company_user_id) VALUES(?,?)",
+            if (!normalized_lean_schema_ready()) {
+                $primary=normalized_company_user($companyId);
+                if ($primary && !query_one(
+                    "SELECT id FROM placement_supervisors
+                     WHERE placement_id=? AND company_user_id=? AND ended_at IS NULL LIMIT 1",
                     [$placementId,(int)$primary['id']],
                     'ii'
-                );
+                )) {
+                    insert(
+                        "INSERT INTO placement_supervisors(placement_id,company_user_id) VALUES(?,?)",
+                        [$placementId,(int)$primary['id']],
+                        'ii'
+                    );
+                }
             }
         }
 
