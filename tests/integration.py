@@ -67,15 +67,15 @@ for data,expected in [
 ({'action':'delete_criterion','form_id':2,'criterion_id':4},403)]:
     check(c[2].req('coordinator/evaluation.php',data)[0]==expected,'evaluation guard '+str(data))
 # Missing criteria leave no partial answers.
-c[3].req('company/evaluation.php',{'action':'submit_submission','submission_id':1,'criterion_1':'100'})
-check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=1')=='0','missing answer rolls back')
-c[6].req('company/evaluation.php',{'action':'submit_submission','submission_id':1,'criterion_1':100,'criterion_2':0})
-check(sql("SELECT status FROM eval_submissions WHERE id=1")=='pending','other company blocked')
-valid={'action':'submit_submission','submission_id':1,'criterion_1':100,'criterion_2':0,'comments':'Synthetic'}
+c[3].req('company/evaluation.php',{'action':'submit_submission','submission_id':2,'criterion_1':'100'})
+check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2')=='0','missing answer rolls back')
+c[6].req('company/evaluation.php',{'action':'submit_submission','submission_id':2,'criterion_1':100,'criterion_2':0})
+check(sql("SELECT status FROM eval_submissions WHERE id=2")=='pending','other company blocked')
+valid={'action':'submit_submission','submission_id':2,'criterion_1':100,'criterion_2':0,'comments':'Synthetic'}
 c[3].req('company/evaluation.php',valid);c[3].req('company/evaluation.php',valid)
-check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=1')=='2','retry idempotent')
-check(sql('SELECT overall_score FROM eval_submissions WHERE id=1')=='50.00','zero and 100 accepted')
-check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=1 AND equivalent IS NULL')=='2','no equivalent overflow')
+check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2')=='2','retry idempotent')
+check(sql('SELECT overall_score FROM eval_submissions WHERE id=2')=='50.00','zero and 100 accepted')
+check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2 AND equivalent IS NULL')=='2','no equivalent overflow')
 # Returned journals are revisable; date change recalculates week.
 c[4].req('student/journal.php',{'action':'submit_journal','edit_id':1,'entry_date':'2026-09-08','activities':'Revised','learnings':'Revised','challenges':'Revised','hours_rendered':8})
 check(sql("SELECT CONCAT(status,':',week_number) FROM journal_entries WHERE id=1")=='pending:36','returned journal resubmitted with new week')
