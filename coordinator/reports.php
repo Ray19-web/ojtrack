@@ -135,7 +135,12 @@ require_once __DIR__ . '/../includes/header.php';
           <td><?= status_badge($ev['status'] ?? 'completed') ?></td>
           <td class="td-mono text-xs"><?= $ev['evaluated_at'] ? date('M d, Y h:i A', strtotime($ev['evaluated_at'])) : '—' ?></td>
           <td>
-            <button class="btn btn-secondary btn-xs" onclick='viewEvaluation(<?= e(json_encode($ev, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) ?>)'>View Details</button>
+            <div class="table-actions">
+              <button type="button" class="table-action-icon is-primary" title="View evaluation details" aria-label="View evaluation details"
+                      onclick='viewEvaluation(<?= e(json_encode($ev, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) ?>)'>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              </button>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -242,12 +247,21 @@ function viewEvaluation(ev) {
           <td><?= status_badge($r['status']) ?></td>
           <td class="text-xs text-muted" style="max-width:180px"><?= $r['remarks'] ? e($r['remarks']) : '—' ?></td>
           <td>
-            <div style="display:flex;gap:4px">
+            <div class="table-actions">
               <?php if ($tab === 'for_review'): ?>
-                <button class="btn btn-success btn-xs" onclick="openRep(<?= $r['id'] ?>,'approve_report','<?= e(addslashes($r['student_name'])) ?> – <?= e(addslashes($r['report_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">Approve</button>
-                <button class="btn btn-danger btn-xs" onclick="openRep(<?= $r['id'] ?>,'reject_report','<?= e(addslashes($r['student_name'])) ?> – <?= e(addslashes($r['report_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">Return</button>
+                <button type="button" class="table-action-icon is-success" title="Approve report" aria-label="Approve report"
+                        onclick="openRep(<?= $r['id'] ?>,'approve_report','<?= e(addslashes($r['student_name'])) ?> – <?= e(addslashes($r['report_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+                </button>
+                <button type="button" class="table-action-icon is-danger" title="Return report" aria-label="Return report"
+                        onclick="openRep(<?= $r['id'] ?>,'reject_report','<?= e(addslashes($r['student_name'])) ?> – <?= e(addslashes($r['report_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M5 12h8a6 6 0 0 1 6 6"/></svg>
+                </button>
               <?php elseif ($r['status'] !== 'pending'): ?>
-                <button class="btn btn-secondary btn-xs" onclick="openRep(<?= $r['id'] ?>,'<?= $r['status']==='approved'?'reject_report':'approve_report' ?>','<?= e(addslashes($r['student_name'])) ?> – <?= e(addslashes($r['report_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">Re-evaluate</button>
+                <button type="button" class="table-action-icon is-primary" title="Re-evaluate report" aria-label="Re-evaluate report"
+                        onclick="openRep(<?= $r['id'] ?>,'<?= $r['status']==='approved'?'reject_report':'approve_report' ?>','<?= e(addslashes($r['student_name'])) ?> – <?= e(addslashes($r['report_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.4-2.6L20 9M4 15l2.5 2.6A7 7 0 0 0 17.9 15"/></svg>
+                </button>
               <?php endif; ?>
             </div>
           </td>
