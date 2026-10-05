@@ -184,6 +184,7 @@ function normalized_student_context(int $studentId): ?array
 
     $base['program_id']=(int)$enrollment['program_id'];
     $base['program']=$enrollment['program_code'];
+    $base['program_code']=$enrollment['program_code'];
     $base['program_name']=$enrollment['program_name'];
     $base['department']=$enrollment['department_name'];
     $base['year_level']=$enrollment['year_level'];
