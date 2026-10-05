@@ -10,157 +10,87 @@ $coord = query_one("SELECT * FROM coordinators WHERE user_id=?", [$uid], 'i');
 $success = '';
 $error   = '';
 
-// Announcements only — notify students under this coordinator (no general/campus-wide messaging)
+$save_announcement_upload = function() {
+    if (empty($_FILES['attachment']['name']) || ($_FILES['attachment']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return [null,null];
+    }
+    if (($_FILES['attachment']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new DomainException('Failed to upload the attachment. Please try again.');
+    }
+    $orig=$_FILES['attachment']['name'];
+    $ext=strtolower(pathinfo($orig,PATHINFO_EXTENSION));
+    $allowed=['pdf','doc','docx','jpg','jpeg','png','gif','webp','xls','xlsx','ppt','pptx'];
+    if (!in_array($ext,$allowed,true)) throw new DomainException('Invalid attachment type. Allowed: PDF, DOC, images, and common office files.');
+    if ((int)($_FILES['attachment']['size'] ?? 0)>10*1024*1024) throw new DomainException('Attachment is too large. Maximum size is 10MB.');
+    $dir=__DIR__.'/../uploads/announcements/';
+    if (!is_dir($dir)) mkdir($dir,0755,true);
+    $filename='ann_'.bin2hex(random_bytes(16)).'_'.bin2hex(random_bytes(4)).'.'.$ext;
+    if (!move_uploaded_file($_FILES['attachment']['tmp_name'],$dir.$filename)) {
+        throw new DomainException('Failed to upload the attachment. Please try again.');
+    }
+    return ['announcements/'.$filename,$orig];
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'post') {
-        $title   = trim($_POST['title'] ?? '');
-        $body    = trim($_POST['body'] ?? '');
-        $tag     = trim($_POST['tag'] ?? 'Department');
-        $pinned  = isset($_POST['is_pinned']) ? 1 : 0;
-        $expires = !empty($_POST['expires_at']) ? $_POST['expires_at'] : null;
-        // Always scoped to students in this coordinator's department
-        $target  = 'student';
-
-        if (!$title || !$body) {
-            $error = 'Title and body are required.';
-        } else {
-            $attachment_file = null;
-            $attachment_name = null;
-
-            if (!empty($_FILES['attachment']['name']) && ($_FILES['attachment']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-                $orig = $_FILES['attachment']['name'];
-                $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
-                $allowed_ext = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'xls', 'xlsx', 'ppt', 'pptx'];
-                $max_bytes = 10 * 1024 * 1024;
-
-                if (!in_array($ext, $allowed_ext, true)) {
-                    $error = 'Invalid attachment type. Allowed: PDF, DOC, images, and common office files.';
-                } elseif (($_FILES['attachment']['size'] ?? 0) > $max_bytes) {
-                    $error = 'Attachment is too large. Maximum size is 10MB.';
-                } else {
-                    $dest_dir = __DIR__ . '/../uploads/announcements/';
-                    if (!is_dir($dest_dir)) { mkdir($dest_dir, 0755, true); }
-                    $new_filename = 'ann_' . bin2hex(random_bytes(16)) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                    if (move_uploaded_file($_FILES['attachment']['tmp_name'], $dest_dir . $new_filename)) {
-                        $attachment_file = 'announcements/' . $new_filename;
-                        $attachment_name = $orig;
-                    } else {
-                        $error = 'Failed to upload the attachment. Please try again.';
-                    }
+    $action=$_POST['action'] ?? '';
+    try {
+        if ($action==='post') {
+            $title=trim($_POST['title'] ?? '');
+            $body=trim($_POST['body'] ?? '');
+            $tag=trim($_POST['tag'] ?? 'Department');
+            $pinned=isset($_POST['is_pinned']);
+            $expires=!empty($_POST['expires_at']) ? $_POST['expires_at'] : null;
+            if (!$title || !$body) {
+                $error='Title and body are required.';
+            } else {
+                [$attachmentFile,$attachmentName]=$save_announcement_upload();
+                $postId=normalized_announcement_create(
+                    $uid,$title,$body,$tag,'student',$pinned,$expires,$attachmentFile,$attachmentName
+                );
+                foreach (normalized_announcement_recipient_rows($uid,'student') as $recipient) {
+                    create_notification((int)$recipient['user_id'],"Announcement: $title",'info','/ojtrack/student/announcements.php');
+                }
+                log_activity($uid,'Department Notice Posted',"Post ID: $postId · $title");
+                $success='Announcement published. Students under your supervision were notified.';
+            }
+        } elseif ($action==='edit') {
+            $id=(int)($_POST['ann_id'] ?? 0);
+            $title=trim($_POST['title'] ?? '');
+            $body=trim($_POST['body'] ?? '');
+            $tag=trim($_POST['tag'] ?? 'Department');
+            $pinned=isset($_POST['is_pinned']);
+            $expires=!empty($_POST['expires_at']) ? $_POST['expires_at'] : null;
+            if (!$title || !$body) {
+                $error='Title and body are required.';
+            } else {
+                [$attachmentFile,$attachmentName]=$save_announcement_upload();
+                $updated=normalized_announcement_update(
+                    $id,$uid,$title,$body,$tag,'student',$pinned,$expires,
+                    $attachmentFile,$attachmentName,!empty($_POST['remove_attachment'])
+                );
+                if (!$updated) $error='You can only edit notices you created.';
+                else {
+                    log_activity($uid,'Department Notice Updated',$title);
+                    $success='Notice updated successfully.';
                 }
             }
-        }
-
-        if (!$error) {
-            insert(
-                "INSERT INTO announcements (title, body, tag, target_role, created_by, is_pinned, expires_at, attachment_file, attachment_name, is_active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-                [$title, $body, $tag, $target, $uid, $pinned, $expires, $attachment_file, $attachment_name],
-                'ssssiisss'
-            );
-
-            log_activity($uid, 'Department Notice Posted', $title);
-            $success = 'Announcement published. Students under your supervision were notified.';
-
-            $students = query(
-                "SELECT s.user_id FROM students s WHERE s.coordinator_id=? AND s.is_archived=0",
-                [$coord['id']],
-                'i'
-            ) ?: [];
-            foreach ($students as $st) {
-                create_notification($st['user_id'], "Announcement: $title", 'info', '/ojtrack/student/announcements.php');
+        } elseif ($action==='delete') {
+            $id=(int)($_POST['ann_id'] ?? 0);
+            if (normalized_announcement_soft_delete($id,$uid)) {
+                log_activity($uid,'Department Notice Archived',"ID: $id");
+                $success='Notice archived.';
             }
+        } elseif ($action==='toggle_pin') {
+            $id=(int)($_POST['ann_id'] ?? 0);
+            if (normalized_announcement_toggle_pin($id,$uid)) $success='Pin status updated.';
         }
-    } elseif ($action === 'edit') {
-        $id      = (int)($_POST['ann_id'] ?? 0);
-        $title   = trim($_POST['title'] ?? '');
-        $body    = trim($_POST['body'] ?? '');
-        $tag     = trim($_POST['tag'] ?? 'Department');
-        $pinned  = isset($_POST['is_pinned']) ? 1 : 0;
-        $expires = !empty($_POST['expires_at']) ? $_POST['expires_at'] : null;
-
-        $existing = query_one("SELECT * FROM announcements WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        if (!$existing) {
-            $error = 'You can only edit notices you created.';
-        } elseif (!$title || !$body) {
-            $error = 'Title and body are required.';
-        } else {
-            $attachment_file = $existing['attachment_file'] ?? null;
-            $attachment_name = $existing['attachment_name'] ?? null;
-
-            if (!empty($_POST['remove_attachment'])) {
-                $attachment_file = null;
-                $attachment_name = null;
-            }
-
-            if (!empty($_FILES['attachment']['name']) && ($_FILES['attachment']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-                $orig = $_FILES['attachment']['name'];
-                $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
-                $allowed_ext = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'xls', 'xlsx', 'ppt', 'pptx'];
-                $max_bytes = 10 * 1024 * 1024;
-
-                if (!in_array($ext, $allowed_ext, true)) {
-                    $error = 'Invalid attachment type. Allowed: PDF, DOC, images, and common office files.';
-                } elseif (($_FILES['attachment']['size'] ?? 0) > $max_bytes) {
-                    $error = 'Attachment is too large. Maximum size is 10MB.';
-                } else {
-                    $dest_dir = __DIR__ . '/../uploads/announcements/';
-                    if (!is_dir($dest_dir)) { mkdir($dest_dir, 0755, true); }
-                    $new_filename = 'ann_' . bin2hex(random_bytes(16)) . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                    if (move_uploaded_file($_FILES['attachment']['tmp_name'], $dest_dir . $new_filename)) {
-                        $attachment_file = 'announcements/' . $new_filename;
-                        $attachment_name = $orig;
-                    } else {
-                        $error = 'Failed to upload the attachment. Please try again.';
-                    }
-                }
-            }
-        }
-
-        if (!$error) {
-            query(
-                "UPDATE announcements SET title=?, body=?, tag=?, target_role='student', is_pinned=?, expires_at=?, attachment_file=?, attachment_name=? WHERE id=? AND created_by=?",
-                [$title, $body, $tag, $pinned, $expires, $attachment_file, $attachment_name, $id, $uid],
-                'sssisssii'
-            );
-            log_activity($uid, 'Department Notice Updated', $title);
-            $success = 'Notice updated successfully.';
-        }
-    } elseif ($action === 'delete') {
-        $id = (int)($_POST['ann_id'] ?? 0);
-        query("DELETE FROM announcements WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        log_activity($uid, 'Department Notice Deleted', "ID: $id");
-        $success = 'Notice deleted.';
-    } elseif ($action === 'toggle_pin') {
-        $id  = (int)($_POST['ann_id'] ?? 0);
-        $cur = query_one("SELECT is_pinned FROM announcements WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        if ($cur !== null) {
-            $new_pin = $cur['is_pinned'] ? 0 : 1;
-            query("UPDATE announcements SET is_pinned=? WHERE id=?", [$new_pin, $id], 'ii');
-            $success = 'Pin status updated.';
-        }
+    } catch (DomainException $exception) {
+        $error=$exception->getMessage();
     }
 }
 
-// Only notices created by this coordinator (department-scoped)
-$announcements = query(
-    "SELECT a.*, u.name AS author_name, u.role AS author_role
-     FROM announcements a
-     LEFT JOIN users u ON u.id=a.created_by
-     WHERE (a.created_by=? OR (" . announcement_scope($user) . "))
-     ORDER BY a.is_pinned DESC, a.created_at DESC",
-    [$uid],
-    'i'
-) ?: [];
-
-$dept_student_count = (int)(query_one(
-    "SELECT COUNT(*) AS c FROM students s JOIN users u ON u.id=s.user_id
-     WHERE s.coordinator_id=? AND s.is_archived=0 AND u.status!='archived'",
-    [$coord['id']],
-    'i'
-)['c'] ?? 0);
+$announcements = normalized_announcements_for_user($uid, true);
+$dept_student_count = count(normalized_students_for_coordinator((int)$coord['id']));
 
 $page_title = 'Announcements';
 require_once __DIR__ . '/../includes/header.php';
