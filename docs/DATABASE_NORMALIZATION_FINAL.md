@@ -35,7 +35,7 @@ students
     ├── placements ── companies
     │   ├── placement_supervisors ── company_users
     │   ├── attendance_days ── attendance_sessions
-    │   ├── journal_entries ── journal_revisions
+    │   ├── journal_days ── journal_revisions
     │   ├── evaluation_requests ── evaluation_submissions ── evaluation_answers
     │   └── certificates
     ├── requirement_assignments ── requirement_submissions
@@ -79,7 +79,7 @@ Official credited time is stored in integer minutes to avoid floating-point/roun
 
 ## Journal history
 
-`journal_entries` identifies the placement/date. `journal_revisions` stores every draft/submission/returned/approved version. A returned journal is never overwritten; resubmission creates a new revision.
+`journal_days` identifies the placement/date. `journal_revisions` stores every draft/submission/returned/approved version. A returned journal is never overwritten; resubmission creates a new revision.
 
 ## Requirement workflow
 
@@ -138,7 +138,7 @@ Certificate templates belong to a company. An issued certificate belongs to a pl
 | `companies.user_id/supervisor_name` | `company_users` |
 | `companies.cert_template` | `certificate_templates` |
 | `attendance` | `attendance_days` + `attendance_sessions` |
-| `journal_entries` mutable row | `journal_entries` + `journal_revisions` |
+| legacy `journal_entries` mutable row | `journal_days` + `journal_revisions` |
 | `ojt_requirements` | requirement template/version/assignment/submission tables |
 | `reports` | report template/version/assignment/submission tables |
 | legacy evaluation tables | versioned evaluation pipeline |
