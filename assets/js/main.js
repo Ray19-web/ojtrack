@@ -431,3 +431,64 @@ document.querySelectorAll('.role-option').forEach(opt => {
     if (radio) radio.checked = true;
   });
 });
+// ── Profile avatar preview ───────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  const input = document.getElementById('profileAvatarInput');
+  const preview = document.getElementById('profileAvatarPreview');
+  const filename = document.getElementById('profileAvatarFileName');
+  const saveButton = document.getElementById('profileAvatarSave');
+  if (!input || !preview || !filename || !saveButton) return;
+
+  const originalPreview = preview.innerHTML;
+  const defaultHint = filename.textContent;
+  let objectUrl = '';
+
+  input.addEventListener('change', function() {
+    const file = input.files && input.files[0] ? input.files[0] : null;
+
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = '';
+    }
+
+    if (!file) {
+      preview.innerHTML = originalPreview;
+      filename.textContent = defaultHint;
+      filename.classList.remove('is-selected');
+      saveButton.disabled = true;
+      return;
+    }
+
+    const allowed = ['image/jpeg','image/png','image/gif','image/webp'];
+    if (!allowed.includes(file.type) || file.size > 5 * 1024 * 1024) {
+      input.value = '';
+      preview.innerHTML = originalPreview;
+      filename.textContent = file.size > 5 * 1024 * 1024
+        ? 'That image is larger than 5 MB.'
+        : 'Choose a JPG, PNG, GIF, or WEBP image.';
+      filename.classList.remove('is-selected');
+      saveButton.disabled = true;
+      return;
+    }
+
+    objectUrl = URL.createObjectURL(file);
+    const img = document.createElement('img');
+    img.src = objectUrl;
+    img.alt = 'Selected profile photo preview';
+    img.className = 'profile-avatar-preview-img';
+    preview.replaceChildren(img);
+
+    const sizeMb = file.size / (1024 * 1024);
+    filename.textContent = file.name + ' · ' + (sizeMb >= 0.1 ? sizeMb.toFixed(1) + ' MB' : Math.max(1, Math.round(file.size / 1024)) + ' KB');
+    filename.classList.add('is-selected');
+    saveButton.disabled = false;
+  });
+
+  input.form?.addEventListener('submit', function() {
+    if (!saveButton.disabled) {
+      saveButton.disabled = true;
+      saveButton.textContent = 'Saving…';
+    }
+  });
+});
+
