@@ -147,17 +147,23 @@ require_once __DIR__ . '/../includes/header.php';
               <?php endif; ?>
             </td>
             <td>
-              <?php if ($r['status'] === 'rejected' || !$r['submitted_at']): ?>
-                <button class="btn btn-primary btn-sm" onclick="openSubmit(<?= $r['id'] ?>, '<?= e(addslashes($r['report_name'])) ?>')">
-                  <?= $r['status'] === 'rejected' ? 'Resubmit' : 'Upload' ?>
-                </button>
-              <?php elseif ($r['status'] === 'for_review'): ?>
-                <button class="btn btn-secondary btn-sm" onclick="openSubmit(<?= $r['id'] ?>, '<?= e(addslashes($r['report_name'])) ?>')">
-                  Update
-                </button>
-              <?php else: ?>
-                <span class="text-xs text-success font-bold">Approved</span>
-              <?php endif; ?>
+              <div class="table-actions">
+                <?php if ($r['status'] === 'rejected' || !$r['submitted_at']): ?>
+                  <button type="button" class="table-action-icon is-primary"
+                          title="<?= $r['status'] === 'rejected' ? 'Resubmit report' : 'Upload report' ?>"
+                          aria-label="<?= $r['status'] === 'rejected' ? 'Resubmit report' : 'Upload report' ?>"
+                          onclick="openSubmit(<?= $r['id'] ?>, '<?= e(addslashes($r['report_name'])) ?>')">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>
+                  </button>
+                <?php elseif ($r['status'] === 'for_review'): ?>
+                  <button type="button" class="table-action-icon is-primary" title="Update report" aria-label="Update report"
+                          onclick="openSubmit(<?= $r['id'] ?>, '<?= e(addslashes($r['report_name'])) ?>')">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.4-2.6L20 9M4 15l2.5 2.6A7 7 0 0 0 17.9 15"/></svg>
+                  </button>
+                <?php else: ?>
+                  <span class="text-xs text-success font-bold">Approved</span>
+                <?php endif; ?>
+              </div>
             </td>
           </tr>
         <?php endforeach; ?>
