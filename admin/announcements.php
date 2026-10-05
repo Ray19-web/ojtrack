@@ -113,7 +113,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
-<div class="card">
+<div class="card announcement-management-card">
   <div class="card-header flex-between">
     <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <div class="search-wrap" style="width:280px">
@@ -206,10 +206,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Compose Modal -->
 <div class="modal-overlay" id="composeModal">
-  <div class="modal modal-lg">
-    <div class="modal-title">Post New Announcement</div>
-    <p class="modal-sub">Create an official announcement for students, coordinators, or company partners</p>
-    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
+  <div class="modal modal-lg announcement-modal">
+    <div class="announcement-modal-header">
+      <div>
+        <div class="modal-title">Post New Announcement</div>
+        <p class="modal-sub">Create an official announcement for students, coordinators, or company partners</p>
+      </div>
+      <button type="button" class="announcement-modal-close" onclick="closeModal('composeModal')" aria-label="Close announcement form">×</button>
+    </div>
+    <form method="POST" enctype="multipart/form-data" class="announcement-form"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -245,17 +250,21 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Attachment (File or Image)</label>
-        <div class="upload-area">
+        <div class="upload-area announcement-upload" role="button" tabindex="0">
           <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx,image/*">
-          <div class="upload-title">Click to browse or drop file / image here</div>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>
+          <div class="upload-title">Browse or drop a file here</div>
           <div class="upload-sub">PDF, DOC, JPG, PNG, and office files · Max 10MB</div>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="flex-items-center gap-2 text-sm cursor-pointer">
+        <label class="announcement-pin-control">
           <input type="checkbox" name="is_pinned" value="1">
-          <span class="font-bold">Pin to top</span>
+          <span>
+            <strong>Pin to top</strong>
+            <small>Keep this announcement above regular notices.</small>
+          </span>
         </label>
       </div>
 
@@ -269,10 +278,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- View / Edit Announcement Modal -->
 <div class="modal-overlay" id="viewEditAnnModal">
-  <div class="modal modal-lg">
-    <div class="modal-title">Announcement Details</div>
-    <p class="modal-sub" id="viewEditAnnMeta"></p>
-    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
+  <div class="modal modal-lg announcement-modal">
+    <div class="announcement-modal-header">
+      <div>
+        <div class="modal-title">Announcement Details</div>
+        <p class="modal-sub" id="viewEditAnnMeta"></p>
+      </div>
+      <button type="button" class="announcement-modal-close" onclick="closeModal('viewEditAnnModal')" aria-label="Close announcement details">×</button>
+    </div>
+    <form method="POST" enctype="multipart/form-data" class="announcement-form"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit">
       <input type="hidden" name="ann_id" id="editAnnId">
       <div class="form-group">
@@ -307,11 +321,11 @@ require_once __DIR__ . '/../includes/header.php';
         <textarea name="body" id="editAnnBody" class="form-control" rows="7" required></textarea>
       </div>
 
-      <div class="form-group" id="editAnnCurrentFileWrap" style="display:none">
+      <div class="form-group announcement-current-file" id="editAnnCurrentFileWrap" style="display:none">
         <label class="form-label">Current Attachment</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a href="#" id="editAnnCurrentFileLink" target="_blank" class="btn btn-secondary btn-xs"></a>
-          <label class="flex-items-center gap-2 text-sm cursor-pointer">
+          <label class="announcement-remove-control">
             <input type="checkbox" name="remove_attachment" value="1" id="editAnnRemoveFile">
             <span>Remove attachment</span>
           </label>
@@ -320,17 +334,21 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Replace / Add Attachment</label>
-        <div class="upload-area">
+        <div class="upload-area announcement-upload" role="button" tabindex="0">
           <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx,image/*">
-          <div class="upload-title">Click to browse or drop file / image here</div>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>
+          <div class="upload-title">Browse or drop a file here</div>
           <div class="upload-sub">PDF, DOC, JPG, PNG, and office files · Max 10MB</div>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="flex-items-center gap-2 text-sm cursor-pointer">
+        <label class="announcement-pin-control">
           <input type="checkbox" name="is_pinned" value="1" id="editAnnPinned">
-          <span class="font-bold">Pin to top</span>
+          <span>
+            <strong>Pin to top</strong>
+            <small>Keep this announcement above regular notices.</small>
+          </span>
         </label>
       </div>
 
