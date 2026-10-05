@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action==='save_template') {
         $t=[
-            'logo'=>$certificate_template['logo'] ?? '',
+            'logo'=>$template['logo'] ?? '',
             'org_name'=>trim($_POST['org_name'] ?? ''),
             'org_address'=>trim($_POST['org_address'] ?? ''),
             'cert_title'=>trim($_POST['cert_title'] ?? 'Certificate of Recognition'),
@@ -139,17 +139,19 @@ require_once __DIR__ . '/../includes/header.php';
           <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">Reprint</button>
           <button type="button" class="btn btn-primary btn-sm" onclick="downloadCert()">⬇ Download Issued Certificate</button>
         <?php elseif ($selected && ($eligibility['eligible'] ?? false)): ?>
-          <form method="POST" style="display:inline"><?= csrf_field() ?>
-            <input type="hidden" name="action" value="issue_certificate">
-            <input type="hidden" name="student_id" value="<?= (int)$selected['id'] ?>">
-            <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Issue the official certificate now? Its student, hours, company, template, issuer and issue date will be frozen for future reprints.')">Issue Official Certificate</button>
-          </form>
+          <button type="submit" form="issueCertificateForm" class="btn btn-primary btn-sm" onclick="return confirm('Issue the official certificate now? Its student, hours, company, template, issuer and issue date will be frozen for future reprints.')">Issue Official Certificate</button>
         <?php else: ?>
           <span class="text-xs text-muted">Preview only — <?= e(implode(' ', $eligibility['reasons'] ?? ['Not eligible for issuance yet.'])) ?></span>
         <?php endif; ?>
         <span style="flex:1"></span>
         <button type="button" onclick="openModal('templateModal')" style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border:none;border-radius:10px;background:linear-gradient(135deg,#103b78,#1d4ed8);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(16,59,120,.25);transition:transform .15s ease, box-shadow .15s ease" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 18px rgba(16,59,120,.3)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 12px rgba(16,59,120,.25)'">✏️ Editable Template</button>
       </form>
+      <?php if (!$issuedCertificate && $selected && ($eligibility['eligible'] ?? false)): ?>
+        <form method="POST" id="issueCertificateForm" style="display:none"><?= csrf_field() ?>
+          <input type="hidden" name="action" value="issue_certificate">
+          <input type="hidden" name="student_id" value="<?= (int)$selected['id'] ?>">
+        </form>
+      <?php endif; ?>
     </div>
 <div class="modal-overlay" id="templateModal">
   <div class="modal modal-lg" style="max-height:90vh;overflow-y:auto">
