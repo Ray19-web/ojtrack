@@ -326,7 +326,13 @@ document.addEventListener('DOMContentLoaded', function () {
               <div class="text-xs text-muted" title="<?= e($s['status_notes']) ?>"><?= e(substr($s['status_notes'], 0, 40)) ?><?= strlen($s['status_notes']) > 40 ? '…' : '' ?></div>
             <?php endif; ?>
           </td>
-          <td><a href="?id=<?= $s['id'] ?>" class="btn btn-secondary btn-sm">Manage</a></td>
+          <td>
+            <div class="table-actions">
+              <a href="?id=<?= $s['id'] ?>" class="table-action-icon is-primary" title="Manage student" aria-label="Manage student">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M8 15v4"/></svg>
+              </a>
+            </div>
+          </td>
         </tr>
         <?php endforeach; ?>
         <?php if (empty($students)): ?>
