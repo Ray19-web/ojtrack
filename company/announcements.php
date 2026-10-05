@@ -123,10 +123,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Compose Notice Modal -->
 <div class="modal-overlay" id="composeModal">
-  <div class="modal modal-lg">
-    <div class="modal-title">Post a Company Notice</div>
-    <p class="modal-sub">Send a notice to your trainees, the OJT Coordinator, or both</p>
-    <form method="POST"><?= csrf_field() ?>
+  <div class="modal modal-lg announcement-modal">
+    <div class="announcement-modal-header">
+      <div>
+        <div class="modal-title">Post a Company Notice</div>
+        <p class="modal-sub">Send a notice to your trainees, the OJT Coordinator, or both</p>
+      </div>
+      <button type="button" class="announcement-modal-close" onclick="closeModal('composeModal')" aria-label="Close notice form">×</button>
+    </div>
+    <form method="POST" class="announcement-form"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -157,9 +162,12 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="date" name="expires_at" class="form-control" min="<?= date('Y-m-d') ?>">
       </div>
       <div class="form-group flex-items-center">
-        <label class="flex-items-center gap-2 text-sm cursor-pointer">
+        <label class="announcement-pin-control">
           <input type="checkbox" name="is_pinned" value="1">
-          <span class="font-bold">Pin this notice to top</span>
+          <span>
+            <strong>Pin this notice to top</strong>
+            <small>Keep it visible above regular partner notices.</small>
+          </span>
         </label>
       </div>
       <div class="form-group">
@@ -203,10 +211,10 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 
   <!-- Main list -->
-  <div class="space-y-4">
+  <div class="space-y-4 announcement-feed">
     <!-- Search Bar -->
     <div class="card card-body py-3">
-      <form method="GET" class="flex-items-center gap-3">
+      <form method="GET" class="flex-items-center gap-3 announcement-search-form">
         <?php if ($tag_filter): ?><input type="hidden" name="tag" value="<?= e($tag_filter) ?>"><?php endif; ?>
         <div class="search-wrap flex-1">
           <input type="text" name="q" class="form-control search-input" placeholder="Search notices by keyword..." value="<?= e($search) ?>">
@@ -229,7 +237,7 @@ require_once __DIR__ . '/../includes/header.php';
       <?php foreach ($announcements as $a): ?>
         <article class="card announcement-item <?= $a['is_pinned'] ? 'is-pinned' : '' ?>">
           <div class="card-body">
-            <div class="flex-between mb-2">
+            <div class="announcement-item-head">
               <div class="flex-items-center gap-2">
                 <?php if ($a['is_pinned']): ?>
                   <span class="badge badge-primary font-bold text-xs">PINNED</span>
@@ -239,8 +247,8 @@ require_once __DIR__ . '/../includes/header.php';
               </div>
             </div>
 
-            <h3 class="font-bold text-base text-800 mb-2"><?= e($a['title']) ?></h3>
-            <div class="text-sm text-600 leading-relaxed mb-3">
+            <h3 class="announcement-item-title"><?= e($a['title']) ?></h3>
+            <div class="announcement-item-copy">
               <?= nl2br(e($a['body'])) ?>
             </div>
 
@@ -249,20 +257,20 @@ require_once __DIR__ . '/../includes/header.php';
                 $att_ext = strtolower(pathinfo($a['attachment_file'], PATHINFO_EXTENSION));
                 $is_img = in_array($att_ext, ['jpg','jpeg','png','gif','webp'], true);
               ?>
-              <div class="mb-3">
+              <div class="announcement-item-attachment">
                 <?php if ($is_img): ?>
                   <a href="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" target="_blank">
-                    <img src="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" alt="<?= e($a['attachment_name'] ?: 'Announcement image') ?>" style="max-width:100%;max-height:280px;border-radius:8px;border:1px solid var(--border)">
+                    <img src="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" alt="<?= e($a['attachment_name'] ?: 'Announcement image') ?>" class="announcement-item-image">
                   </a>
                 <?php else: ?>
-                  <a href="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" target="_blank" class="btn btn-secondary btn-sm">
+                  <a href="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" target="_blank" class="btn btn-secondary btn-sm announcement-item-file">
                     Download: <?= e($a['attachment_name'] ?: 'Attachment') ?>
                   </a>
                 <?php endif; ?>
               </div>
             <?php endif; ?>
 
-            <div class="pt-3 border-t flex-between text-xs text-muted">
+            <div class="announcement-item-footer">
               <span>Posted by <strong><?= e($a['author_name'] ?: 'OJT Office') ?></strong> (<?= ucfirst($a['author_role'] ?: 'Coordinator') ?>)</span>
               <span><?= time_ago($a['created_at']) ?></span>
             </div>
