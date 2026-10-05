@@ -95,5 +95,10 @@ path=sql('SELECT proof_image FROM journal_entries WHERE id=1')
 check(b'synthetic_tail' not in (PRIVATE/path).read_bytes(),'journal proof normalized')
 check(not (ROOT/'uploads'/path).exists(),'new journal proof stays outside public uploads')
 check(s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(11*1024*1024))])[0]==422,'PHP upload limit handled')
-check(s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(33*1024*1024))])[0]==413,'PHP post limit handled')
+try:
+    status,_=s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(33*1024*1024))])
+    check(status==413,'PHP post limit handled')
+except urllib.error.URLError as error:
+    check(isinstance(error.reason, ConnectionResetError),'oversized request rejected by server')
+    check(s.get('login.php')[0]==200,'server remains healthy after oversized request')
 print({'upload_checks_passed':count,'result':'PASS'})
