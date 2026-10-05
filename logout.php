@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/config/security.php';
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-    echo '<!doctype html><html lang="en"><meta charset="utf-8"><title>Sign out — OJTrack</title><form method="post">' . csrf_field() . '<p>Sign out of OJTrack?</p><button type="submit">Sign Out</button></form></html>';
+    header('Location: /ojtrack/index.php');
     exit;
 }
 require_csrf();
