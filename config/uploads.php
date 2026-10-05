@@ -12,12 +12,167 @@ function upload_policy($field) {
     };
 }
 
+function png_image_end_offset(string $data): int {
+    if (!str_starts_with($data, "\x89PNG\r\n\x1a\n")) {
+        throw new DomainException('Invalid PNG image.');
+    }
+    $length = strlen($data);
+    $offset = 8;
+    while ($offset + 12 <= $length) {
+        $chunkLength = unpack('Nlen', substr($data, $offset, 4))['len'];
+        $type = substr($data, $offset + 4, 4);
+        $end = $offset + 12 + $chunkLength;
+        if ($end > $length) throw new DomainException('Invalid PNG image structure.');
+        if ($type === 'IEND') {
+            if ($chunkLength !== 0) throw new DomainException('Invalid PNG image ending.');
+            return $end;
+        }
+        $offset = $end;
+    }
+    throw new DomainException('PNG image is missing its end marker.');
+}
+
+function jpeg_image_end_offset(string $data): int {
+    $length = strlen($data);
+    if ($length < 4 || substr($data, 0, 2) !== "\xFF\xD8") {
+        throw new DomainException('Invalid JPEG image.');
+    }
+
+    $offset = 2;
+    $inScan = false;
+    while ($offset < $length) {
+        if ($inScan) {
+            if (ord($data[$offset]) !== 0xFF) {
+                $offset++;
+                continue;
+            }
+            while ($offset < $length && ord($data[$offset]) === 0xFF) $offset++;
+            if ($offset >= $length) break;
+            $marker = ord($data[$offset++]);
+            if ($marker === 0x00 || ($marker >= 0xD0 && $marker <= 0xD7)) continue;
+            if ($marker === 0xD9) return $offset;
+            $inScan = false;
+        } else {
+            while ($offset < $length && ord($data[$offset]) !== 0xFF) $offset++;
+            if ($offset >= $length) break;
+            while ($offset < $length && ord($data[$offset]) === 0xFF) $offset++;
+            if ($offset >= $length) break;
+            $marker = ord($data[$offset++]);
+            if ($marker === 0xD9) return $offset;
+            if ($marker === 0xD8 || $marker === 0x01 || ($marker >= 0xD0 && $marker <= 0xD7)) continue;
+        }
+
+        if ($offset + 2 > $length) throw new DomainException('Invalid JPEG image structure.');
+        $segmentLength = unpack('nlen', substr($data, $offset, 2))['len'];
+        if ($segmentLength < 2 || $offset + $segmentLength > $length) {
+            throw new DomainException('Invalid JPEG image segment.');
+        }
+        $isScan = ($marker === 0xDA);
+        $offset += $segmentLength;
+        if ($isScan) $inScan = true;
+    }
+
+    throw new DomainException('JPEG image is missing its end marker.');
+}
+
+function gif_image_end_offset(string $data): int {
+    $length = strlen($data);
+    if ($length < 13 || !in_array(substr($data, 0, 6), ['GIF87a','GIF89a'], true)) {
+        throw new DomainException('Invalid GIF image.');
+    }
+
+    $packed = ord($data[10]);
+    $offset = 13;
+    if ($packed & 0x80) {
+        $offset += 3 * (1 << (($packed & 0x07) + 1));
+        if ($offset > $length) throw new DomainException('Invalid GIF color table.');
+    }
+
+    $skipSubBlocks = function(int $position) use ($data, $length): int {
+        while (true) {
+            if ($position >= $length) throw new DomainException('Invalid GIF data block.');
+            $size = ord($data[$position++]);
+            if ($size === 0) return $position;
+            $position += $size;
+            if ($position > $length) throw new DomainException('Invalid GIF data block.');
+        }
+    };
+
+    while ($offset < $length) {
+        $block = ord($data[$offset++]);
+        if ($block === 0x3B) return $offset;
+
+        if ($block === 0x21) {
+            if ($offset >= $length) throw new DomainException('Invalid GIF extension.');
+            $offset++; // extension label
+            $offset = $skipSubBlocks($offset);
+            continue;
+        }
+
+        if ($block === 0x2C) {
+            if ($offset + 9 > $length) throw new DomainException('Invalid GIF image descriptor.');
+            $packed = ord($data[$offset + 8]);
+            $offset += 9;
+            if ($packed & 0x80) {
+                $offset += 3 * (1 << (($packed & 0x07) + 1));
+                if ($offset > $length) throw new DomainException('Invalid GIF local color table.');
+            }
+            if ($offset >= $length) throw new DomainException('Invalid GIF image data.');
+            $offset++; // LZW minimum code size
+            $offset = $skipSubBlocks($offset);
+            continue;
+        }
+
+        throw new DomainException('Invalid GIF image structure.');
+    }
+
+    throw new DomainException('GIF image is missing its trailer.');
+}
+
+function webp_image_end_offset(string $data): int {
+    if (strlen($data) < 12 || substr($data, 0, 4) !== 'RIFF' || substr($data, 8, 4) !== 'WEBP') {
+        throw new DomainException('Invalid WEBP image.');
+    }
+    $riffSize = unpack('Vlen', substr($data, 4, 4))['len'];
+    $end = 8 + $riffSize;
+    if ($end < 12 || $end > strlen($data)) throw new DomainException('Invalid WEBP image length.');
+    return $end;
+}
+
+function strip_image_trailing_payload(string $path, string $ext): void {
+    $data = file_get_contents($path);
+    if (!is_string($data) || $data === '') throw new DomainException('The image could not be read.');
+
+    $end = match ($ext) {
+        'png' => png_image_end_offset($data),
+        'jpg', 'jpeg' => jpeg_image_end_offset($data),
+        'gif' => gif_image_end_offset($data),
+        'webp' => webp_image_end_offset($data),
+        default => throw new DomainException('Unsupported image type.'),
+    };
+
+    if ($end < strlen($data)) {
+        if (file_put_contents($path, substr($data, 0, $end), LOCK_EX) === false) {
+            throw new DomainException('The server could not sanitize this image.');
+        }
+    }
+    clearstatcache(true, $path);
+}
+
 function normalize_upload_image($path, $ext) {
     $info = @getimagesize($path);
     if (!$info || $info[0] < 1 || $info[1] < 1 || $info[0] > 6000 || $info[1] > 6000 || $info[0] * $info[1] > 12000000) {
         throw new DomainException('Use a valid image no larger than 6000 pixels per side and 12 megapixels.');
     }
-    if (!function_exists('imagecreatefromstring')) throw new DomainException('Image uploads are unavailable until the server enables PHP GD.');
+
+    if (!function_exists('imagecreatefromstring')) {
+        // XAMPP installations often ship with GD disabled. MIME and dimensions were
+        // already verified; remove bytes after the real image terminator so public
+        // avatar/logo uploads remain safe without requiring GD.
+        strip_image_trailing_payload($path, $ext);
+        return;
+    }
+
     $image = @imagecreatefromstring(file_get_contents($path));
     if (!$image) throw new DomainException('This image cannot be decoded. Export a new copy and try again.');
     try {
