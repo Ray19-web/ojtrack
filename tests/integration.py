@@ -60,22 +60,52 @@ check(sql("SELECT GROUP_CONCAT(is_read ORDER BY id) FROM notifications WHERE id 
 check(c[4].req('api/notifications.php',{'action':'mark_read'})[0]==422,'ambiguous mark-all denied')
 check(c[4].req('api/notifications.php',{'action':'mark_read','all':1})[0]==200,'explicit mark all')
 check(sql("SELECT is_read FROM notifications WHERE id=3")=='0','other user unchanged')
-# Published and foreign evaluation ownership.
+# Published and foreign normalized evaluation ownership.
+published_form=int(sql("SELECT evaluation_definition_version_id FROM legacy_evaluation_form_migration_map WHERE legacy_form_id=1"))
+draft_form=int(sql("SELECT evaluation_definition_version_id FROM legacy_evaluation_form_migration_map WHERE legacy_form_id=2"))
+foreign_form=int(sql("SELECT evaluation_definition_version_id FROM legacy_evaluation_form_migration_map WHERE legacy_form_id=3"))
+foreign_criterion=int(sql(f"""SELECT c.id
+FROM evaluation_version_criteria c
+JOIN evaluation_version_sections s ON s.id=c.evaluation_version_section_id
+WHERE s.evaluation_definition_version_id={foreign_form}
+ORDER BY c.id LIMIT 1"""))
 for data,expected in [
-({'action':'add_section','form_id':1,'title':'Tamper'},409),
-({'action':'add_section','form_id':3,'title':'Tamper'},403),
-({'action':'delete_criterion','form_id':2,'criterion_id':4},403)]:
+({'action':'add_section','form_id':published_form,'title':'Tamper'},409),
+({'action':'add_section','form_id':foreign_form,'title':'Tamper'},403),
+({'action':'delete_criterion','form_id':draft_form,'criterion_id':foreign_criterion},403)]:
     check(c[2].req('coordinator/evaluation.php',data)[0]==expected,'evaluation guard '+str(data))
+
+pending_eval_request=int(sql("""SELECT m.evaluation_request_id
+FROM legacy_eval_submission_migration_map m
+WHERE m.legacy_submission_id=2"""))
+criterion_ids=[
+    int(x) for x in sql(f"""SELECT c.id
+FROM evaluation_requests er
+JOIN evaluation_version_sections s ON s.evaluation_definition_version_id=er.evaluation_definition_version_id
+JOIN evaluation_version_criteria c ON c.evaluation_version_section_id=s.id
+WHERE er.id={pending_eval_request}
+ORDER BY s.sort_order,c.sort_order,c.id""").splitlines()
+]
+check(len(criterion_ids)==2,'normalized evaluation fixture criteria')
 # Missing criteria leave no partial answers.
-c[3].req('company/evaluation.php',{'action':'submit_submission','submission_id':2,'criterion_1':'100'})
-check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2')=='0','missing answer rolls back')
-c[6].req('company/evaluation.php',{'action':'submit_submission','submission_id':2,'criterion_1':100,'criterion_2':0})
-check(sql("SELECT status FROM eval_submissions WHERE id=2")=='pending','other company blocked')
-valid={'action':'submit_submission','submission_id':2,'criterion_1':100,'criterion_2':0,'comments':'Synthetic'}
+c[3].req('company/evaluation.php',{'action':'submit_submission','submission_id':pending_eval_request,f'criterion_{criterion_ids[0]}':'100'})
+check(sql(f"""SELECT COUNT(*)
+FROM evaluation_answers ea
+JOIN evaluation_submissions es ON es.id=ea.evaluation_submission_id
+WHERE es.evaluation_request_id={pending_eval_request}""")=='0','missing answer rolls back')
+c[6].req('company/evaluation.php',{'action':'submit_submission','submission_id':pending_eval_request,f'criterion_{criterion_ids[0]}':100,f'criterion_{criterion_ids[1]}':0})
+check(sql(f"SELECT status FROM evaluation_requests WHERE id={pending_eval_request}")=='pending','other company blocked')
+valid={'action':'submit_submission','submission_id':pending_eval_request,f'criterion_{criterion_ids[0]}':100,f'criterion_{criterion_ids[1]}':0,'comments':'Synthetic'}
 c[3].req('company/evaluation.php',valid);c[3].req('company/evaluation.php',valid)
-check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2')=='2','retry idempotent')
-check(sql('SELECT overall_score FROM eval_submissions WHERE id=2')=='50.00','zero and 100 accepted')
-check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2 AND equivalent IS NULL')=='2','no equivalent overflow')
+check(sql(f"""SELECT COUNT(*)
+FROM evaluation_answers ea
+JOIN evaluation_submissions es ON es.id=ea.evaluation_submission_id
+WHERE es.evaluation_request_id={pending_eval_request}""")=='2','retry idempotent')
+check(sql(f"SELECT overall_score FROM evaluation_submissions WHERE evaluation_request_id={pending_eval_request}")=='50.00','zero and 100 accepted')
+check(sql(f"""SELECT COUNT(*)
+FROM evaluation_answers ea
+JOIN evaluation_submissions es ON es.id=ea.evaluation_submission_id
+WHERE es.evaluation_request_id={pending_eval_request} AND ea.equivalent IS NULL""")=='2','no equivalent overflow')
 # Returned journals create a new normalized immutable revision; legacy source stays unchanged.
 journal_day_id=int(sql("""SELECT jd.id
 FROM journal_days jd
@@ -98,12 +128,14 @@ check(c[7].req('download.php?file=requirements/test.txt')[0]==404,'other student
 check(c[8].req('download.php?file=requirements/onboarding.txt')[1]=='Synthetic onboarding document','onboarding own document')
 check(c[4].req('download.php?file=../config/db.php')[0]==404,'traversal denied')
 check(c[4].req('uploads/requirements/test.txt')[0]==403,'test router blocks direct documents')
-# Form creation binding, version copy, rule validation and scoped messaging.
+# Normalized form creation binding, version copy, rule validation and scoped messaging.
 c[2].req('coordinator/evaluation.php',{'action':'save_form','form_id':0,'title':'New test form','description':'Test','score_mode':'percentage'})
-check(sql("SELECT COUNT(*) FROM evaluation_forms WHERE title='New test form'")=='1','form creation binding')
-c[2].req('coordinator/evaluation.php',{'action':'edit_active','form_id':1})
-check(sql("SELECT COUNT(*) FROM evaluation_forms WHERE parent_id=1 AND status='draft'")=='1','immutable version clone')
-check(c[2].req('coordinator/evaluation.php',{'action':'add_rule','form_id':2,'score_min':101,'score_max':105,'equivalent':1})[0]==422,'invalid score band blocked')
+check(sql("SELECT COUNT(*) FROM evaluation_definitions WHERE title='New test form'")=='1','form creation binding')
+published_definition=int(sql(f"SELECT evaluation_definition_id FROM evaluation_definition_versions WHERE id={published_form}"))
+before_versions=int(sql(f"SELECT COUNT(*) FROM evaluation_definition_versions WHERE evaluation_definition_id={published_definition}"))
+c[2].req('coordinator/evaluation.php',{'action':'edit_active','form_id':published_form})
+check(int(sql(f"SELECT COUNT(*) FROM evaluation_definition_versions WHERE evaluation_definition_id={published_definition}"))==before_versions+1,'immutable version clone')
+check(c[2].req('coordinator/evaluation.php',{'action':'add_rule','form_id':draft_form,'score_min':101,'score_max':105,'equivalent':1})[0]==422,'invalid score band blocked')
 check(c[4].req('api/messages.php',{'action':'create_thread','name':'Foreign','thread_type':'direct','members':'5'})[0]==403,'foreign recipient blocked')
 status,body,url=c[4].req('api/messages.php',{'action':'create_thread','name':'Assigned','thread_type':'direct','members':'2'})
 thread=json.loads(body)['thread_id']
