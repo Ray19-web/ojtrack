@@ -102,16 +102,24 @@ require_once __DIR__ . '/../includes/header.php';
             <td><span class="text-xs font-bold text-600"><?= e($n['tag'] ?: 'General') ?></span></td>
             <td class="td-mono text-xs"><?= format_date($n['created_at']) ?></td>
             <td>
-              <form method="POST" style="display:inline"><?= csrf_field() ?>
-                <input type="hidden" name="action" value="toggle_pin">
-                <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
-                <button type="submit" class="btn btn-secondary btn-sm"><?= $n['is_pinned'] ? 'Unpin' : 'Pin' ?></button>
-              </form>
-              <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-              </form>
+              <div class="table-actions">
+                <form method="POST"><?= csrf_field() ?>
+                  <input type="hidden" name="action" value="toggle_pin">
+                  <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
+                  <button type="submit" class="table-action-icon <?= $n['is_pinned'] ? 'is-primary' : '' ?>"
+                          title="<?= $n['is_pinned'] ? 'Unpin notice' : 'Pin notice to top' ?>"
+                          aria-label="<?= $n['is_pinned'] ? 'Unpin notice' : 'Pin notice to top' ?>">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-4-4 5-1 4-4 1-3Z"/><path d="m4 20 5-5"/></svg>
+                  </button>
+                </form>
+                <form method="POST" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
+                  <button type="submit" class="table-action-icon is-danger" title="Delete notice" aria-label="Delete notice">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>
+                  </button>
+                </form>
+              </div>
             </td>
           </tr>
           <?php endforeach; ?>
