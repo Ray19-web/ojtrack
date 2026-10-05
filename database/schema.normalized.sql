@@ -229,7 +229,7 @@ CREATE TABLE attendance_corrections (
   CONSTRAINT fk_attendance_corrections_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE journal_entries (
+CREATE TABLE journal_days (
   id BIGINT NOT NULL AUTO_INCREMENT,
   placement_id INT NOT NULL,
   entry_date DATE NOT NULL,
@@ -237,7 +237,7 @@ CREATE TABLE journal_entries (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_journal_entry_day (placement_id, entry_date),
-  CONSTRAINT fk_journal_entries_placement FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE RESTRICT
+  CONSTRAINT fk_journal_days_placement FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE journal_revisions (
@@ -256,7 +256,7 @@ CREATE TABLE journal_revisions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_journal_revision (journal_entry_id, revision_no),
-  CONSTRAINT fk_journal_revisions_entry FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE,
+  CONSTRAINT fk_journal_revisions_entry FOREIGN KEY (journal_entry_id) REFERENCES journal_days(id) ON DELETE CASCADE,
   CONSTRAINT fk_journal_revisions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
