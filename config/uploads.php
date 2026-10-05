@@ -127,6 +127,68 @@ function validate_request_uploads($json = false) {
             }
         }
     } catch (DomainException $error) {
+        if (!$json && isset($_FILES['avatar'])) {
+            $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+            if (str_ends_with($path, '/profile.php')) {
+                $role = $_SESSION['role'] ?? 'admin';
+                $fallback = '/ojtrack/' . (in_array($role, ['admin','student','coordinator','company'], true) ? $role : 'admin') . '/dashboard.php';
+                $redirect = safe_app_redirect($_POST['redirect'] ?? '', $fallback);
+                $_SESSION['flash_error'] = $error->getMessage();
+                $sep = str_contains($redirect, '?') ? '&' : '?';
+                header('Location: ' . $redirect . $sep . 'profile=1', true, 303);
+                exit;
+            }
+        }
         request_error(422, $error->getMessage(), $json);
     }
+}
+
+function save_user_avatar_upload(int $userId, array $file): string {
+    if ($userId <= 0) throw new DomainException('Invalid user account.');
+    if (empty($file['name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new DomainException('Choose a profile picture first.');
+    }
+
+    $ext = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg','jpeg','png','gif','webp'], true)) {
+        throw new DomainException('Profile picture must be JPG, PNG, GIF, or WEBP.');
+    }
+
+    $destDir = __DIR__ . '/../uploads/avatars';
+    if (!is_dir($destDir) && !mkdir($destDir, 0755, true) && !is_dir($destDir)) {
+        throw new RuntimeException('The avatar folder could not be created.');
+    }
+    if (!is_writable($destDir)) {
+        throw new RuntimeException('The avatar folder is not writable.');
+    }
+
+    $old = query_one("SELECT avatar FROM users WHERE id=?", [$userId], 'i');
+    if (!$old) throw new DomainException('User account not found.');
+
+    $filename = 'avatar_' . $userId . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+    $destination = $destDir . DIRECTORY_SEPARATOR . $filename;
+
+    if (!move_uploaded_file((string)$file['tmp_name'], $destination)) {
+        throw new RuntimeException('The server could not save the profile picture.');
+    }
+
+    $relative = 'avatars/' . $filename;
+    try {
+        query("UPDATE users SET avatar=? WHERE id=?", [$relative, $userId], 'si');
+    } catch (Throwable $error) {
+        @unlink($destination);
+        throw $error;
+    }
+
+    $_SESSION['avatar'] = $relative;
+
+    $oldRelative = (string)($old['avatar'] ?? '');
+    if ($oldRelative !== '' && str_starts_with($oldRelative, 'avatars/')) {
+        $oldPath = __DIR__ . '/../uploads/' . $oldRelative;
+        if (is_file($oldPath) && realpath($oldPath) !== realpath($destination)) {
+            @unlink($oldPath);
+        }
+    }
+
+    return $relative;
 }
