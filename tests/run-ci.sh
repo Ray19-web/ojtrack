@@ -144,3 +144,13 @@ done
 python3 tests/integration.py
 python3 tests/uploads.py
 python3 tests/migration.py
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/phase9-retirement.php
+python3 tests/phase9-web-smoke.py
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/rollback-normalized-phase9-retirement.php --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/rollback-normalized-phase9-retirement.php --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/phase9-retirement.php
