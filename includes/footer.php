@@ -162,6 +162,27 @@
   </div>
 </div>
 
+<!-- Logout Confirmation Modal -->
+<div class="modal-overlay" id="logoutModal">
+  <div class="modal logout-modal">
+    <div class="logout-modal-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 17l5-5-5-5"/>
+        <path d="M15 12H3"/>
+        <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/>
+      </svg>
+    </div>
+    <div class="modal-title">Sign out of OJTrack?</div>
+    <p class="modal-sub logout-modal-sub">You’ll need to sign in again to continue.</p>
+
+    <form method="post" action="/ojtrack/logout.php" class="logout-modal-actions">
+      <?= csrf_field() ?>
+      <button type="button" class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+      <button type="submit" class="btn btn-danger">Sign Out</button>
+    </form>
+  </div>
+</div>
+
 <?php if ($open_profile || $flash_success || $flash_error): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
