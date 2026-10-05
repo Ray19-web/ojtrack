@@ -17,13 +17,11 @@ cleanup() {
       if [[ -f "$log" ]]; then tail -n 50 "$log"; fi
     done
   fi
-  if [[ -n "$web_pid" && -f "$work/apache.conf" ]]; then
-    apache2 -f "$work/apache.conf" -k stop >/dev/null 2>&1 || true
-    wait "$web_pid" 2>/dev/null || true
-  fi
-  if [[ -n "$db_pid" && -n "${OJTRACK_TEST_SOCKET:-}" ]]; then
-    mariadb-admin --no-defaults --socket="$OJTRACK_TEST_SOCKET" -uroot shutdown >/dev/null 2>&1 || true
-    wait "$db_pid" 2>/dev/null || true
+  # GitHub-hosted runners clean orphan child processes themselves. Explicitly
+  # stopping Apache/MariaDB there can race the runner's own teardown signal.
+  if [[ "${GITHUB_ACTIONS:-}" != "true" ]]; then
+    if [[ -n "$web_pid" ]]; then kill "$web_pid" 2>/dev/null || true; wait "$web_pid" 2>/dev/null || true; fi
+    if [[ -n "$db_pid" ]]; then kill "$db_pid" 2>/dev/null || true; wait "$db_pid" 2>/dev/null || true; fi
   fi
   # Keep the temporary fixture for failure diagnosis; hosted runners discard it afterwards.
   return "$outcome"
