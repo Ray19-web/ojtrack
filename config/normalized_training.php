@@ -375,18 +375,33 @@ function normalized_journal_save(
             $attachmentId=normalized_register_private_attachment(
                 $proofStorageKey,$originalFilename ?: basename($proofStorageKey),$actorUserId
             );
-            insert(
-                "INSERT INTO journal_revision_attachments(journal_revision_id,attachment_id) VALUES(?,?)",
-                [$revisionId,$attachmentId],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                query("UPDATE journal_revisions SET attachment_id=? WHERE id=?",[$attachmentId,$revisionId],'ii');
+            } else {
+                insert(
+                    "INSERT INTO journal_revision_attachments(journal_revision_id,attachment_id) VALUES(?,?)",
+                    [$revisionId,$attachmentId],
+                    'ii'
+                );
+            }
         } elseif ($previousRevisionId) {
-            query(
-                "INSERT IGNORE INTO journal_revision_attachments(journal_revision_id,attachment_id)
-                 SELECT ?,attachment_id FROM journal_revision_attachments WHERE journal_revision_id=?",
-                [$revisionId,$previousRevisionId],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                $previousAttachment=query_one("SELECT attachment_id FROM journal_revisions WHERE id=?",[$previousRevisionId],'i');
+                if (!empty($previousAttachment['attachment_id'])) {
+                    query(
+                        "UPDATE journal_revisions SET attachment_id=? WHERE id=?",
+                        [(int)$previousAttachment['attachment_id'],$revisionId],
+                        'ii'
+                    );
+                }
+            } else {
+                query(
+                    "INSERT IGNORE INTO journal_revision_attachments(journal_revision_id,attachment_id)
+                     SELECT ?,attachment_id FROM journal_revision_attachments WHERE journal_revision_id=?",
+                    [$revisionId,$previousRevisionId],
+                    'ii'
+                );
+            }
         }
 
         db()->commit();
@@ -514,27 +529,45 @@ function normalized_requirement_submit(
             $attachmentId=normalized_register_private_attachment(
                 $storageKey,$originalFilename ?: basename($storageKey),$studentUserId
             );
-            insert(
-                "INSERT INTO requirement_submission_attachments(requirement_submission_id,attachment_id)
-                 VALUES(?,?)",
-                [$submissionId,$attachmentId],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                query("UPDATE requirement_submissions SET attachment_id=? WHERE id=?",[$attachmentId,$submissionId],'ii');
+            } else {
+                insert(
+                    "INSERT INTO requirement_submission_attachments(requirement_submission_id,attachment_id)
+                     VALUES(?,?)",
+                    [$submissionId,$attachmentId],
+                    'ii'
+                );
+            }
         } elseif ($latest) {
-            query(
-                "INSERT IGNORE INTO requirement_submission_attachments(requirement_submission_id,attachment_id)
-                 SELECT ?,attachment_id FROM requirement_submission_attachments
-                 WHERE requirement_submission_id=?",
-                [$submissionId,(int)$latest['id']],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                $previousAttachment=query_one("SELECT attachment_id FROM requirement_submissions WHERE id=?",[(int)$latest['id']],'i');
+                if (!empty($previousAttachment['attachment_id'])) {
+                    query(
+                        "UPDATE requirement_submissions SET attachment_id=? WHERE id=?",
+                        [(int)$previousAttachment['attachment_id'],$submissionId],
+                        'ii'
+                    );
+                }
+            } else {
+                query(
+                    "INSERT IGNORE INTO requirement_submission_attachments(requirement_submission_id,attachment_id)
+                     SELECT ?,attachment_id FROM requirement_submission_attachments
+                     WHERE requirement_submission_id=?",
+                    [$submissionId,(int)$latest['id']],
+                    'ii'
+                );
+            }
         }
 
-        if (!(bool)query_one(
-            "SELECT 1 FROM requirement_submission_attachments WHERE requirement_submission_id=? LIMIT 1",
-            [$submissionId],
-            'i'
-        )) throw new DomainException('Choose a document before submitting this assignment.');
+        $hasAttachment = normalized_lean_schema_ready()
+            ? (bool)query_one("SELECT 1 FROM requirement_submissions WHERE id=? AND attachment_id IS NOT NULL",[$submissionId],'i')
+            : (bool)query_one(
+                "SELECT 1 FROM requirement_submission_attachments WHERE requirement_submission_id=? LIMIT 1",
+                [$submissionId],
+                'i'
+            );
+        if (!$hasAttachment) throw new DomainException('Choose a document before submitting this assignment.');
 
         query("UPDATE requirement_assignments SET status='assigned' WHERE id=?",[$assignmentId],'i');
         db()->commit();
@@ -824,26 +857,44 @@ function normalized_report_submit(
             $attachmentId=normalized_register_private_attachment(
                 $storageKey,$originalFilename ?: basename($storageKey),$studentUserId
             );
-            insert(
-                "INSERT INTO report_submission_attachments(report_submission_id,attachment_id)
-                 VALUES(?,?)",
-                [$submissionId,$attachmentId],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                query("UPDATE report_submissions SET attachment_id=? WHERE id=?",[$attachmentId,$submissionId],'ii');
+            } else {
+                insert(
+                    "INSERT INTO report_submission_attachments(report_submission_id,attachment_id)
+                     VALUES(?,?)",
+                    [$submissionId,$attachmentId],
+                    'ii'
+                );
+            }
         } elseif ($latest) {
-            query(
-                "INSERT IGNORE INTO report_submission_attachments(report_submission_id,attachment_id)
-                 SELECT ?,attachment_id FROM report_submission_attachments WHERE report_submission_id=?",
-                [$submissionId,(int)$latest['id']],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                $previousAttachment=query_one("SELECT attachment_id FROM report_submissions WHERE id=?",[(int)$latest['id']],'i');
+                if (!empty($previousAttachment['attachment_id'])) {
+                    query(
+                        "UPDATE report_submissions SET attachment_id=? WHERE id=?",
+                        [(int)$previousAttachment['attachment_id'],$submissionId],
+                        'ii'
+                    );
+                }
+            } else {
+                query(
+                    "INSERT IGNORE INTO report_submission_attachments(report_submission_id,attachment_id)
+                     SELECT ?,attachment_id FROM report_submission_attachments WHERE report_submission_id=?",
+                    [$submissionId,(int)$latest['id']],
+                    'ii'
+                );
+            }
         }
 
-        if ($row['report_type']!=='monthly' && !(bool)query_one(
-            "SELECT 1 FROM report_submission_attachments WHERE report_submission_id=? LIMIT 1",
-            [$submissionId],
-            'i'
-        )) throw new DomainException('Choose a report file before submitting this assignment.');
+        $hasAttachment = normalized_lean_schema_ready()
+            ? (bool)query_one("SELECT 1 FROM report_submissions WHERE id=? AND attachment_id IS NOT NULL",[$submissionId],'i')
+            : (bool)query_one(
+                "SELECT 1 FROM report_submission_attachments WHERE report_submission_id=? LIMIT 1",
+                [$submissionId],
+                'i'
+            );
+        if ($row['report_type']!=='monthly' && !$hasAttachment) throw new DomainException('Choose a report file before submitting this assignment.');
 
         query("UPDATE report_assignments SET status='assigned' WHERE id=?",[$assignmentId],'i');
         db()->commit();
