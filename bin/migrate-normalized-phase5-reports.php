@@ -475,7 +475,7 @@ try {
                  VALUES(?,1,?,?,?,?,?,?,?,?)"
             );
             $stmt->bind_param(
-                'iisssissss',
+                'iisssisss',
                 $assignmentId,$submitter,$submissionStatus,$submittedAt,$studentNote,
                 $reviewedBy,$reviewedAt,$reviewNotes,$evidence
             );
