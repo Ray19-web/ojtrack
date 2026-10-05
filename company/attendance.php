@@ -10,21 +10,8 @@ $company = query_one("SELECT * FROM companies WHERE user_id=?", [$user['id']], '
 $student_id = isset($_GET['student']) ? (int)$_GET['student'] : 0;
 $month = $_GET['month'] ?? date('Y-m');
 
-$students = query("SELECT s.id, u.name, s.student_id_no FROM students s JOIN users u ON u.id=s.user_id WHERE s.company_id=? ORDER BY u.name", [$company['id']], 'i');
-
-if ($student_id) {
-    $records = query("SELECT a.*, u.name AS student_name, s.student_id_no FROM attendance a
-        JOIN students s ON s.id=a.student_id
-        JOIN users u ON u.id=s.user_id
-        WHERE s.company_id=? AND a.student_id=? AND DATE_FORMAT(a.date,'%Y-%m')=? ORDER BY a.date DESC",
-        [$company['id'], $student_id, $month], 'iis');
-} else {
-    $records = query("SELECT a.*, u.name AS student_name, s.student_id_no FROM attendance a
-        JOIN students s ON s.id=a.student_id
-        JOIN users u ON u.id=s.user_id
-        WHERE s.company_id=? AND DATE_FORMAT(a.date,'%Y-%m')=? ORDER BY a.date DESC, u.name ASC",
-        [$company['id'], $month], 'is');
-}
+$students = normalized_students_for_company((int)$company['id']);
+$records = normalized_attendance_rows_for_company((int)$company['id'], $student_id, $month);
 
 $summary = [
     'present' => 0, 'absent' => 0, 'excused' => 0, 'total_hours' => 0
