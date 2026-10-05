@@ -84,7 +84,9 @@ CREATE TABLE coordinators (
 
 CREATE TABLE companies (
   id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
   company_name VARCHAR(150) NOT NULL,
+  supervisor_name VARCHAR(150) DEFAULT NULL,
   location VARCHAR(255) DEFAULT NULL,
   contact_number VARCHAR(30) DEFAULT NULL,
   email VARCHAR(150) DEFAULT NULL,
@@ -92,31 +94,21 @@ CREATE TABLE companies (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_companies_user (user_id),
   KEY idx_companies_status (status),
-  KEY idx_companies_name (company_name)
+  KEY idx_companies_name (company_name),
+  CONSTRAINT fk_companies_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE company_users (
-  id INT NOT NULL AUTO_INCREMENT,
-  company_id INT NOT NULL,
-  user_id INT NOT NULL,
-  position_title VARCHAR(100) DEFAULT NULL,
-  company_role ENUM('supervisor','hr','manager','other') NOT NULL DEFAULT 'supervisor',
-  is_primary TINYINT(1) NOT NULL DEFAULT 0,
-  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_company_users_user (user_id),
-  KEY idx_company_users_company_status (company_id, status),
-  CONSTRAINT fk_company_users_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_company_users_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE ojt_enrollments (
   id INT NOT NULL AUTO_INCREMENT,
   student_id INT NOT NULL,
   academic_term_id INT NOT NULL,
   program_id INT NOT NULL,
+  coordinator_id INT DEFAULT NULL,
+  coordinator_assigned_by INT DEFAULT NULL,
+  coordinator_assigned_at TIMESTAMP NULL DEFAULT NULL,
   year_level VARCHAR(30) DEFAULT NULL,
   required_hours INT NOT NULL DEFAULT 486,
   status ENUM('pending','not_started','ongoing','on_hold','completed','withdrawn') NOT NULL DEFAULT 'pending',
@@ -129,25 +121,14 @@ CREATE TABLE ojt_enrollments (
   UNIQUE KEY uq_ojt_enrollment_student_term (student_id, academic_term_id),
   KEY idx_ojt_enrollments_term_status (academic_term_id, status),
   KEY idx_ojt_enrollments_program (program_id),
+  KEY idx_ojt_enrollments_coordinator (coordinator_id),
   CONSTRAINT fk_ojt_enrollments_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE RESTRICT,
   CONSTRAINT fk_ojt_enrollments_term FOREIGN KEY (academic_term_id) REFERENCES academic_terms(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_ojt_enrollments_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE RESTRICT
+  CONSTRAINT fk_ojt_enrollments_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_ojt_enrollments_coordinator FOREIGN KEY (coordinator_id) REFERENCES coordinators(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ojt_enrollments_coordinator_assigner FOREIGN KEY (coordinator_assigned_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE enrollment_coordinators (
-  id INT NOT NULL AUTO_INCREMENT,
-  ojt_enrollment_id INT NOT NULL,
-  coordinator_id INT NOT NULL,
-  assigned_by INT DEFAULT NULL,
-  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ended_at TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (id),
-  KEY idx_enrollment_coordinators_enrollment (ojt_enrollment_id, ended_at),
-  KEY idx_enrollment_coordinators_coordinator (coordinator_id, ended_at),
-  CONSTRAINT fk_enrollment_coordinators_enrollment FOREIGN KEY (ojt_enrollment_id) REFERENCES ojt_enrollments(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_enrollment_coordinators_coordinator FOREIGN KEY (coordinator_id) REFERENCES coordinators(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_enrollment_coordinators_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE placements (
   id INT NOT NULL AUTO_INCREMENT,
@@ -168,18 +149,6 @@ CREATE TABLE placements (
   CONSTRAINT fk_placements_assigned_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE placement_supervisors (
-  id INT NOT NULL AUTO_INCREMENT,
-  placement_id INT NOT NULL,
-  company_user_id INT NOT NULL,
-  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ended_at TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (id),
-  KEY idx_placement_supervisors_placement (placement_id, ended_at),
-  KEY idx_placement_supervisors_user (company_user_id, ended_at),
-  CONSTRAINT fk_placement_supervisors_placement FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_placement_supervisors_company_user FOREIGN KEY (company_user_id) REFERENCES company_users(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attendance_days (
   id BIGINT NOT NULL AUTO_INCREMENT,
@@ -210,24 +179,6 @@ CREATE TABLE attendance_sessions (
   CONSTRAINT fk_attendance_sessions_recorded_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE attendance_corrections (
-  id BIGINT NOT NULL AUTO_INCREMENT,
-  attendance_day_id BIGINT NOT NULL,
-  requested_by INT NOT NULL,
-  reason TEXT NOT NULL,
-  before_state JSON DEFAULT NULL,
-  requested_state JSON NOT NULL,
-  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-  reviewed_by INT DEFAULT NULL,
-  review_notes TEXT DEFAULT NULL,
-  requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  reviewed_at TIMESTAMP NULL DEFAULT NULL,
-  PRIMARY KEY (id),
-  KEY idx_attendance_corrections_day_status (attendance_day_id, status),
-  CONSTRAINT fk_attendance_corrections_day FOREIGN KEY (attendance_day_id) REFERENCES attendance_days(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_attendance_corrections_requested_by FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_attendance_corrections_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE journal_days (
   id BIGINT NOT NULL AUTO_INCREMENT,
@@ -253,11 +204,13 @@ CREATE TABLE journal_revisions (
   reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
+  attachment_id BIGINT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_journal_revision (journal_day_id, revision_no),
   CONSTRAINT fk_journal_revisions_entry FOREIGN KEY (journal_day_id) REFERENCES journal_days(id) ON DELETE CASCADE,
-  CONSTRAINT fk_journal_revisions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_journal_revisions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_journal_revisions_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attachments (
@@ -275,13 +228,6 @@ CREATE TABLE attachments (
   CONSTRAINT fk_attachments_uploaded_by FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE journal_revision_attachments (
-  journal_revision_id BIGINT NOT NULL,
-  attachment_id BIGINT NOT NULL,
-  PRIMARY KEY (journal_revision_id, attachment_id),
-  CONSTRAINT fk_jra_revision FOREIGN KEY (journal_revision_id) REFERENCES journal_revisions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_jra_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_definitions (
   id INT NOT NULL AUTO_INCREMENT,
@@ -342,13 +288,6 @@ CREATE TABLE requirement_submissions (
   CONSTRAINT fk_requirement_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE requirement_submission_attachments (
-  requirement_submission_id BIGINT NOT NULL,
-  attachment_id BIGINT NOT NULL,
-  PRIMARY KEY (requirement_submission_id, attachment_id),
-  CONSTRAINT fk_rsa_submission FOREIGN KEY (requirement_submission_id) REFERENCES requirement_submissions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_rsa_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_templates (
   id INT NOT NULL AUTO_INCREMENT,
@@ -403,6 +342,7 @@ CREATE TABLE report_submissions (
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
   evidence_snapshot JSON DEFAULT NULL,
+  attachment_id BIGINT DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_report_submission_version (report_assignment_id, version_no),
   CONSTRAINT fk_report_submissions_assignment FOREIGN KEY (report_assignment_id) REFERENCES report_assignments(id) ON DELETE RESTRICT,
@@ -410,13 +350,6 @@ CREATE TABLE report_submissions (
   CONSTRAINT fk_report_submissions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE report_submission_attachments (
-  report_submission_id BIGINT NOT NULL,
-  attachment_id BIGINT NOT NULL,
-  PRIMARY KEY (report_submission_id, attachment_id),
-  CONSTRAINT fk_rsp_attachment_submission FOREIGN KEY (report_submission_id) REFERENCES report_submissions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_rsp_attachment_file FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_definitions (
   id INT NOT NULL AUTO_INCREMENT,
@@ -570,19 +503,13 @@ CREATE TABLE announcement_posts (
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   is_pinned TINYINT(1) NOT NULL DEFAULT 0,
   expires_at DATE DEFAULT NULL,
+  attachment_id BIGINT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL,
   PRIMARY KEY (id),
   KEY idx_announcement_posts_active (is_active, expires_at, created_at),
   CONSTRAINT fk_announcement_posts_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE announcement_attachments (
-  announcement_post_id BIGINT NOT NULL,
-  attachment_id BIGINT NOT NULL,
-  PRIMARY KEY (announcement_post_id, attachment_id),
-  CONSTRAINT fk_announcement_attachments_post FOREIGN KEY (announcement_post_id) REFERENCES announcement_posts(id) ON DELETE CASCADE,
-  CONSTRAINT fk_announcement_attachments_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE announcement_recipients (
   announcement_post_id BIGINT NOT NULL,
@@ -670,3 +597,45 @@ CREATE TABLE activity_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- Compatibility views retained after migration 010. These are views, not storage tables.
+CREATE OR REPLACE VIEW company_users AS
+SELECT
+  c.user_id AS id,
+  c.id AS company_id,
+  c.user_id,
+  c.supervisor_name AS position_title,
+  'supervisor' AS company_role,
+  1 AS is_primary,
+  CASE WHEN c.status='active' AND u.status='active' THEN 'active' ELSE 'inactive' END AS status,
+  c.created_at
+FROM companies c
+JOIN users u ON u.id=c.user_id;
+
+CREATE OR REPLACE VIEW enrollment_coordinators AS
+SELECT
+  oe.id AS id,
+  oe.id AS ojt_enrollment_id,
+  oe.coordinator_id,
+  oe.coordinator_assigned_by AS assigned_by,
+  COALESCE(oe.coordinator_assigned_at,oe.created_at) AS assigned_at,
+  NULL AS ended_at
+FROM ojt_enrollments oe
+WHERE oe.coordinator_id IS NOT NULL;
+
+CREATE OR REPLACE VIEW journal_revision_attachments AS
+SELECT id AS journal_revision_id, attachment_id
+FROM journal_revisions WHERE attachment_id IS NOT NULL;
+
+CREATE OR REPLACE VIEW requirement_submission_attachments AS
+SELECT id AS requirement_submission_id, attachment_id
+FROM requirement_submissions WHERE attachment_id IS NOT NULL;
+
+CREATE OR REPLACE VIEW report_submission_attachments AS
+SELECT id AS report_submission_id, attachment_id
+FROM report_submissions WHERE attachment_id IS NOT NULL;
+
+CREATE OR REPLACE VIEW announcement_attachments AS
+SELECT id AS announcement_post_id, attachment_id
+FROM announcement_posts WHERE attachment_id IS NOT NULL;
