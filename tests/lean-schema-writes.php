@@ -3,6 +3,9 @@ if (PHP_SAPI !== 'cli' || getenv('OJTRACK_DB_NAME') !== 'ojtrack_test') {
     exit("Use isolated ojtrack_test database.\n");
 }
 require __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/normalized.php';
+require_once __DIR__ . '/../config/normalized_training.php';
+require_once __DIR__ . '/../config/normalized_communications.php';
 
 $checks=0;
 function lwcheck(bool $ok,string $label): void {
