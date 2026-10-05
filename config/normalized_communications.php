@@ -179,11 +179,15 @@ function normalized_announcement_create(
             $attachmentId=normalized_register_public_attachment(
                 $attachmentPath,$attachmentName ?: basename($attachmentPath),$creatorUserId
             );
-            insert(
-                "INSERT INTO announcement_attachments(announcement_post_id,attachment_id) VALUES(?,?)",
-                [$postId,$attachmentId],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                query("UPDATE announcement_posts SET attachment_id=? WHERE id=?",[$attachmentId,$postId],'ii');
+            } else {
+                insert(
+                    "INSERT INTO announcement_attachments(announcement_post_id,attachment_id) VALUES(?,?)",
+                    [$postId,$attachmentId],
+                    'ii'
+                );
+            }
         }
         normalized_announcement_materialize_recipients($postId,$creatorUserId,$targetRole);
         db()->commit();
@@ -216,18 +220,26 @@ function normalized_announcement_update(
             'ssssisi'
         );
         if ($removeAttachment) {
-            query("DELETE FROM announcement_attachments WHERE announcement_post_id=?",[$postId],'i');
+            if (normalized_lean_schema_ready()) {
+                query("UPDATE announcement_posts SET attachment_id=NULL WHERE id=?",[$postId],'i');
+            } else {
+                query("DELETE FROM announcement_attachments WHERE announcement_post_id=?",[$postId],'i');
+            }
         }
         if ($attachmentPath) {
             $attachmentId=normalized_register_public_attachment(
                 $attachmentPath,$attachmentName ?: basename($attachmentPath),$actorUserId
             );
-            query("DELETE FROM announcement_attachments WHERE announcement_post_id=?",[$postId],'i');
-            insert(
-                "INSERT INTO announcement_attachments(announcement_post_id,attachment_id) VALUES(?,?)",
-                [$postId,$attachmentId],
-                'ii'
-            );
+            if (normalized_lean_schema_ready()) {
+                query("UPDATE announcement_posts SET attachment_id=? WHERE id=?",[$attachmentId,$postId],'ii');
+            } else {
+                query("DELETE FROM announcement_attachments WHERE announcement_post_id=?",[$postId],'i');
+                insert(
+                    "INSERT INTO announcement_attachments(announcement_post_id,attachment_id) VALUES(?,?)",
+                    [$postId,$attachmentId],
+                    'ii'
+                );
+            }
         }
         normalized_announcement_materialize_recipients($postId,(int)$existing['created_by'],$targetRole);
         db()->commit();
