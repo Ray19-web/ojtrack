@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.upload-area').forEach(area => {
     const input = area.querySelector('input[type=file]');
     if (!input) return;
-    area.addEventListener('click', () => input.click());
+    area.addEventListener('click', e => { if (e.target !== input) input.click(); });
     area.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
