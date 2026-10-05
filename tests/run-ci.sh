@@ -158,4 +158,8 @@ php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/cleanup-normalized-migra
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/cleanup-normalized-migration-artifacts.php --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/cleanup-normalized-migration-artifacts.php --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/cleanup-normalized-artifacts.php
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase10-lean-schema.php --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase10-lean-schema.php --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase10-lean-schema.php --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/lean-schema.php
 python3 tests/phase9-web-smoke.py
