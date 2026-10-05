@@ -9,20 +9,9 @@ $user    = current_user();
 $company = query_one("SELECT * FROM companies WHERE user_id=?", [$user['id']], 'i');
 
 $search = trim($_GET['q'] ?? '');
-$where = "s.company_id=? AND (s.is_archived = 0 AND u.status != 'archived')";
-$params = [$company['id']];
-$types = 'i';
+$students = normalized_students_for_company((int)$company['id'], $search);
 
-if ($search) {
-    $where .= " AND (u.name LIKE ? OR s.student_id_no LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'ss';
-}
-
-$students = query("SELECT s.*, u.name, u.email FROM students s JOIN users u ON u.id=s.user_id WHERE $where ORDER BY u.name", $params, $types);
-
-// Bulk time in / time out
+// Bulk time in / time out — normalized attendance writer.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_time') {
     $student_ids = $_POST['student_ids'] ?? [];
 
@@ -38,51 +27,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
                 $now   = date('H:i:s', $ts);
             }
         }
+
         $done = 0; $skipped = 0;
         foreach ($student_ids as $sid) {
             $sid = (int)$sid;
-            $stu = query_one("SELECT id FROM students WHERE id=? AND company_id=?", [$sid, $company['id']], 'ii');
-            if (!$stu) continue;
-
-            $att = query_one("SELECT * FROM attendance WHERE student_id=? AND date=?", [$sid, $today], 'is');
-            if (!$att) {
-                insert("INSERT INTO attendance (student_id, date, status) VALUES (?,?,'present')", [$sid, $today], 'is');
-                $att = query_one("SELECT * FROM attendance WHERE student_id=? AND date=?", [$sid, $today], 'is');
+            try {
+                $result = normalized_attendance_punch(
+                    $sid,
+                    (int)$company['id'],
+                    $today,
+                    $now,
+                    (int)$user['id']
+                );
+                if ($result === 'skipped') $skipped++;
+                else $done++;
+            } catch (DomainException $exception) {
+                $skipped++;
             }
-
-            // Determine session automatically by AM/PM time and the trainee's record count today
-            $is_pm = (int)date('G', strtotime($now)) >= 12;
-            $count = 0;
-            foreach (['morning_in', 'morning_out', 'afternoon_in', 'afternoon_out'] as $col) {
-                if (!empty($att[$col])) $count++;
-            }
-
-            if (!$is_pm) {
-                // Morning window
-                if (empty($att['morning_in'])) $session = 'morning_in';
-                elseif (empty($att['morning_out'])) $session = 'morning_out';
-                else { $skipped++; continue; }
-            } else {
-                // Afternoon window
-                if (empty($att['afternoon_in'])) $session = 'afternoon_in';
-                elseif (empty($att['afternoon_out'])) $session = 'afternoon_out';
-                else { $skipped++; continue; }
-            }
-
-            query("UPDATE attendance SET $session = ?, status='present' WHERE id=?", [$now, $att['id']], 'si');
-            $att = query_one("SELECT * FROM attendance WHERE id=?", [$att['id']], 'i');
-
-            $mins = 0;
-            if (!empty($att['morning_in']) && !empty($att['morning_out'])) $mins += strtotime($att['morning_out']) - strtotime($att['morning_in']);
-            if (!empty($att['afternoon_in']) && !empty($att['afternoon_out'])) $mins += strtotime($att['afternoon_out']) - strtotime($att['afternoon_in']);
-            $hours = round($mins / 3600, 2);
-
-            $time_in  = $att['morning_in'] ?: ($att['afternoon_in'] ?: ($att['time_in'] ?? null));
-            $time_out = $att['afternoon_out'] ?: ($att['morning_out'] ?: ($att['time_out'] ?? null));
-            query("UPDATE attendance SET hours_rendered=?, time_in=?, time_out=? WHERE id=?", [$hours, $time_in, $time_out, $att['id']], 'dssi');
-            query("UPDATE students SET rendered_hours=(SELECT COALESCE(SUM(hours_rendered),0) FROM attendance WHERE student_id=?) WHERE id=?", [$sid, $sid], 'ii');
-            $done++;
         }
+
         log_activity($user['id'], 'Bulk Attendance', "$done trainee(s) recorded, $skipped skipped · $today $now");
         header('Location: /ojtrack/company/students.php?timedone=' . $done . '&skipped=' . $skipped);
         exit;
@@ -96,11 +59,16 @@ $selected = null;
 foreach ($students as $s) { if ($s['id'] == $sel_id) { $selected = $s; break; } }
 
 if ($selected) {
-    $att_records = query("SELECT * FROM attendance WHERE student_id=? ORDER BY date DESC LIMIT 10", [$sel_id], 'i');
-    $journal_cnt = query_one("SELECT COUNT(*) AS c FROM journal_entries WHERE student_id=?", [$sel_id], 'i')['c'];
-    $reports     = query("SELECT * FROM reports WHERE student_id=? ORDER BY submitted_at DESC LIMIT 5", [$sel_id], 'i');
-    $midterm_eval = query_one("SELECT * FROM evaluations WHERE student_id=? AND evaluation_type='midterm'", [$sel_id], 'i');
-    $final_eval   = query_one("SELECT * FROM evaluations WHERE student_id=? AND evaluation_type='final'", [$sel_id], 'i');
+    $att_records = normalized_attendance_rows_for_student($sel_id, '', 10);
+    $journal_cnt = count(normalized_journal_rows_for_student($sel_id, 1000));
+    $reports     = array_slice(array_reverse(normalized_report_rows_for_student($sel_id)), 0, 5);
+    $student_evals = normalized_eval_requests_for_student($sel_id);
+    $midterm_eval = null;
+    $final_eval = null;
+    foreach ($student_evals as $evaluation) {
+        if ($evaluation['evaluation_kind'] === 'midterm' && $evaluation['status'] === 'completed') $midterm_eval = $evaluation;
+        if ($evaluation['evaluation_kind'] === 'final' && $evaluation['status'] === 'completed') $final_eval = $evaluation;
+    }
 }
 
 $page_title = 'Trainees';
