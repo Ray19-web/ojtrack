@@ -67,7 +67,19 @@ JOIN requirement_submission_attachments rsa ON rsa.requirement_submission_id=rs.
 JOIN attachments a ON a.id=rsa.attachment_id
 WHERE rs.requirement_assignment_id={req_id}
 ORDER BY rs.version_no DESC,a.id LIMIT 1""")
-check(bool(re.search(r'_[0-9a-f]{32}\.pdf
+check(bool(re.search(r'_[0-9a-f]{32}\.pdf$',path)),'random file name')
+check((PRIVATE/path).read_bytes()==pdf,'PDF stored')
+submission_id=int(sql(f"SELECT id FROM requirement_submissions WHERE requirement_assignment_id={req_id} ORDER BY version_no DESC,id DESC LIMIT 1"))
+sql(f"UPDATE requirement_submissions SET status='approved' WHERE id={submission_id}")
+sql(f"UPDATE requirement_assignments SET status='closed' WHERE id={req_id}")
+check(s.post('student/requirements.php',{'action':'upload','req_id':req_id},[('document','valid.pdf',pdf)])[0]==409,'approved upload preserved')
+path_after=sql(f"""SELECT a.storage_key
+FROM requirement_submissions rs
+JOIN requirement_submission_attachments rsa ON rsa.requirement_submission_id=rs.id
+JOIN attachments a ON a.id=rsa.attachment_id
+WHERE rs.requirement_assignment_id={req_id}
+ORDER BY rs.version_no DESC,a.id LIMIT 1""")
+check(path_after==path,'approved file unchanged')
 # Images normalized before storage; payload removed.
 image=png()+b'<?php synthetic_tail ?>'
 for who,role in [(s,'student'),(company,'company'),(admin,'admin'),(coord,'coordinator')]:
