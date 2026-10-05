@@ -21,14 +21,26 @@ source=ROOT/'uploads/requirements/test.txt'
 destination=PRIVATE/'requirements/test.txt'
 before=source.read_bytes()
 db_before=sql("SELECT GROUP_CONCAT(CONCAT(id,':',COALESCE(file_path,'')) ORDER BY id) FROM ojt_requirements")
+refs=[p for p in sql("""SELECT path FROM (
+  SELECT file_path AS path FROM ojt_requirements WHERE file_path IS NOT NULL AND file_path!=''
+  UNION SELECT file_path FROM reports WHERE file_path IS NOT NULL AND file_path!=''
+  UNION SELECT proof_image FROM journal_entries WHERE proof_image IS NOT NULL AND proof_image!=''
+) refs ORDER BY path""").splitlines() if p]
+expected_copy=[]
+for relative in refs:
+    legacy=ROOT/'uploads'/relative
+    private=PRIVATE/relative
+    if legacy.is_file() and not private.exists():
+        expected_copy.append(relative)
+check('requirements/test.txt' in expected_copy,'test migration fixture included')
 code,r=run('--dry-run')
-check(code==0 and r['would_copy']==1,'dry run finds one remaining referenced legacy file')
-check(not destination.exists(),'dry run writes nothing')
+check(code==0 and r['would_copy']==len(expected_copy),'dry run finds all remaining referenced legacy files')
+check(all(not (PRIVATE/p).exists() for p in expected_copy),'dry run writes nothing')
 code,r=run('--copy')
-check(code==0 and r['copied']==1,'copy writes referenced legacy file')
+check(code==0 and r['copied']==len(expected_copy),'copy writes all referenced legacy files')
 check(destination.read_bytes()==before and source.read_bytes()==before,'both copies match; source retained')
 code,r=run('--copy')
-check(code==0 and r['copied']==0 and r['verified_existing']==1,'repeat copy verifies existing destination')
+check(code==0 and r['copied']==0 and r['verified_existing']>=len(expected_copy),'repeat copy verifies existing destinations')
 try:
     destination.write_bytes(b'Synthetic conflict')
     code,r=run('--copy')
