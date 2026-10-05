@@ -7,21 +7,26 @@ require_login(['company']);
 $user    = current_user();
 $company = query_one("SELECT * FROM companies WHERE user_id=?", [$user['id']], 'i');
 
+$trainees = normalized_students_for_company((int)$company['id']);
+$company_eval_requests = normalized_eval_requests_for_company((int)$company['id']);
 $stats = [
-    'trainees'    => query_one("SELECT COUNT(*) AS c FROM students WHERE company_id=?", [$company['id']], 'i')['c'],
-    'active'      => query_one("SELECT COUNT(*) AS c FROM students WHERE company_id=? AND ojt_status='ongoing'", [$company['id']], 'i')['c'],
-    'completed'   => query_one("SELECT COUNT(*) AS c FROM students WHERE company_id=? AND ojt_status='completed'", [$company['id']], 'i')['c'],
-    'pending_eval'=> query_one("SELECT COUNT(*) AS c FROM evaluations e JOIN students s ON s.id=e.student_id WHERE s.company_id=? AND e.status='pending'", [$company['id']], 'i')['c'],
+    'trainees'     => count($trainees),
+    'active'       => count(array_filter($trainees, fn($row) => ($row['ojt_status'] ?? '') === 'ongoing')),
+    'completed'    => count(array_filter($trainees, fn($row) => ($row['ojt_status'] ?? '') === 'completed')),
+    'pending_eval' => count(array_filter($company_eval_requests, fn($row) => ($row['status'] ?? '') === 'pending')),
 ];
 
-$trainees = query("SELECT s.*, u.name, u.email FROM students s JOIN users u ON u.id=s.user_id WHERE s.company_id=? ORDER BY u.name", [$company['id']], 'i');
-$today_att = query("SELECT a.*, u.name FROM attendance a JOIN students s ON s.id=a.student_id JOIN users u ON u.id=s.user_id WHERE s.company_id=? AND a.date=CURDATE()", [$company['id']], 'i');
-$announcements = query(
-    "SELECT a.*, u.name AS author FROM announcements a
-     LEFT JOIN users u ON u.id=a.created_by
-     WHERE a.target_role IN ('all','company') AND a.is_active=1 AND (a.expires_at IS NULL OR a.expires_at >= CURDATE())
-     ORDER BY a.is_pinned DESC, a.created_at DESC LIMIT 4"
-);
+$today = date('Y-m-d');
+$today_att = array_values(array_filter(
+    normalized_attendance_rows_for_company((int)$company['id'], 0, date('Y-m')),
+    fn($row) => ($row['date'] ?? '') === $today
+));
+foreach ($today_att as &$attendance_row) {
+    $student_match = array_values(array_filter($trainees, fn($row) => (int)$row['id'] === (int)$attendance_row['student_id']));
+    $attendance_row['name'] = $student_match[0]['name'] ?? 'Student';
+}
+unset($attendance_row);
+$announcements = array_slice(normalized_announcements_for_user((int)$user['id']), 0, 4);
 
 $page_title = 'Company Dashboard';
 require_once __DIR__ . '/../includes/header.php';

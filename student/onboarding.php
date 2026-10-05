@@ -7,19 +7,7 @@ require_login(['student']);
 $user = current_user();
 $uid  = (int)$user['id'];
 
-$student = query_one(
-    "SELECT s.*, u.name, u.email, p.code AS program_code, p.name AS program_name,
-            cu.name AS coordinator_name
-     FROM students s
-     JOIN users u ON u.id=s.user_id
-     LEFT JOIN programs p ON p.id=s.program_id
-     LEFT JOIN coordinators c ON c.id=s.coordinator_id
-     LEFT JOIN users cu ON cu.id=c.user_id
-     WHERE s.user_id=?",
-    [$uid],
-    'i'
-);
-
+$student = normalized_student_context_by_user($uid);
 if (!$student) {
     redirect('login.php?error=student_profile_missing');
 }
@@ -28,376 +16,121 @@ $student_id = (int)$student['id'];
 $success = '';
 $error = '';
 
+$submit_onboarding_file = function(int $reqId, array $file) use ($student_id, $uid) {
+    $req = normalized_requirement_get($reqId, $student_id);
+    if (!$req) throw new DomainException("Requirement ID $reqId could not be found.");
+    if ($req['status'] === 'approved') return ['skipped'=>true,'name'=>$req['document_name']];
+
+    $errCode = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($errCode !== UPLOAD_ERR_OK) throw new DomainException("“{$req['document_name']}” could not be uploaded.");
+    if ((int)($file['size'] ?? 0) > 10 * 1024 * 1024) {
+        throw new DomainException("“{$req['document_name']}” is too large. Maximum size is 10MB.");
+    }
+
+    $origName = (string)($file['name'] ?? '');
+    $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+    if (!in_array($ext, ['pdf','jpg','jpeg','png','doc','docx'], true)) {
+        throw new DomainException("“{$req['document_name']}” has an invalid format.");
+    }
+
+    $filename = 'req_' . $student_id . '_' . $reqId . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+    if (!store_private_upload($file['tmp_name'], 'requirements', $filename)) {
+        throw new DomainException("Failed to save “{$req['document_name']}”.");
+    }
+
+    $storageKey = 'requirements/' . $filename;
+    normalized_requirement_submit($reqId, $student_id, $uid, $storageKey, $origName);
+    log_activity($uid, 'Requirement Submitted', "Assignment ID $reqId from onboarding");
+    return ['skipped'=>false,'name'=>$req['document_name']];
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload') {
-
-    $req_id = (int)($_POST['req_id'] ?? 0);
-
-    $req = query_one(
-        "SELECT r.*, s.user_id
-         FROM ojt_requirements r
-         JOIN students s ON s.id=r.student_id
-         WHERE r.id=? AND r.student_id=?",
-        [$req_id, $student_id],
-        'ii'
-    );
-
-    if (!$req) {
-
+    $reqId = (int)($_POST['req_id'] ?? 0);
+    if ($reqId <= 0) {
         $error = 'The selected requirement could not be found.';
-
-    } elseif ($req['status'] === 'approved') {
-
-        $error = 'This document has already been approved.';
-
-    } elseif (
-        !isset($_FILES['document']) ||
-        $_FILES['document']['error'] !== UPLOAD_ERR_OK
-    ) {
-
+    } elseif (!isset($_FILES['document']) || ($_FILES['document']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         $error = 'Please choose a document to upload.';
-
-    } elseif ((int)$_FILES['document']['size'] > 10 * 1024 * 1024) {
-
-        $error = 'The file is too large. Maximum size is 10MB.';
-
     } else {
-
-        $orig_name = $_FILES['document']['name'];
-        $ext = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
-
-        $allowed = [
-            'pdf',
-            'jpg',
-            'jpeg',
-            'png',
-            'doc',
-            'docx'
-        ];
-
-        if (!in_array($ext, $allowed, true)) {
-
-            $error = 'Invalid file format. Please upload PDF, JPG, PNG, DOC, or DOCX.';
-
-        } else {
-
-            $dest_dir = __DIR__ . '/../uploads/requirements/';
-
-            if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0777, true);
-            }
-
-            try {
-                $token = bin2hex(random_bytes(8));
-            } catch (Throwable $e) {
-                $token = (string)time();
-            }
-
-            $new_filename =
-                'req_' .
-                $student_id .
-                '_' .
-                $req_id .
-                '_' .
-                $token .
-                '.' .
-                $ext;
-
-            if (
-                !move_uploaded_file(
-                    $_FILES['document']['tmp_name'],
-                    $dest_dir . $new_filename
-                )
-            ) {
-
-                $error = 'Failed to save the uploaded file. Please try again.';
-
-            } else {
-
-                $file_path = 'requirements/' . $new_filename;
-
-                query(
-                    "UPDATE ojt_requirements
-                     SET status='pending',
-                         submitted_at=NOW(),
-                         file_path=?,
-                         remarks='Submitted — awaiting coordinator review',
-                         reviewed_by=NULL,
-                         reviewed_at=NULL
-                     WHERE id=? AND student_id=?",
-                    [
-                        $file_path,
-                        $req_id,
-                        $student_id
-                    ],
-                    'sii'
-                );
-
-                if (!empty($student['coordinator_id'])) {
-
-                    $coord_user = query_one(
-                        "SELECT user_id
-                         FROM coordinators
-                         WHERE id=?",
-                        [$student['coordinator_id']],
-                        'i'
+        try {
+            $result = $submit_onboarding_file($reqId, $_FILES['document']);
+            if (!$result['skipped']) {
+                $enrollment = normalized_enrollment_for_student($student_id);
+                $coord = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+                if ($coord) {
+                    create_notification(
+                        (int)$coord['user_id'],
+                        "{$user['name']} submitted an OJT requirement for review.",
+                        'info',
+                        '/ojtrack/coordinator/requirements.php'
                     );
-
-                    if ($coord_user) {
-
-                        create_notification(
-                            $coord_user['user_id'],
-                            "{$user['name']} submitted an OJT requirement for review.",
-                            'info',
-                            '/ojtrack/coordinator/requirements.php'
-                        );
-                    }
                 }
-
-                log_activity(
-                    $uid,
-                    'Requirement Submitted',
-                    "Requirement ID $req_id from onboarding"
-                );
-
-                $success =
-                    "“{$req['document_name']}” was submitted and is now awaiting coordinator review.";
+                $success = "“{$result['name']}” was submitted and is now awaiting coordinator review.";
             }
+        } catch (DomainException $exception) {
+            $error = $exception->getMessage();
         }
     }
 }
 
-if (
-    $_SERVER['REQUEST_METHOD'] === 'POST' &&
-    ($_POST['action'] ?? '') === 'upload_all'
-) {
-
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload_all') {
     $files = $_FILES['documents'] ?? [];
-
-    $submitted_count = 0;
-
-    $submitted_names = [];
-
-    $file_errors = [];
+    $submittedCount = 0;
+    $submittedNames = [];
+    $fileErrors = [];
 
     if (!empty($files['name']) && is_array($files['name'])) {
+        foreach ($files['name'] as $reqIdRaw => $origName) {
+            $reqId = (int)$reqIdRaw;
+            $errCode = $files['error'][$reqId] ?? UPLOAD_ERR_NO_FILE;
+            if ($errCode === UPLOAD_ERR_NO_FILE || $origName === '') continue;
 
-        foreach ($files['name'] as $req_id => $orig_name) {
-
-            $req_id = (int)$req_id;
-
-            $err_code =
-                $files['error'][$req_id] ?? UPLOAD_ERR_NO_FILE;
-
-            if ($err_code === UPLOAD_ERR_NO_FILE || $orig_name === '') {
-
-                // Skip empty file inputs — only submit requirements
-                // that actually have a document attached.
-                continue;
-
-            }
-
-            $req = query_one(
-                "SELECT r.*, s.user_id
-                 FROM ojt_requirements r
-                 JOIN students s ON s.id=r.student_id
-                 WHERE r.id=? AND r.student_id=?",
-                [$req_id, $student_id],
-                'ii'
-            );
-
-            if (!$req) {
-
-                $file_errors[] =
-                    "Requirement ID $req_id could not be found.";
-
-                continue;
-
-            }
-
-            if ($req['status'] === 'approved') {
-
-                continue;
-
-            }
-
-            if ($err_code !== UPLOAD_ERR_OK) {
-
-                $file_errors[] =
-                    "“{$req['document_name']}” could not be uploaded.";
-
-                continue;
-
-            }
-
-            if ((int)$files['size'][$req_id] > 10 * 1024 * 1024) {
-
-                $file_errors[] =
-                    "“{$req['document_name']}” is too large. Maximum size is 10MB.";
-
-                continue;
-
-            }
-
-            $ext = strtolower(
-                pathinfo($orig_name, PATHINFO_EXTENSION)
-            );
-
-            $allowed = [
-                'pdf',
-                'jpg',
-                'jpeg',
-                'png',
-                'doc',
-                'docx'
+            $file = [
+                'name'=>$origName,
+                'error'=>$errCode,
+                'size'=>$files['size'][$reqId] ?? 0,
+                'tmp_name'=>$files['tmp_name'][$reqId] ?? '',
             ];
-
-            if (!in_array($ext, $allowed, true)) {
-
-                $file_errors[] =
-                    "“{$req['document_name']}” has an invalid format.";
-
-                continue;
-
-            }
-
-            $dest_dir = __DIR__ . '/../uploads/requirements/';
-
-            if (!is_dir($dest_dir)) {
-
-                mkdir($dest_dir, 0777, true);
-
-            }
-
             try {
-
-                $token = bin2hex(random_bytes(8));
-
-            } catch (Throwable $e) {
-
-                $token = (string)time();
-
+                $result = $submit_onboarding_file($reqId, $file);
+                if (!$result['skipped']) {
+                    $submittedCount++;
+                    $submittedNames[] = $result['name'];
+                }
+            } catch (DomainException $exception) {
+                $fileErrors[] = $exception->getMessage();
             }
-
-            $new_filename =
-                'req_' .
-                $student_id .
-                '_' .
-                $req_id .
-                '_' .
-                $token .
-                '.' .
-                $ext;
-
-            if (
-                !move_uploaded_file(
-                    $files['tmp_name'][$req_id],
-                    $dest_dir . $new_filename
-                )
-            ) {
-
-                $file_errors[] =
-                    "Failed to save “{$req['document_name']}”.";
-
-                continue;
-
-            }
-
-            $file_path = 'requirements/' . $new_filename;
-
-            query(
-                "UPDATE ojt_requirements
-                 SET status='pending',
-                     submitted_at=NOW(),
-                     file_path=?,
-                     remarks='Submitted — awaiting coordinator review',
-                     reviewed_by=NULL,
-                     reviewed_at=NULL
-                 WHERE id=? AND student_id=?",
-                [
-                    $file_path,
-                    $req_id,
-                    $student_id
-                ],
-                'sii'
-            );
-
-            log_activity(
-                $uid,
-                'Requirement Submitted',
-                "Requirement ID $req_id from onboarding"
-            );
-
-            $submitted_count++;
-
-            $submitted_names[] = $req['document_name'];
-
         }
-
     }
 
-    if ($submitted_count > 0) {
-
-        if (!empty($student['coordinator_id'])) {
-
-            $coord_user = query_one(
-                "SELECT user_id
-                 FROM coordinators
-                 WHERE id=?",
-                [$student['coordinator_id']],
-                'i'
+    if ($submittedCount > 0) {
+        $enrollment = normalized_enrollment_for_student($student_id);
+        $coord = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+        if ($coord) {
+            create_notification(
+                (int)$coord['user_id'],
+                "{$user['name']} submitted $submittedCount OJT requirement" . ($submittedCount === 1 ? '' : 's') . " for review.",
+                'info',
+                '/ojtrack/coordinator/requirements.php'
             );
-
-            if ($coord_user) {
-
-                create_notification(
-                    $coord_user['user_id'],
-                    "{$user['name']} submitted $submitted_count OJT requirement" .
-                        ($submitted_count === 1 ? '' : 's') .
-                        " for review.",
-                    'info',
-                    '/ojtrack/coordinator/requirements.php'
-                );
-
-            }
-
         }
-
-        $success =
-            "Submitted: " .
-            implode(', ', $submitted_names) .
-            ". Awaiting coordinator review.";
-
-    } elseif (empty($file_errors)) {
-
-        $error =
-            'Please attach at least one document before submitting.';
-
+        $success = 'Submitted: ' . implode(', ', $submittedNames) . '. Awaiting coordinator review.';
+    } elseif (!$fileErrors) {
+        $error = 'Please attach at least one document before submitting.';
     }
 
-    if (!empty($file_errors)) {
-
-        $error = trim($error . ' ' . implode(' ', $file_errors));
-
+    if ($fileErrors) {
+        $error = trim($error . ' ' . implode(' ', $fileErrors));
     }
-
 }
 
-$requirements = query(
-    "SELECT *
-     FROM ojt_requirements
-     WHERE student_id=?
-     ORDER BY
-       CASE status
-         WHEN 'rejected' THEN 0
-         WHEN 'pending' THEN 1
-         WHEN 'approved' THEN 2
-         ELSE 3
-       END,
-       deadline ASC,
-       id ASC",
-    [$student_id],
-    'i'
-) ?: [];
+$requirements = normalized_requirement_rows_for_student($student_id);
+usort($requirements, function($a,$b) {
+    $rank = ['rejected'=>0,'pending'=>1,'approved'=>2];
+    $ra = $rank[$a['status']] ?? 3;
+    $rb = $rank[$b['status']] ?? 3;
+    if ($ra !== $rb) return $ra <=> $rb;
+    return strcmp((string)($a['deadline'] ?? '9999-12-31'), (string)($b['deadline'] ?? '9999-12-31'));
+});
 
 $total = count($requirements);
 
@@ -467,6 +200,7 @@ $current_step =
 <html lang="en">
 
 <head>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 
     <meta charset="UTF-8">
 
@@ -1516,7 +1250,7 @@ $current_step =
                 <form
                     method="POST"
                     enctype="multipart/form-data"
-                >
+                ><?= csrf_field() ?>
 
                     <input
                         type="hidden"
@@ -1650,7 +1384,7 @@ $current_step =
                                     <div style="margin-top:8px">
 
                                         <a
-                                            href="/ojtrack/uploads/<?= e($r['file_path']) ?>"
+                                            href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>"
                                             target="_blank"
                                             style="
                                                 font-size:11px;

@@ -6,33 +6,24 @@ require_login(['student']);
 
 $user    = current_user();
 $uid     = (int)$user['id'];
-$student = query_one("SELECT * FROM students WHERE user_id=?", [$uid], 'i');
+$student = normalized_student_context_by_user($uid);
 $sid     = (int)($student['id'] ?? 0);
 
 $month_filter = $_GET['month'] ?? '';
-$where = "student_id=?";
-$params = [$sid]; $types = 'i';
+$records = normalized_attendance_rows_for_student($sid, $month_filter, 60);
 
-if ($month_filter) {
-    $where .= " AND DATE_FORMAT(date, '%Y-%m')=?";
-    $params[] = $month_filter;
-    $types .= 's';
-}
+$all_records = normalized_attendance_rows_for_student($sid, '', 500);
+$totals = [
+    'total_days' => count($all_records),
+    'present' => count(array_filter($all_records, fn($r) => $r['status'] === 'present')),
+    'absent' => count(array_filter($all_records, fn($r) => $r['status'] === 'absent')),
+    'excused' => count(array_filter($all_records, fn($r) => in_array($r['status'], ['excused','leave'], true))),
+    'total_hours' => array_sum(array_column($all_records, 'hours_rendered')),
+];
 
-$records = query("SELECT * FROM attendance WHERE $where ORDER BY date DESC LIMIT 60", $params, $types) ?: [];
-
-$totals = query_one(
-    "SELECT COUNT(*) AS total_days,
-            SUM(CASE WHEN status='present' THEN 1 ELSE 0 END) AS present,
-            SUM(CASE WHEN status='absent' THEN 1 ELSE 0 END) AS absent,
-            SUM(CASE WHEN status='excused' THEN 1 ELSE 0 END) AS excused,
-            COALESCE(SUM(hours_rendered), 0) AS total_hours
-     FROM attendance WHERE student_id=?",
-    [$sid],
-    'i'
-);
-
-$pct = $student['required_hours'] > 0 ? min(100, round(($student['rendered_hours'] / $student['required_hours']) * 100)) : 0;
+$pct = ($student['required_hours'] ?? 0) > 0
+    ? min(100, round((($student['rendered_hours'] ?? 0) / $student['required_hours']) * 100))
+    : 0;
 
 $page_title = 'Attendance DTR';
 require_once __DIR__ . '/../includes/header.php';

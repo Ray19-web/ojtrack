@@ -14,100 +14,59 @@ $error   = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'post') {
-        $title   = trim($_POST['title'] ?? '');
-        $body    = trim($_POST['body'] ?? '');
-        $tag     = trim($_POST['tag'] ?? 'General');
-        $target  = $_POST['target'] ?? 'student';
-        $pinned  = isset($_POST['is_pinned']) ? 1 : 0;
-        $expires = !empty($_POST['expires_at']) ? $_POST['expires_at'] : null;
+    try {
+        if ($action === 'post') {
+            $title   = trim($_POST['title'] ?? '');
+            $body    = trim($_POST['body'] ?? '');
+            $tag     = trim($_POST['tag'] ?? 'General');
+            $target  = $_POST['target'] ?? 'student';
+            $pinned  = isset($_POST['is_pinned']);
+            $expires = !empty($_POST['expires_at']) ? $_POST['expires_at'] : null;
 
-        if (!$title || !$body) {
-            $error = 'Title and body are required.';
-        } elseif (!in_array($target, ['student', 'coordinator', 'both'], true)) {
-            $error = 'Invalid target audience.';
-        } else {
-            $targets = $target === 'both' ? ['student', 'coordinator'] : [$target];
-            foreach ($targets as $t) {
-                insert(
-                    "INSERT INTO announcements (title, body, tag, target_role, created_by, is_pinned, expires_at, is_active)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-                    [$title, $body, $tag, $t, $uid, $pinned, $expires],
-                    'ssssiis'
+            if (!$title || !$body) {
+                $error = 'Title and body are required.';
+            } elseif (!in_array($target, ['student','coordinator','both'], true)) {
+                $error = 'Invalid target audience.';
+            } else {
+                $normalizedTarget = $target === 'both' ? 'all' : $target;
+                $postId = normalized_announcement_create(
+                    $uid,$title,$body,$tag,$normalizedTarget,$pinned,$expires
                 );
-            }
-
-            log_activity($uid, 'Company Notice Posted', $title);
-
-            // Notify trainees of this company
-            if (in_array($target, ['student', 'both'], true)) {
-                $students = query("SELECT user_id FROM students WHERE company_id=? AND is_archived=0", [$company['id']], 'i') ?: [];
-                foreach ($students as $st) {
-                    create_notification($st['user_id'], "Notice from {$company['company_name']}: $title", 'info', '/ojtrack/student/announcements.php');
+                foreach (normalized_announcement_recipient_rows($uid,$normalizedTarget) as $recipient) {
+                    $link = $recipient['role']==='coordinator'
+                        ? '/ojtrack/coordinator/announcements.php'
+                        : '/ojtrack/student/announcements.php';
+                    create_notification(
+                        (int)$recipient['user_id'],
+                        "Notice from {$company['company_name']}: $title",
+                        'info',
+                        $link
+                    );
                 }
+                log_activity($uid,'Company Notice Posted',"Post ID: $postId · $title");
+                $success = 'Notice published' . ($target === 'both' ? ' for trainees and OJT coordinators.' : '.');
             }
-            // Notify OJT coordinators of those trainees
-            if (in_array($target, ['coordinator', 'both'], true)) {
-                $coords = query(
-                    "SELECT DISTINCT c.user_id FROM students s JOIN coordinators c ON c.id=s.coordinator_id WHERE s.company_id=? AND c.user_id IS NOT NULL",
-                    [$company['id']], 'i'
-                ) ?: [];
-                foreach ($coords as $c) {
-                    create_notification($c['user_id'], "Notice from {$company['company_name']}: $title", 'info', '/ojtrack/coordinator/announcements.php');
-                }
+        } elseif ($action === 'delete') {
+            $id=(int)($_POST['ann_id'] ?? 0);
+            if (normalized_announcement_soft_delete($id,$uid)) {
+                log_activity($uid,'Company Notice Archived',"ID: $id");
+                $success='Notice archived.';
             }
-
-            $success = 'Notice published' . ($target === 'both' ? ' for trainees and OJT coordinators.' : '.');
+        } elseif ($action === 'toggle_pin') {
+            $id=(int)($_POST['ann_id'] ?? 0);
+            if (normalized_announcement_toggle_pin($id,$uid)) $success='Notice pin updated.';
         }
-    } elseif ($action === 'delete') {
-        $id = (int)($_POST['ann_id'] ?? 0);
-        query("DELETE FROM announcements WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        log_activity($uid, 'Company Notice Deleted', "ID: $id");
-        $success = 'Notice deleted.';
-    } elseif ($action === 'toggle_pin') {
-        $id = (int)($_POST['ann_id'] ?? 0);
-        query("UPDATE announcements SET is_pinned = 1 - is_pinned WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        $success = 'Notice pin updated.';
+    } catch (DomainException $exception) {
+        $error=$exception->getMessage();
     }
 }
 
-$my_notices = query(
-    "SELECT * FROM announcements WHERE created_by=? ORDER BY created_at DESC",
-    [$uid], 'i'
-) ?: [];
+$my_notices = normalized_announcements_authored($uid);
 
 $tag_filter = trim($_GET['tag'] ?? '');
 $search     = trim($_GET['q'] ?? '');
-
-$where = "(a.target_role IN ('all','company')) AND a.is_active=1 AND (a.expires_at IS NULL OR a.expires_at >= CURDATE())";
-$params = []; $types = '';
-
-if ($tag_filter) {
-    $where .= " AND a.tag=?";
-    $params[] = $tag_filter;
-    $types .= 's';
-}
-if ($search) {
-    $where .= " AND (a.title LIKE ? OR a.body LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'ss';
-}
-
-$announcements = query(
-    "SELECT a.*, u.name AS author_name, u.role AS author_role
-     FROM announcements a
-     LEFT JOIN users u ON u.id=a.created_by
-     WHERE $where
-     ORDER BY a.is_pinned DESC, a.created_at DESC",
-    $params,
-    $types
-) ?: [];
-
-$all_tags = query(
-    "SELECT DISTINCT tag FROM announcements
-     WHERE target_role IN ('all','company') AND is_active=1 AND tag IS NOT NULL AND tag != ''"
-) ?: [];
+$announcements = normalized_announcements_for_user($uid, false, $tag_filter, $search);
+$all_tags = normalized_announcement_tags_for_user($uid);
 
 $page_title = 'Announcements';
 require_once __DIR__ . '/../includes/header.php';
@@ -143,12 +102,12 @@ require_once __DIR__ . '/../includes/header.php';
             <td><span class="text-xs font-bold text-600"><?= e($n['tag'] ?: 'General') ?></span></td>
             <td class="td-mono text-xs"><?= format_date($n['created_at']) ?></td>
             <td>
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_pin">
                 <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
                 <button type="submit" class="btn btn-secondary btn-sm"><?= $n['is_pinned'] ? 'Unpin' : 'Pin' ?></button>
               </form>
-              <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')">
+              <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="delete">
                 <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
@@ -167,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Post a Company Notice</div>
     <p class="modal-sub">Send a notice to your trainees, the OJT Coordinator, or both</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>

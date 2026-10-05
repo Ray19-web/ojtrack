@@ -9,24 +9,34 @@ $coord = query_one("SELECT * FROM coordinators WHERE user_id=?", [$user['id']], 
 
 $success = ''; $error = '';
 
-// Review a journal entry
+// Review the latest normalized journal revision.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'review_journal') {
     $jid     = (int)$_POST['journal_id'];
-    $status  = $_POST['status'];
+    $status  = $_POST['status'] ?? '';
     $remarks = trim($_POST['remarks'] ?? '');
 
-    $entry = query_one("SELECT j.*, s.user_id, u.name AS student_name FROM journal_entries j
-        JOIN students s ON s.id=j.student_id
-        JOIN users u ON u.id=s.user_id
-        WHERE j.id=? AND s.coordinator_id=?", [$jid, $coord['id']], 'ii');
-
-    if (!$entry) {
-        $error = 'Journal entry not found.';
-    } elseif (in_array($status, ['approved', 'rejected'])) {
-        query("UPDATE journal_entries SET status=?, coordinator_remarks=?, reviewed_at=NOW() WHERE id=?", [$status, $remarks, $jid], 'ssi');
-        log_activity($user['id'], 'Journal ' . ucfirst($status), "Journal ID: $jid for {$entry['student_name']}");
-        create_notification($entry['user_id'], "Your journal entry for " . date('M d, Y', strtotime($entry['entry_date'])) . " was " . ($status === 'approved' ? 'approved' : 'returned with remarks') . ".", 'journal', '/ojtrack/student/journal.php');
-        $success = "Journal entry for " . date('M d, Y', strtotime($entry['entry_date'])) . " marked as " . $status . ".";
+    if ($status === 'rejected' && $remarks === '') {
+        $error = 'Explain what the student needs to revise.';
+    } elseif (in_array($status, ['approved', 'rejected'], true)) {
+        $entry = normalized_journal_review(
+            $jid,
+            (int)$coord['id'],
+            (int)$user['id'],
+            $status === 'approved' ? 'approved' : 'returned',
+            $remarks
+        );
+        if (!$entry) {
+            $error = 'Journal entry not found.';
+        } else {
+            log_activity($user['id'], 'Journal ' . ucfirst($status), "Journal ID: $jid for {$entry['student_name']}");
+            create_notification(
+                $entry['user_id'],
+                "Your journal entry for " . date('M d, Y', strtotime($entry['entry_date'])) . " was " . ($status === 'approved' ? 'approved' : 'returned with remarks') . ".",
+                'info',
+                '/ojtrack/student/journal.php'
+            );
+            $success = "Journal entry for " . date('M d, Y', strtotime($entry['entry_date'])) . " marked as " . $status . ".";
+        }
     }
 }
 
@@ -34,30 +44,24 @@ $student_id = isset($_GET['student']) ? (int)$_GET['student'] : 0;
 $search = trim($_GET['q'] ?? '');
 
 if ($student_id) {
-    $sel_student = query_one("SELECT s.*, u.name, u.email, co.company_name FROM students s
-        JOIN users u ON u.id=s.user_id
-        LEFT JOIN companies co ON co.id=s.company_id
-        WHERE s.id=? AND s.coordinator_id=?", [$student_id, $coord['id']], 'ii');
-    $journals = query("SELECT * FROM journal_entries WHERE student_id=? ORDER BY entry_date DESC", [$student_id], 'i');
-} else {
-    $where = "s.coordinator_id=?";
-    $params = [$coord['id']];
-    $types = 'i';
-    if ($search) {
-        $where .= " AND (u.name LIKE ? OR s.student_id_no LIKE ? OR co.company_name LIKE ?)";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        $types .= 'sss';
+    $sel_student = normalized_student_context($student_id);
+    $enrollment = $sel_student ? normalized_enrollment_for_student($student_id) : null;
+    $assignment = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+    if (!$sel_student || !$assignment || (int)$assignment['coordinator_id'] !== (int)$coord['id']) {
+        $sel_student = null;
+        $journals = [];
+    } else {
+        $journals = normalized_journal_rows_for_student($student_id);
     }
-
-    $students = query("SELECT s.*, u.name, co.company_name,
-        (SELECT COUNT(*) FROM journal_entries j WHERE j.student_id=s.id AND j.status='pending') AS pending_journals,
-        (SELECT COUNT(*) FROM journal_entries j WHERE j.student_id=s.id) AS total_journals
-        FROM students s JOIN users u ON u.id=s.user_id
-        LEFT JOIN companies co ON co.id=s.company_id
-        WHERE $where ORDER BY pending_journals DESC, u.name ASC",
-        $params, $types);
+} else {
+    $students = normalized_students_for_coordinator((int)$coord['id'], $search);
+    foreach ($students as &$studentRow) {
+        $journalRows = normalized_journal_rows_for_student((int)$studentRow['id']);
+        $studentRow['pending_journals'] = count(array_filter($journalRows, fn($j) => $j['status'] === 'pending'));
+        $studentRow['total_journals'] = count($journalRows);
+    }
+    unset($studentRow);
+    usort($students, fn($a,$b) => ($b['pending_journals'] <=> $a['pending_journals']) ?: strcasecmp($a['name'],$b['name']));
 }
 
 $page_title = 'Student Monitoring';
@@ -66,7 +70,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">OJT Monitoring</div>
+    <div class="page-title">Daily Journals</div>
     <div class="page-sub">Monitor student progress, journals, hours, and provide mentoring feedback</div>
   </div>
   <?php if ($student_id): ?>
@@ -127,7 +131,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
 
         <?php if ($j['status'] === 'pending'): ?>
-        <form method="POST" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+        <form method="POST" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)"><?= csrf_field() ?>
           <input type="hidden" name="action" value="review_journal">
           <input type="hidden" name="journal_id" value="<?= $j['id'] ?>">
           <div class="form-group mb-2">
@@ -149,7 +153,7 @@ require_once __DIR__ . '/../includes/header.php';
           <?php endif; ?>
           <div style="margin-top:8px">
             <button type="button" class="btn btn-ghost btn-xs text-muted" onclick="toggleEditRemarks(<?= $j['id'] ?>)">Change Feedback / Status</button>
-            <form id="editForm_<?= $j['id'] ?>" method="POST" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+            <form id="editForm_<?= $j['id'] ?>" method="POST" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)"><?= csrf_field() ?>
               <input type="hidden" name="action" value="review_journal">
               <input type="hidden" name="journal_id" value="<?= $j['id'] ?>">
               <div class="form-group mb-2">

@@ -9,6 +9,11 @@ $success = ''; $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    if (in_array($action, ['edit_company','toggle_company'], true)) {
+        $account = query_one("SELECT u.status FROM companies c JOIN users u ON u.id=c.user_id WHERE c.id=?", [(int)($_POST['company_id'] ?? 0)], 'i');
+        if (!$account || $account['status'] === 'archived') request_error(409, 'Restore the company account from Archived Accounts before editing it.');
+    }
+
 
     if ($action === 'add_company') {
         $cname   = trim($_POST['company_name'] ?? '');
@@ -16,10 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sup     = trim($_POST['supervisor_name'] ?? '');
         $email   = trim($_POST['email'] ?? '');
         $phone   = trim($_POST['contact_number'] ?? '');
-        $pass    = trim($_POST['password'] ?? 'company123');
+        $pass    = trim($_POST['password'] ?? '');
 
-        if (!$cname || !$email) {
-            $error = 'Company name and email are required.';
+        if (!$cname || !$email || strlen($pass) < 12 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = 'Company name, a valid email and a password of at least 12 characters are required.';
         } elseif (query_one("SELECT id FROM users WHERE email=?", [$email], 's')) {
             $error = 'Email is already registered in the system.';
         } else {
@@ -154,7 +159,7 @@ require_once __DIR__ . '/../includes/header.php';
           <td onclick="stopRowClick(event)">
             <div style="display:flex;gap:4px">
               <button type="button" class="btn btn-secondary btn-xs" onclick='openEditCompany(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Edit</button>
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_company">
                 <input type="hidden" name="company_id" value="<?= $c['id'] ?>">
                 <button type="submit" class="btn btn-ghost btn-xs"><?= $c['status'] === 'active' ? 'Deactivate' : 'Activate' ?></button>
@@ -173,7 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addCompanyModal">
   <div class="modal modal-lg">
     <div class="modal-title">Register Partner Company</div>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_company">
       <div class="form-row">
         <div class="form-group"><label class="form-label">Company / Organization Name <span style="color:red">*</span></label><input type="text" name="company_name" class="form-control" placeholder="e.g. Innovatech Solutions" required></div>
@@ -185,7 +190,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">Account Email Address <span style="color:red">*</span></label><input type="email" name="email" class="form-control" placeholder="company@domain.com" required></div>
-        <div class="form-group"><label class="form-label">Initial Password</label><input type="password" name="password" class="form-control" value="company123" required></div>
+        <div class="form-group"><label class="form-label">Initial Password</label><input type="password" name="password" class="form-control" value="" required></div>
       </div>
       <div class="alert alert-info"><div class="alert-body"><small>An account will be created automatically for this partner company to log in, view trainees, and submit performance evaluations.</small></div></div>
       <div class="modal-footer">
@@ -201,7 +206,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Company Details</div>
     <p class="modal-sub" id="editCompMeta"></p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit_company">
       <input type="hidden" name="company_id" id="editCompId">
       <div class="form-row">

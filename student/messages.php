@@ -26,6 +26,7 @@ $success = ''; $error = '';
 // Handle creating direct thread with coordinator or supervisor
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'start_thread') {
     $recipient_id = (int)($_POST['recipient_id'] ?? 0);
+    if (!message_recipient_allowed($user, $recipient_id)) request_error(403, 'This person is not an available contact.');
     $initial_msg  = trim($_POST['message'] ?? '');
 
     if (!$recipient_id || !$initial_msg) {
@@ -61,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'start
             insert("INSERT INTO messages (thread_id, sender_id, message) VALUES (?, ?, ?)", [$thread_id, $uid, $initial_msg], 'iis');
             insert("INSERT IGNORE INTO message_reads (message_id, user_id) VALUES (LAST_INSERT_ID(), ?)", [$uid], 'i');
 
-            create_notification($recipient_id, "New message from {$user['name']}", 'info', '/ojtrack/student/messages.php');
+            create_notification($recipient_id, "New message from {$user['name']}", 'info', '/ojtrack/' . $recipient['role'] . '/messages.php?thread=' . $thread_id);
             header("Location: /ojtrack/student/messages.php?thread=" . $thread_id);
             exit;
         }
@@ -261,7 +262,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">New Conversation</div>
     <p class="modal-sub">Send a message to your coordinator or company supervisor</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="start_thread">
       <div class="form-group">
         <label class="form-label">Recipient <span class="text-danger">*</span></label>
@@ -314,7 +315,7 @@ async function handleSendChat(e) {
   try {
     const res = await fetch('/ojtrack/api/messages.php', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content},
       body: 'thread_id=<?= $active_id ?>&message=' + encodeURIComponent(msg)
     });
     const data = await res.json();

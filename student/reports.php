@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 define('OJTRACK', true);
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/auth.php';
@@ -6,12 +6,12 @@ require_login(['student']);
 
 $user    = current_user();
 $uid     = (int)$user['id'];
-$student = query_one("SELECT * FROM students WHERE user_id=?", [$uid], 'i');
+$student = normalized_student_context_by_user($uid);
 $sid     = (int)($student['id'] ?? 0);
 
 $success = ''; $error = '';
 
-// Monthly compilation submission (journal + DTR)
+// Monthly compilation submission from normalized DTR + journal evidence.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_monthly') {
     $month = $_POST['month'] ?? '';
     if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
@@ -19,94 +19,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
     } elseif ($month >= date('Y-m')) {
         $error = 'You can only submit a monthly report after that month has fully ended.';
     } else {
-        $existing = query_one("SELECT id FROM reports WHERE student_id=? AND report_type='monthly' AND DATE_FORMAT(deadline, '%Y-%m')=?", [$sid, $month], 'is');
-        $att_days = (int)(query_one("SELECT COUNT(*) AS c FROM attendance WHERE student_id=? AND DATE_FORMAT(date,'%Y-%m')=? AND status='present'", [$sid, $month], 'is')['c'] ?? 0);
-        $att_hours = (float)(query_one("SELECT COALESCE(SUM(hours_rendered),0) AS h FROM attendance WHERE student_id=? AND DATE_FORMAT(date,'%Y-%m')=?", [$sid, $month], 'is')['h'] ?? 0);
-        $journal_cnt = (int)(query_one("SELECT COUNT(*) AS c FROM journal_entries WHERE student_id=? AND DATE_FORMAT(entry_date,'%Y-%m')=?", [$sid, $month], 'is')['c'] ?? 0);
-
-        if ($journal_cnt == 0 && $att_days == 0) {
-            $error = 'No journal entries or attendance records found for ' . date('F Y', strtotime($month . '-01')) . '.';
-        } elseif ($existing) {
-            query("UPDATE reports SET status='for_review', submitted_at=NOW(), remarks=? WHERE id=?",
-                ["Monthly compilation: $att_days DTR day(s), $journal_cnt journal entr(y/ies), $att_hours hour(s).", $existing['id']], 'si');
-            $success = 'Monthly report resubmitted for review.';
-        } else {
-            insert("INSERT INTO reports (student_id, report_name, report_type, deadline, status, remarks, submitted_at) VALUES (?,?,?,?,'for_review',?,NOW())",
-                [$sid, 'Monthly OJT Report â€” ' . date('F Y', strtotime($month . '-01')), 'monthly', $month . '-01', "Monthly compilation: $att_days DTR day(s), $journal_cnt journal entrie(s), $att_hours hour(s)."], 'issss');
-            $success = 'Monthly report submitted. It compiles your journal entries and DTR for that month.';
-        }
-
-        if (!$error && !empty($student['coordinator_id'])) {
-            $coord_user = query_one("SELECT user_id FROM coordinators WHERE id=?", [$student['coordinator_id']], 'i');
-            if ($coord_user) {
-                create_notification($coord_user['user_id'], "{$user['name']} submitted a monthly OJT report (journal + DTR).", 'info', '/ojtrack/coordinator/reports.php');
+        try {
+            normalized_report_monthly_submit($sid, $uid, $month);
+            $enrollment=normalized_enrollment_for_student($sid);
+            $coord=$enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+            if ($coord) {
+                create_notification(
+                    (int)$coord['user_id'],
+                    "{$user['name']} submitted a monthly OJT report (normalized journal + DTR snapshot).",
+                    'info',
+                    '/ojtrack/coordinator/reports.php'
+                );
             }
+            log_activity($uid, 'Monthly Report Submitted', "Month: $month");
+            $success = 'Monthly report submitted. Its journal and DTR evidence snapshot is now frozen for review.';
+        } catch (DomainException $exception) {
+            $error=$exception->getMessage();
         }
-        log_activity($uid, 'Monthly Report Submitted', "Month: $month");
     }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_report') {
-    $rep_id = (int)($_POST['rep_id'] ?: ($_POST['report_type'] ?? 0));
+    $rep_id = (int)(($_POST['rep_id'] ?? 0) ?: ($_POST['report_type'] ?? 0));
     $notes  = trim($_POST['notes'] ?? '');
 
     if (!$rep_id) {
         $error = 'Please select a report type to submit.';
     } else {
-        $file_path = null;
-        if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] === UPLOAD_ERR_OK) {
-            $orig_name = $_FILES['report_file']['name'];
-            $ext = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
-            $allowed = ['pdf', 'doc', 'docx'];
+        $assignment=normalized_report_get($rep_id,$sid);
+        if (!$assignment) request_error(404,'Submission assignment not found.');
+        if ($assignment['status']==='approved') request_error(409,'Approved submissions cannot be replaced.');
 
-            if (!in_array($ext, $allowed)) {
-                $error = 'Invalid format. Please submit PDF or Word document (.doc, .docx).';
+        $file_path=null;
+        $original_name=null;
+        if (isset($_FILES['report_file']) && ($_FILES['report_file']['error'] ?? UPLOAD_ERR_NO_FILE)===UPLOAD_ERR_OK) {
+            $original_name=$_FILES['report_file']['name'];
+            $ext=strtolower(pathinfo($original_name,PATHINFO_EXTENSION));
+            if (!in_array($ext,['pdf','doc','docx'],true)) {
+                $error='Invalid format. Please submit PDF or Word document (.doc, .docx).';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/reports/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0777, true);
-
-                $new_filename = 'report_' . $sid . '_' . $rep_id . '_' . time() . '.' . $ext;
-                if (move_uploaded_file($_FILES['report_file']['tmp_name'], $dest_dir . $new_filename)) {
-                    $file_path = 'reports/' . $new_filename;
+                $new_filename='report_'.$sid.'_'.$rep_id.'_'.bin2hex(random_bytes(16)).'.'.$ext;
+                if (store_private_upload($_FILES['report_file']['tmp_name'],'reports',$new_filename)) {
+                    $file_path='reports/'.$new_filename;
                 } else {
-                    $error = 'Failed to upload report file. Please try again.';
+                    $error='Failed to upload report file. Please try again.';
                 }
             }
         }
 
         if (!$error) {
-            if ($file_path) {
-                query(
-                    "UPDATE reports
-                     SET status='for_review', submitted_at=NOW(), file_path=?, remarks=?
-                     WHERE id=? AND student_id=?",
-                    [$file_path, $notes ?: 'Submitted for coordinator review', $rep_id, $sid],
-                    'ssii'
+            try {
+                normalized_report_submit(
+                    $rep_id,$sid,$uid,$notes ?: 'Submitted for coordinator review',
+                    $file_path,$original_name
                 );
-            } else {
-                query(
-                    "UPDATE reports
-                     SET status='for_review', submitted_at=NOW(), remarks=?
-                     WHERE id=? AND student_id=?",
-                    [$notes ?: 'Submitted for review', $rep_id, $sid],
-                    'sii'
-                );
-            }
-
-            if (!empty($student['coordinator_id'])) {
-                $coord_user = query_one("SELECT user_id FROM coordinators WHERE id=?", [$student['coordinator_id']], 'i');
-                if ($coord_user) {
-                    create_notification($coord_user['user_id'], "{$user['name']} submitted a narrative report for review.", 'info', '/ojtrack/coordinator/reports.php');
+                $enrollment=normalized_enrollment_for_student($sid);
+                $coord=$enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+                if ($coord) {
+                    create_notification(
+                        (int)$coord['user_id'],
+                        "{$user['name']} submitted a narrative report for review.",
+                        'info',
+                        '/ojtrack/coordinator/reports.php'
+                    );
                 }
+                log_activity($uid,'Report Submitted',"Assignment ID $rep_id");
+                $success='Report submitted successfully. Awaiting coordinator review.';
+            } catch (DomainException $exception) {
+                $error=$exception->getMessage();
             }
-
-            log_activity($uid, 'Report Submitted', "Report ID $rep_id");
-            $success = 'Report submitted successfully. Awaiting coordinator review.';
         }
     }
 }
 
-$reports = query("SELECT * FROM reports WHERE student_id=? ORDER BY FIELD(report_type,'initial','midterm','final')", [$sid], 'i') ?: [];
+$reports = normalized_report_rows_for_student($sid);
 
 $page_title = 'OJT Reports';
 require_once __DIR__ . '/../includes/header.php';
@@ -146,14 +132,14 @@ require_once __DIR__ . '/../includes/header.php';
               <span class="badge badge-secondary"><?= ucfirst($r['report_type']) ?></span>
             </td>
             <td class="td-mono text-sm"><?= format_date($r['deadline']) ?></td>
-            <td class="td-mono text-sm"><?= $r['submitted_at'] ? date('M d, Y', strtotime($r['submitted_at'])) : 'â€”' ?></td>
+            <td class="td-mono text-sm"><?= $r['submitted_at'] ? date('M d, Y', strtotime($r['submitted_at'])) : '—' ?></td>
             <td><?= status_badge($r['status']) ?></td>
             <td class="text-xs text-muted" style="max-width:200px">
-              <?= $r['remarks'] ? e($r['remarks']) : 'â€”' ?>
+              <?= $r['remarks'] ? e($r['remarks']) : '—' ?>
             </td>
             <td>
               <?php if (!empty($r['file_path'])): ?>
-                <a href="/ojtrack/uploads/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View attached report">
+                <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View attached report">
                   View
                 </a>
               <?php else: ?>
@@ -189,14 +175,16 @@ $compile_month = $_GET['cm'] ?? '';
 $can_compile = $compile_month && preg_match('/^\d{4}-\d{2}$/', $compile_month) && $compile_month < date('Y-m');
 $cm_att_days = $cm_att_hours = $cm_journal = 0;
 if ($can_compile) {
-    $cm_att_days = (int)(query_one("SELECT COUNT(*) AS c FROM attendance WHERE student_id=? AND DATE_FORMAT(date,'%Y-%m')=? AND status='present'", [$sid, $compile_month], 'is')['c'] ?? 0);
-    $cm_att_hours = (float)(query_one("SELECT COALESCE(SUM(hours_rendered),0) AS h FROM attendance WHERE student_id=? AND DATE_FORMAT(date,'%Y-%m')=?", [$sid, $compile_month], 'is')['h'] ?? 0);
-    $cm_journal = (int)(query_one("SELECT COUNT(*) AS c FROM journal_entries WHERE student_id=? AND DATE_FORMAT(entry_date,'%Y-%m')=?", [$sid, $compile_month], 'is')['c'] ?? 0);
+    $cm_attendance = normalized_attendance_rows_for_student((int)$sid, $compile_month, 500);
+    $cm_att_days = count(array_filter($cm_attendance, fn($row) => ($row['status'] ?? '') === 'present'));
+    $cm_att_hours = array_sum(array_map(fn($row) => (float)($row['hours_rendered'] ?? 0), $cm_attendance));
+    $cm_journals = normalized_journal_rows_for_student((int)$sid, 500);
+    $cm_journal = count(array_filter($cm_journals, fn($row) => str_starts_with((string)($row['entry_date'] ?? ''), $compile_month . '-')));
 }
 ?>
 <div class="card card-body mb-4">
   <div class="section-title mb-3">Monthly OJT Report (Journal + DTR Compilation)</div>
-  <p class="text-xs text-muted mb-3">Submit your monthly report once the month is complete. It compiles that month's DTR records and journal entries. Suggested page concept: merge your Daily Journal into this report pipeline.</p>
+  <p class="text-xs text-muted mb-3">Submit your monthly report once the month is complete. It compiles that month's DTR records and journal entries.</p>
   <form method="GET" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
     <div class="form-group" style="margin-bottom:0">
       <label class="form-label">Month</label>
@@ -214,7 +202,7 @@ if ($can_compile) {
         <div><div class="font-mono font-bold" style="font-size:22px"><?= $cm_journal ?></div><div class="text-xs text-muted">Journal entries</div></div>
         <div><div class="font-mono font-bold" style="font-size:22px"><?= number_format($cm_att_hours, 1) ?></div><div class="text-xs text-muted">DTR hours</div></div>
       </div>
-      <form method="POST" style="margin-top:12px">
+      <form method="POST" style="margin-top:12px"><?= csrf_field() ?>
         <input type="hidden" name="action" value="submit_monthly">
         <input type="hidden" name="month" value="<?= e($compile_month) ?>">
         <button type="submit" class="btn btn-primary">Compile &amp; Submit Report</button>
@@ -239,14 +227,14 @@ if ($can_compile) {
     <div class="modal-title">Submit OJT Report</div>
     <p class="modal-sub" id="reportModalSub">Attach your completed narrative report</p>
 
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="submit_report">
       <input type="hidden" name="rep_id" id="repId" value="">
 
       <div class="form-group" id="repSelectGroup">
         <label class="form-label">Report <span class="text-danger">*</span></label>
         <select name="report_type" id="repTypeSelect" class="form-control" onchange="document.getElementById('repId').value = this.value">
-          <option value="">â€” Select report â€”</option>
+          <option value="">— Select report —</option>
           <?php foreach ($reports as $r): ?>
             <?php if ($r['status'] !== 'approved'): ?>
               <option value="<?= $r['id'] ?>"><?= e($r['report_name']) ?> (<?= ucfirst($r['status']) ?>)</option>

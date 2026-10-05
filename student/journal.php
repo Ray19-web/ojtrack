@@ -6,7 +6,7 @@ require_login(['student']);
 
 $user    = current_user();
 $uid     = (int)$user['id'];
-$student = query_one("SELECT * FROM students WHERE user_id=?", [$uid], 'i');
+$student = normalized_student_context_by_user($uid);
 $sid     = (int)($student['id'] ?? 0);
 
 $success = ''; $error = '';
@@ -24,17 +24,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hours      = (float)($_POST['hours_rendered'] ?? 8.0);
         $edit_id    = (int)($_POST['edit_id'] ?? 0);
 
-        // Optional proof image upload
+        $parsed_date = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (!$parsed_date || $parsed_date->format('Y-m-d') !== $date || $date > date('Y-m-d') ||
+            (!empty($student['ojt_start_date']) && $date < $student['ojt_start_date']) ||
+            (!empty($student['ojt_end_date']) && $date > $student['ojt_end_date']) || $hours < 0 || $hours > 24) {
+            $error = 'Use a valid training date and hours between 0 and 24.';
+        }
+        if ($edit_id) {
+            $editable = normalized_journal_get($edit_id, $sid);
+            if (!$editable || !in_array($editable['status'], ['pending','rejected'], true)) {
+                request_error(403, 'This journal cannot be edited.');
+            }
+        }
+
         $proof_image = null;
-        if (!empty($_FILES['proof_image']['name']) && ($_FILES['proof_image']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['proof_image']['name'], PATHINFO_EXTENSION));
+        $proof_name = null;
+        if (!$error && !empty($_FILES['proof_image']['name']) && ($_FILES['proof_image']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            $proof_name = $_FILES['proof_image']['name'];
+            $ext = strtolower(pathinfo($proof_name, PATHINFO_EXTENSION));
             if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
                 $error = 'Proof image must be a JPG, PNG, GIF, or WEBP file.';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/journal_proofs/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0755, true);
-                $filename = 'proof_' . $sid . '_' . time() . '.' . $ext;
-                if (move_uploaded_file($_FILES['proof_image']['tmp_name'], $dest_dir . $filename)) {
+                $filename = 'proof_' . $sid . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+                if (store_private_upload($_FILES['proof_image']['tmp_name'], 'journal_proofs', $filename)) {
                     $proof_image = 'journal_proofs/' . $filename;
                 } else {
                     $error = 'Failed to upload proof image.';
@@ -42,66 +54,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if (!$date || !$activities || !$learnings || !$challenges) {
+        if ($error) {
+            $view = 'form';
+        } elseif (!$date || !$activities || !$learnings || !$challenges) {
             $error = 'All fields are required.';
+            $view = 'form';
         } else {
-            if ($edit_id > 0) {
-                // Edit existing pending entry
-                query(
-                    "UPDATE journal_entries
-                     SET entry_date=?, activities=?, learnings=?, challenges=?, hours_rendered=?, status='pending',
-                         proof_image = COALESCE(?, proof_image)
-                     WHERE id=? AND student_id=? AND status='pending'",
-                    [$date, $activities, $learnings, $challenges, $hours, $proof_image, $edit_id, $sid],
-                    'ssssdssi'
+            $start = !empty($student['ojt_start_date']) ? strtotime($student['ojt_start_date']) : strtotime($date);
+            $week = (int)max(1, floor((strtotime($date) - $start) / (7 * 86400)) + 1);
+            try {
+                $savedId = normalized_journal_save(
+                    $sid,$uid,$date,$week,$activities,$learnings,$challenges,$hours,
+                    $edit_id,$proof_image,$proof_name
                 );
-                log_activity($uid, 'Journal Entry Updated', "Date: $date (#$edit_id)");
-                $success = 'Journal entry updated successfully.';
+                log_activity($uid, $edit_id ? 'Journal Revision Submitted' : 'Journal Entry Submitted', "Date: $date (#$savedId)");
+                $success = $edit_id
+                    ? 'Journal revision submitted successfully. Earlier revisions were preserved.'
+                    : 'Journal entry submitted for coordinator verification.';
                 $view = 'list';
-            } else {
-                $existing = query_one("SELECT id FROM journal_entries WHERE student_id=? AND entry_date=?", [$sid, $date], 'is');
-                if ($existing) {
-                    $error = "A journal entry for $date already exists.";
-                } else {
-                    $start = !empty($student['ojt_start_date']) ? strtotime($student['ojt_start_date']) : strtotime($date);
-                    $week = max(1, ceil((strtotime($date) - $start) / (7 * 86400)) + 1);
-
-                    insert(
-                        "INSERT INTO journal_entries (student_id, entry_date, week_number, activities, learnings, challenges, hours_rendered, status, proof_image)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-                        [$sid, $date, $week, $activities, $learnings, $challenges, $hours, $proof_image],
-                        'isssssds'
-                    );
-
-                    log_activity($uid, 'Journal Entry Submitted', "Date: $date");
-                    $success = 'Journal entry submitted for coordinator verification.';
-                    $view = 'list';
-                }
+            } catch (DomainException $exception) {
+                $error = $exception->getMessage();
+                $view = 'form';
             }
         }
     } elseif ($action === 'delete_journal') {
-        $del_id = (int)($_POST['del_id'] ?? 0);
-        query("DELETE FROM journal_entries WHERE id=? AND student_id=? AND status='pending'", [$del_id, $sid], 'ii');
-        log_activity($uid, 'Journal Entry Deleted', "ID: $del_id");
-        $success = 'Journal entry deleted.';
+        $error = 'Submitted journal history is retained for audit. Edit and resubmit the entry instead of deleting it.';
         $view = 'list';
     }
 }
 
-$entries = query("SELECT * FROM journal_entries WHERE student_id=? ORDER BY entry_date DESC", [$sid], 'i') ?: [];
+$entries = normalized_journal_rows_for_student($sid);
 $approved = count(array_filter($entries, fn($e) => $e['status'] === 'approved'));
 $pending  = count(array_filter($entries, fn($e) => $e['status'] === 'pending'));
 $rejected = count(array_filter($entries, fn($e) => $e['status'] === 'rejected'));
 
 $detail = null;
 if ($view === 'detail' && $entry_id > 0) {
-    $detail = query_one("SELECT * FROM journal_entries WHERE id=? AND student_id=?", [$entry_id, $sid], 'ii');
+    $detail = normalized_journal_get($entry_id, $sid);
 }
 
 $edit_entry = null;
 if ($view === 'edit' && $entry_id > 0) {
-    $edit_entry = query_one("SELECT * FROM journal_entries WHERE id=? AND student_id=? AND status='pending'", [$entry_id, $sid], 'ii');
-    if ($edit_entry) $view = 'form';
+    $edit_entry = normalized_journal_get($entry_id, $sid);
+    if ($edit_entry && in_array($edit_entry['status'], ['pending','rejected'], true)) $view = 'form';
+    else $edit_entry = null;
 }
 
 $page_title = 'Daily Journal';
@@ -111,14 +107,9 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($view === 'detail' && $detail): ?>
   <div class="mb-4 flex-between">
     <a href="/ojtrack/student/journal.php" class="btn btn-ghost btn-sm">← Back to Journal List</a>
-    <?php if ($detail['status'] === 'pending'): ?>
+    <?php if (in_array($detail['status'], ['pending', 'rejected'], true)): ?>
       <div class="flex-items-center gap-2">
         <a href="/ojtrack/student/journal.php?view=edit&id=<?= $detail['id'] ?>" class="btn btn-secondary btn-sm">Edit Entry</a>
-        <form method="POST" style="display:inline" onsubmit="return confirm('Delete this pending journal entry?')">
-          <input type="hidden" name="action" value="delete_journal">
-          <input type="hidden" name="del_id" value="<?= $detail['id'] ?>">
-          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
       </div>
     <?php endif; ?>
   </div>
@@ -157,8 +148,8 @@ require_once __DIR__ . '/../includes/header.php';
       <?php if (!empty($detail['proof_image'])): ?>
       <div>
         <label class="form-label font-bold text-xs uppercase text-gray-600 tracking-wider">Documentation / Proof</label>
-        <a href="/ojtrack/uploads/<?= e($detail['proof_image']) ?>" target="_blank">
-          <img src="/ojtrack/uploads/<?= e($detail['proof_image']) ?>" alt="Proof" style="max-width:100%;max-height:360px;border-radius:8px;border:1px solid var(--border)">
+        <a href="/ojtrack/download.php?file=<?= rawurlencode($detail['proof_image']) ?>" target="_blank">
+          <img src="/ojtrack/download.php?file=<?= rawurlencode($detail['proof_image']) ?>&amp;preview=1" alt="Proof" style="max-width:100%;max-height:360px;border-radius:8px;border:1px solid var(--border)">
         </a>
       </div>
       <?php endif; ?>
@@ -187,7 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="section-sub">Document your day's work, acquired skills, and problem resolution</div>
     </div>
 
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="submit_journal">
       <?php if ($edit_entry): ?>
         <input type="hidden" name="edit_id" value="<?= $edit_entry['id'] ?>">
@@ -221,9 +212,9 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Documentation / Proof Image</label>
-        <input type="file" name="proof_image" class="form-control" accept="image/*">
+        <input type="file" name="proof_image" class="form-control" accept=".jpg,.jpeg,.png,.gif,.webp">
         <?php if (!empty($edit_entry['proof_image'])): ?>
-          <div class="text-xs text-muted mt-1">Current: <a href="/ojtrack/uploads/<?= e($edit_entry['proof_image']) ?>" target="_blank">view proof</a> (upload new to replace)</div>
+          <div class="text-xs text-muted mt-1">Current: <a href="/ojtrack/download.php?file=<?= rawurlencode($edit_entry['proof_image']) ?>" target="_blank">view proof</a> (upload new to replace)</div>
         <?php else: ?>
           <div class="text-xs text-muted mt-1">Upload a screenshot or photo proving your activity (optional).</div>
         <?php endif; ?>
@@ -249,7 +240,10 @@ require_once __DIR__ . '/../includes/header.php';
 
   <?php
   $today = date('Y-m-d');
-  $today_entry = query_one("SELECT id FROM journal_entries WHERE student_id=? AND entry_date=?", [$sid, $today], 'is');
+  $today_entry = null;
+  foreach ($entries as $entry) {
+      if ($entry['entry_date'] === $today) { $today_entry = $entry; break; }
+  }
   if (!$today_entry):
   ?>
     <div class="alert alert-warn mb-4 flex-between">

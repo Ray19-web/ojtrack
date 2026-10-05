@@ -14,118 +14,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $req_id  = (int)($_POST['req_id'] ?? 0);
     $remarks = trim($_POST['remarks'] ?? '');
 
-    // Handle adding requirements to the template library
-    if ($action === 'add_templates') {
-        $names = trim($_POST['names'] ?? '');
-        $desc  = trim($_POST['description'] ?? '');
-        $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $names))));
-
-        if (empty($lines)) {
-            $error = 'Enter at least one requirement name (one per line).';
-        } else {
-            foreach ($lines as $n) {
-                insert("INSERT INTO requirement_templates (coordinator_id, name, description) VALUES (?,?,?)", [$coord['id'], $n, $desc], 'iss');
+    try {
+        if ($action === 'add_templates') {
+            $names = trim($_POST['names'] ?? '');
+            $desc  = trim($_POST['description'] ?? '');
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $names))));
+            if (!$lines) {
+                $error = 'Enter at least one requirement name (one per line).';
+            } else {
+                foreach ($lines as $name) normalized_requirement_add_template((int)$user['id'], $name, $desc);
+                log_activity($user['id'], 'Requirements Added', count($lines) . ' normalized template(s)');
+                $success = count($lines) . ' requirement(s) added to your requirement library.';
             }
-            log_activity($user['id'], 'Requirements Added', count($lines) . ' template(s)');
-            $success = count($lines) . " requirement(s) added to your requirement library.";
-        }
-    } elseif ($action === 'delete_template') {
-        $tid = (int)($_POST['template_id'] ?? 0);
-        query("DELETE FROM requirement_templates WHERE id=? AND coordinator_id=?", [$tid, $coord['id']], 'ii');
-        $success = 'Requirement removed from library.';
-    } elseif ($action === 'send_requirements') {
-        $template_ids = $_POST['template_ids'] ?? [];
-        $student_ids  = $_POST['student_ids'] ?? [];
-        $deadline     = $_POST['deadline'] ?? null;
+        } elseif ($action === 'delete_template') {
+            $tid = (int)($_POST['template_id'] ?? 0);
+            if (!normalized_requirement_archive_template((int)$user['id'], $tid)) {
+                $error = 'Requirement template not found.';
+            } else {
+                $success = 'Requirement archived from your active library.';
+            }
+        } elseif ($action === 'send_requirements') {
+            $template_ids = $_POST['template_ids'] ?? [];
+            $student_ids  = $_POST['student_ids'] ?? [];
+            $deadline     = !empty($_POST['deadline']) ? $_POST['deadline'] : null;
+            if (!$template_ids || !$student_ids) {
+                $error = 'Select at least one requirement and at least one student.';
+            } else {
+                $created = 0; $skipped = 0;
+                foreach ($student_ids as $studentIdRaw) {
+                    $studentId=(int)$studentIdRaw;
+                    $student=normalized_student_context($studentId);
+                    if (!$student) continue;
+                    $enrollment=normalized_enrollment_for_student($studentId);
+                    $assignedCoord=$enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+                    if (!$assignedCoord || (int)$assignedCoord['coordinator_id'] !== (int)$coord['id']) continue;
 
-        if (empty($template_ids) || empty($student_ids)) {
-            $error = 'Select at least one requirement and at least one student.';
-        } else {
-            $created = 0;
-            $skipped = 0;
-            foreach ($student_ids as $sid_sel) {
-                $sid_sel = (int)$sid_sel;
-                $student = query_one("SELECT s.*, u.name AS student_name FROM students s JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.coordinator_id=?", [$sid_sel, $coord['id']], 'ii');
-                if (!$student) continue;
-                foreach ($template_ids as $tid) {
-                    $tpl = query_one("SELECT * FROM requirement_templates WHERE id=? AND coordinator_id=?", [(int)$tid, $coord['id']], 'ii');
-                    if (!$tpl) continue;
-
-                    // Skip if this student already has this requirement
-                    $exists = query_one(
-                        "SELECT id FROM ojt_requirements
-                         WHERE student_id=? AND document_name=?
-                         LIMIT 1",
-                        [$sid_sel, $tpl['name']],
-                        'is'
-                    );
-
-                    if ($exists) {
-                        $skipped++;
-                        continue;
+                    foreach ($template_ids as $templateIdRaw) {
+                        $templateId=(int)$templateIdRaw;
+                        $result=normalized_requirement_assign(
+                            $templateId,$studentId,(int)$coord['id'],(int)$user['id'],$deadline
+                        );
+                        if ($result==='created') {
+                            $tpl=query_one("SELECT title FROM requirement_definitions WHERE id=?",[$templateId],'i');
+                            create_notification(
+                                (int)$student['user_id'],
+                                'New requirement: '.($tpl['title'] ?? 'OJT document').'. Please submit the document.',
+                                'info',
+                                '/ojtrack/student/requirements.php'
+                            );
+                            $created++;
+                        } elseif ($result==='duplicate') {
+                            $skipped++;
+                        }
                     }
-
-                    insert(
-                        "INSERT INTO ojt_requirements (student_id, document_name, deadline, status, remarks) VALUES (?, ?, ?, 'pending', ?)",
-                        [$sid_sel, $tpl['name'], $deadline ?: null, $tpl['description'] ?: 'Added by coordinator'],
-                        'isss'
+                }
+                log_activity($user['id'], 'Requirements Sent', "$created normalized assignment(s)");
+                $success = "$created requirement(s) assigned to the selected students.";
+                if ($skipped>0) $success .= " $skipped duplicate(s) skipped because the student already has them.";
+            }
+        } elseif (in_array($action,['approve','reject'],true)) {
+            if ($action==='reject' && $remarks==='') {
+                $error='Explain what the student needs to revise.';
+            } else {
+                $row=normalized_requirement_review(
+                    $req_id,
+                    (int)$coord['id'],
+                    (int)$user['id'],
+                    $action==='approve' ? 'approved' : 'returned',
+                    $remarks
+                );
+                if (!$row) {
+                    $error='Requirement submission not found.';
+                } else {
+                    log_activity(
+                        $user['id'],
+                        $action==='approve' ? 'Requirement Approved' : 'Requirement Returned',
+                        "Assignment ID: $req_id ({$row['document_name']}) for {$row['student_name']}"
                     );
-                    $created++;
-                    create_notification($student['user_id'], "New requirement: {$tpl['name']}. Please submit the document.", 'info', '/ojtrack/student/requirements.php');
+                    create_notification(
+                        (int)$row['user_id'],
+                        $action==='approve'
+                            ? "Your requirement document '{$row['document_name']}' has been approved."
+                            : "Your requirement document '{$row['document_name']}' was returned with remarks: $remarks",
+                        'info',
+                        '/ojtrack/student/requirements.php'
+                    );
+                    $success=$action==='approve'
+                        ? "Requirement '{$row['document_name']}' approved successfully."
+                        : 'Requirement returned with remarks.';
                 }
             }
-            log_activity($user['id'], 'Requirements Sent', "$created assignment(s)");
-            $success = "$created requirement(s) assigned to the selected students.";
-            if ($skipped > 0) {
-                $success .= " $skipped duplicate(s) skipped because the student already has them.";
-            }
         }
-    } else {
-        $req = query_one("SELECT r.*, s.user_id, u.name AS student_name FROM ojt_requirements r
-            JOIN students s ON s.id=r.student_id
-            JOIN users u ON u.id=s.user_id
-            WHERE r.id=? AND s.coordinator_id=?", [$req_id, $coord['id']], 'ii');
-
-        if (!$req) {
-            $error = 'Requirement submission not found.';
-        } elseif ($action === 'approve' && $req_id) {
-            query("UPDATE ojt_requirements SET status='approved', reviewed_at=NOW(), remarks=? WHERE id=?", [$remarks, $req_id], 'si');
-            log_activity($user['id'], 'Requirement Approved', "Req ID: $req_id ({$req['document_name']}) for {$req['student_name']}");
-            create_notification($req['user_id'], "Your requirement document '{$req['document_name']}' has been approved.", 'requirement', '/ojtrack/student/requirements.php');
-            $success = "Requirement '{$req['document_name']}' approved successfully.";
-        } elseif ($action === 'reject' && $req_id) {
-            query("UPDATE ojt_requirements SET status='rejected', reviewed_at=NOW(), remarks=? WHERE id=?", [$remarks, $req_id], 'si');
-            log_activity($user['id'], 'Requirement Rejected', "Req ID: $req_id ({$req['document_name']}) for {$req['student_name']}");
-            create_notification($req['user_id'], "Your requirement document '{$req['document_name']}' was returned with remarks: $remarks", 'requirement', '/ojtrack/student/requirements.php');
-            $success = "Requirement returned with remarks.";
-        }
+    } catch (DomainException $exception) {
+        $error=$exception->getMessage();
     }
 }
 
 $tab = $_GET['tab'] ?? 'pending';
 $search = trim($_GET['q'] ?? '');
+if (!in_array($tab,['pending','approved','rejected'],true)) $tab='pending';
 
-$where = "s.coordinator_id=? AND r.status=?";
-$params = [$coord['id'], $tab];
-$types = 'is';
-
-if ($search) {
-    $where .= " AND (u.name LIKE ? OR r.document_name LIKE ? OR s.student_id_no LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'sss';
-}
-
-$reqs = query("SELECT r.*, u.name AS student_name, s.student_id_no, s.program, s.id AS student_id FROM ojt_requirements r
-    JOIN students s ON s.id=r.student_id JOIN users u ON u.id=s.user_id
-    WHERE $where ORDER BY r.submitted_at DESC",
-    $params, $types);
-
+$reqs = normalized_requirement_rows_for_coordinator((int)$coord['id'], $tab, $search);
+$allRequirementRows = normalized_requirement_rows_for_coordinator((int)$coord['id'], '', '');
 $counts = [
-    'pending'  => query_one("SELECT COUNT(*) AS c FROM ojt_requirements r JOIN students s ON s.id=r.student_id WHERE s.coordinator_id=? AND r.status='pending'",  [$coord['id']], 'i')['c'],
-    'approved' => query_one("SELECT COUNT(*) AS c FROM ojt_requirements r JOIN students s ON s.id=r.student_id WHERE s.coordinator_id=? AND r.status='approved'", [$coord['id']], 'i')['c'],
-    'rejected' => query_one("SELECT COUNT(*) AS c FROM ojt_requirements r JOIN students s ON s.id=r.student_id WHERE s.coordinator_id=? AND r.status='rejected'", [$coord['id']], 'i')['c'],
+    'pending'  => count(array_filter($allRequirementRows, fn($r) => $r['status']==='pending')),
+    'approved' => count(array_filter($allRequirementRows, fn($r) => $r['status']==='approved')),
+    'rejected' => count(array_filter($allRequirementRows, fn($r) => $r['status']==='rejected')),
 ];
 
 $page_title = 'Requirements Review';
@@ -188,7 +182,7 @@ require_once __DIR__ . '/../includes/header.php';
           <td><strong class="text-sm"><?= e($r['document_name']) ?></strong></td>
           <td>
             <?php if (!empty($r['file_path'])): ?>
-              <a href="/ojtrack/uploads/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-xs" style="display:inline-flex;align-items:center;gap:4px">
+              <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-xs" style="display:inline-flex;align-items:center;gap:4px">
                 View Document
               </a>
             <?php else: ?>
@@ -224,7 +218,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Add Requirements</div>
     <p class="modal-sub">Add one or more requirements to your requirement library (one per line). You can send these to any students later.</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_templates">
       <div class="form-group">
         <label class="form-label">Requirement Names <span class="text-danger">*</span></label>
@@ -241,7 +235,7 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
 
     <?php
-    $templates = query("SELECT * FROM requirement_templates WHERE coordinator_id=? ORDER BY id DESC", [$coord['id']], 'i') ?: [];
+    $templates = normalized_requirement_templates_for_coordinator((int)$user['id']);
     ?>
     <div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:14px">
       <div class="section-title mb-2" style="font-size:14px">Requirement Library (<?= count($templates) ?>)</div>
@@ -255,7 +249,7 @@ require_once __DIR__ . '/../includes/header.php';
             <strong class="text-sm"><?= e($t['name']) ?></strong>
             <?php if ($t['description']): ?><div class="text-xs text-muted"><?= e($t['description']) ?></div><?php endif; ?>
           </div>
-          <form method="POST" onsubmit="return confirm('Remove this requirement from the library?')">
+          <form method="POST" onsubmit="return confirm('Remove this requirement from the library?')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_template">
             <input type="hidden" name="template_id" value="<?= $t['id'] ?>">
             <button class="btn btn-danger btn-xs">Delete</button>
@@ -273,7 +267,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal modal-lg">
     <div class="modal-title">Send Requirements to Students</div>
     <p class="modal-sub">Select as many requirements and as many students as you want — the requirement will be assigned to each selected student. Students who already have a selected requirement are marked, and duplicates are skipped automatically.</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="send_requirements">
       <div class="form-group">
         <label class="form-label">Requirements <span class="text-danger">*</span></label>
@@ -293,10 +287,10 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="form-group">
         <label class="form-label">Students <span class="text-danger">*</span></label>
         <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:10px">
-          <?php $students2 = query("SELECT s.id, u.name, s.student_id_no FROM students s JOIN users u ON u.id=s.user_id WHERE s.coordinator_id=? ORDER BY u.name ASC", [$coord['id']], 'i') ?: []; ?>
+          <?php $students2 = normalized_students_for_coordinator((int)$coord['id']); ?>
           <?php
           $existing_docs = [];
-          $existing_rows = query("SELECT r.student_id, r.document_name FROM ojt_requirements r JOIN students s ON s.id=r.student_id WHERE s.coordinator_id=?", [$coord['id']], 'i') ?: [];
+          $existing_rows = normalized_requirement_rows_for_coordinator((int)$coord['id'], '', '');
           foreach ($existing_rows as $erow) {
               $existing_docs[$erow['student_id']][] = $erow['document_name'];
           }
@@ -350,7 +344,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title" id="revModalTitle">Review Requirement</div>
     <p class="modal-sub" id="revModalSub"></p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="req_id" id="revReqId">
       <input type="hidden" name="action" id="revAction">
       <div class="form-group">
@@ -422,7 +416,7 @@ function viewReq(r, statusBadge) {
   document.getElementById('viewReqRemarks').textContent = r.remarks || '—';
   const fileDiv = document.getElementById('viewReqFile');
   if (r.file_path) {
-    fileDiv.innerHTML = '<a href="/ojtrack/uploads/' + r.file_path + '" target="_blank" class="btn btn-primary">View Document</a>';
+    fileDiv.innerHTML = '<a href="/ojtrack/download.php?file=' + encodeURIComponent(r.file_path) + '" target="_blank" class="btn btn-primary">View Document</a>';
   } else {
     fileDiv.innerHTML = '<span class="text-muted">No file attached</span>';
   }

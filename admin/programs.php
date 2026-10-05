@@ -103,13 +103,13 @@ $programs = query(
     $types
 );
 
-$page_title = 'Program Management';
+$page_title = 'Programs';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Program Management</div>
+    <div class="page-title">Programs</div>
     <div class="page-sub">Manage academic degree programs, program codes, and student enrollment mappings</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('addProgramModal')">+ Add New Program</button>
@@ -177,7 +177,7 @@ require_once __DIR__ . '/../includes/header.php';
           <td onclick="stopRowClick(event)">
             <div style="display:flex;gap:4px">
               <button type="button" class="btn btn-secondary btn-xs" onclick='openEditProgram(<?= htmlspecialchars(json_encode($p, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Edit</button>
-              <form method="POST" style="display:inline">
+              <form method="POST" style="display:inline"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_status">
                 <input type="hidden" name="program_id" value="<?= $p['id'] ?>">
                 <button type="submit" class="btn btn-ghost btn-xs">
@@ -201,7 +201,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Add New Academic Program</div>
     <p class="modal-sub">Create a new program code and degree title for student enrollment</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_program">
 
       <div class="form-group">
@@ -237,7 +237,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Edit Academic Program</div>
     <p class="modal-sub" id="editProgramModalSub"></p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit_program">
       <input type="hidden" name="program_id" id="editProgramId">
 

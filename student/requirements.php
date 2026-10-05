@@ -6,32 +6,37 @@ require_login(['student']);
 
 $user    = current_user();
 $uid     = (int)$user['id'];
-$student = query_one("SELECT * FROM students WHERE user_id=?", [$uid], 'i');
+$student = normalized_student_context_by_user($uid);
 $sid     = (int)($student['id'] ?? 0);
 
 $success = ''; $error = '';
 
-// Handle file upload / submission
+// Handle versioned normalized requirement submission.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload') {
-    $req_id = (int)($_POST['req_id'] ?: ($_POST['doc_type'] ?? 0));
+    $req_id = (int)(($_POST['req_id'] ?? 0) ?: ($_POST['doc_type'] ?? 0));
 
     if (!$req_id) {
         $error = 'Please select a document type to submit.';
     } else {
+        $assignment = normalized_requirement_get($req_id, $sid);
+        if (!$assignment) request_error(404, 'Submission assignment not found.');
+        if ($assignment['status'] === 'approved') request_error(409, 'Approved submissions cannot be replaced.');
+        if (($_FILES['document']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE && empty($assignment['file_path'])) {
+            request_error(422, 'Choose a document before submitting this assignment.');
+        }
+
         $file_path = null;
-        if (isset($_FILES['document']) && $_FILES['document']['error'] === UPLOAD_ERR_OK) {
-            $orig_name = $_FILES['document']['name'];
-            $ext = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
+        $original_name = null;
+        if (isset($_FILES['document']) && ($_FILES['document']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+            $original_name = $_FILES['document']['name'];
+            $ext = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
             $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
 
-            if (!in_array($ext, $allowed)) {
-                $error = 'Invalid file format. Please upload PDF, JPG, PNG, or DOC files.';
+            if (!in_array($ext, $allowed, true)) {
+                $error = 'Invalid file format. Please upload PDF, JPG, PNG, DOC, or DOCX.';
             } else {
-                $dest_dir = __DIR__ . '/../uploads/requirements/';
-                if (!is_dir($dest_dir)) mkdir($dest_dir, 0777, true);
-
-                $new_filename = 'req_' . $sid . '_' . $req_id . '_' . time() . '.' . $ext;
-                if (move_uploaded_file($_FILES['document']['tmp_name'], $dest_dir . $new_filename)) {
+                $new_filename = 'req_' . $sid . '_' . $req_id . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+                if (store_private_upload($_FILES['document']['tmp_name'], 'requirements', $new_filename)) {
                     $file_path = 'requirements/' . $new_filename;
                 } else {
                     $error = 'Failed to save the uploaded file. Please try again.';
@@ -40,39 +45,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
         }
 
         if (!$error) {
-            if ($file_path) {
-                query(
-                    "UPDATE ojt_requirements
-                     SET status='pending', submitted_at=NOW(), file_path=?, remarks='Submitted — awaiting coordinator review'
-                     WHERE id=? AND student_id=?",
-                    [$file_path, $req_id, $sid],
-                    'sii'
-                );
-            } else {
-                query(
-                    "UPDATE ojt_requirements
-                     SET status='pending', submitted_at=NOW(), remarks='Resubmitted — awaiting coordinator review'
-                     WHERE id=? AND student_id=?",
-                    [$req_id, $sid],
-                    'ii'
-                );
-            }
-
-            // Notify coordinator if assigned
-            if (!empty($student['coordinator_id'])) {
-                $coord_user = query_one("SELECT user_id FROM coordinators WHERE id=?", [$student['coordinator_id']], 'i');
-                if ($coord_user) {
-                    create_notification($coord_user['user_id'], "{$user['name']} submitted an OJT requirement for review.", 'info', '/ojtrack/coordinator/requirements.php');
+            try {
+                normalized_requirement_submit($req_id, $sid, $uid, $file_path, $original_name);
+                $enrollment = normalized_enrollment_for_student($sid);
+                $coord = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+                if ($coord) {
+                    create_notification(
+                        (int)$coord['user_id'],
+                        "{$user['name']} submitted an OJT requirement for review.",
+                        'info',
+                        '/ojtrack/coordinator/requirements.php'
+                    );
                 }
+                log_activity($uid, 'Requirement Submitted', "Assignment ID $req_id");
+                $success = 'Document submitted successfully. Awaiting coordinator review.';
+            } catch (DomainException $exception) {
+                $error = $exception->getMessage();
             }
-
-            log_activity($uid, 'Requirement Submitted', "Requirement ID $req_id");
-            $success = 'Document submitted successfully. Awaiting coordinator review.';
         }
     }
 }
 
-$requirements = query("SELECT * FROM ojt_requirements WHERE student_id=? ORDER BY deadline ASC", [$sid], 'i') ?: [];
+$requirements = normalized_requirement_rows_for_student($sid);
 $total    = count($requirements);
 $approved = count(array_filter($requirements, fn($r) => $r['status'] === 'approved'));
 $rejected = count(array_filter($requirements, fn($r) => $r['status'] === 'rejected'));
@@ -128,7 +122,7 @@ require_once __DIR__ . '/../includes/header.php';
             </td>
             <td>
               <?php if (!empty($r['file_path'])): ?>
-                <a href="/ojtrack/uploads/<?= e($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View uploaded file">
+                <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View uploaded file">
                   View
                 </a>
               <?php else: ?>
@@ -164,7 +158,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal-title">Submit Requirement</div>
     <p class="modal-sub" id="uploadDocSub">Select document and attach file</p>
 
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
       <input type="hidden" name="action" value="upload">
       <input type="hidden" name="req_id" id="uploadReqId" value="">
 

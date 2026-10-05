@@ -22,8 +22,19 @@ $ojt_stats = [
 ];
 
 $recent_activity = query("SELECT al.*, u.name AS actor FROM activity_log al LEFT JOIN users u ON u.id=al.user_id ORDER BY al.created_at DESC LIMIT 15", [], '');
-$pending_reqs    = query_one("SELECT COUNT(*) AS c FROM ojt_requirements WHERE status='pending'", [], '')['c'];
-$pending_reports = query_one("SELECT COUNT(*) AS c FROM reports WHERE status='for_review'", [], '')['c'];
+$pending_reqs = (int)(query_one(
+    "SELECT COUNT(*) AS c
+     FROM requirement_assignments ra
+     LEFT JOIN requirement_submissions rs ON rs.id=(
+       SELECT rs2.id FROM requirement_submissions rs2
+       WHERE rs2.requirement_assignment_id=ra.id
+       ORDER BY rs2.version_no DESC,rs2.id DESC LIMIT 1
+     )
+     WHERE ra.status='assigned' AND (rs.id IS NULL OR rs.status IN ('submitted','returned'))"
+)['c'] ?? 0);
+$pending_reports = (int)(query_one(
+    "SELECT COUNT(*) AS c FROM report_submissions WHERE status='submitted'"
+)['c'] ?? 0);
 
 $page_title = 'Admin Dashboard';
 require_once __DIR__ . '/../includes/header.php';
@@ -124,13 +135,8 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div class="dashboard-side">
     <div class="card card-body">
-      <div class="section-title mb-3">System Health</div>
-      <?php $health = [['label' => 'Database', 'status' => 'ok'], ['label' => 'File Storage', 'status' => 'ok'], ['label' => 'Session Handling', 'status' => 'ok']]; foreach ($health as $h): ?>
-      <div class="health-row">
-        <span class="text-sm"><?= $h['label'] ?></span>
-        <span class="health-pill">Operational</span>
-      </div>
-      <?php endforeach; ?>
+      <div class="section-title mb-3">Administration</div>
+      <p class="text-sm text-muted">Review assignments and account status regularly. Keep a tested backup of your database and uploaded documents.</p>
     </div>
 
     <div class="card card-body">

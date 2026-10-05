@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /**
  * Extends students.ojt_status for stop/problem cases and adds status_notes.
  * Run once: php scratch/migrate_ojt_status.php

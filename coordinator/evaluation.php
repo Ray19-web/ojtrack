@@ -12,216 +12,164 @@ $success = ''; $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $draft_actions = [
+        'save_form','add_section','rename_section','delete_section',
+        'add_criterion','delete_criterion','move_section_up','move_section_down',
+        'move_criterion_up','move_criterion_down','add_rule','delete_rule',
+        'reorder_sections','reorder_criteria','publish_form'
+    ];
+    $posted_form_id = (int)($_POST['form_id'] ?? 0);
 
-    if ($action === 'send_form') {
-        $form_id = (int)($_POST['form_id'] ?? 0);
-        $company_id = (int)($_POST['company_id'] ?? 0);
-        $form = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=? AND status='active'", [$form_id, $uid], 'ii');
-
-        if (!$form || !$company_id) {
-            $error = 'Select a form and a company.';
-        } else {
-            // Only students of this coordinator who applied/are assigned to the selected company
-            $targets = query(
-                "SELECT s.*, c.id AS company_id, c.user_id AS company_user_id, c.company_name, u.name
-                 FROM students s
-                 JOIN users u ON u.id=s.user_id
-                 JOIN companies c ON c.id=s.company_id
-                 WHERE s.coordinator_id=? AND s.company_id=?",
-                [$coord['id'], $company_id], 'ii'
-            ) ?: [];
-
-            if (empty($targets)) {
-                $error = 'You have no students assigned to that company.';
-            } else {
-                $n = 0;
-                foreach ($targets as $stu) {
-                    insert("INSERT INTO eval_submissions (form_id, form_version, student_id, company_id, requested_by) VALUES (?,?,?,?,?)", [$form_id, $form['version'], $stu['id'], $stu['company_id'], $uid], 'iiiii');
-                    create_notification($stu['company_user_id'], "OJT Coordinator sent the evaluation form \"{$form['title']}\" for {$stu['name']}.", 'evaluation', '/ojtrack/company/evaluation.php');
-                    $n++;
-                }
-                log_activity($uid, 'Evaluation Form Sent', "$n assignment(s)");
-                header('Location: /ojtrack/coordinator/evaluation.php?sent=' . $n);
-                exit;
+    if (in_array($action,$draft_actions,true) && !($action==='save_form' && $posted_form_id===0)) {
+        $owned=normalized_eval_form_row($posted_form_id,$uid);
+        if (!$owned) request_error(403,'Form not found or not owned by you.');
+        $used=query_one(
+            "SELECT id FROM evaluation_requests WHERE evaluation_definition_version_id=? LIMIT 1",
+            [$posted_form_id],
+            'i'
+        );
+        if ($owned['status']!=='draft' || $used) {
+            request_error(409,'Published or assigned forms are read-only. Create a new draft version.');
+        }
+        if (isset($_POST['section_id']) &&
+            !normalized_eval_section_owned((int)$_POST['section_id'],$posted_form_id)) {
+            request_error(403,'Section does not belong to this form.');
+        }
+        $criterion_ids=$action==='reorder_criteria'
+            ? ($_POST['order'] ?? [])
+            : (isset($_POST['criterion_id']) ? [$_POST['criterion_id']] : []);
+        if (!is_array($criterion_ids)) request_error(422,'Invalid criterion order.');
+        foreach ($criterion_ids as $criterion_id) {
+            if (!normalized_eval_criterion_owned((int)$criterion_id,$posted_form_id)) {
+                request_error(403,'Criterion does not belong to this form.');
             }
         }
     }
 
-    if ($action === 'save_form') {
-        $id    = (int)($_POST['form_id'] ?? 0);
-        $title = trim($_POST['title'] ?? '');
-        $desc  = trim($_POST['description'] ?? '');
-        $mode  = $_POST['score_mode'] ?? 'percentage';
-        if (!in_array($mode, ['percentage', 'raw', 'rating'], true)) $mode = 'percentage';
-
-        if (!$title) {
-            $error = 'Title is required.';
-        } else {
-            if ($id > 0) {
-                query("UPDATE evaluation_forms SET title=?, description=?, score_mode=? WHERE id=? AND created_by=?", [$title, $desc, $mode, $id, $uid], 'sssii');
-                $form_id = $id;
-                $success = 'Form details updated.';
+    try {
+        if ($action === 'send_form') {
+            $form_id=(int)($_POST['form_id'] ?? 0);
+            $company_id=(int)($_POST['company_id'] ?? 0);
+            if (!$form_id || !$company_id) {
+                $error='Select a form and a company.';
             } else {
-                $form_id = insert("INSERT INTO evaluation_forms (created_by, title, description, score_mode, status, version) VALUES (?,?,?,?,'draft',1)", [$uid, $title, $desc, $mode], 'issss');
-                header('Location: /ojtrack/coordinator/evaluation.php?build=' . $form_id . '&new=1');
+                $n=normalized_eval_send_form(
+                    $form_id,$company_id,(int)$coord['id'],$uid
+                );
+                log_activity($uid,'Evaluation Form Sent',"$n normalized assignment(s)");
+                header('Location: /ojtrack/coordinator/evaluation.php?sent='.$n);
                 exit;
             }
-            log_activity($uid, 'Evaluation Form Updated', $title);
-        }
-    } elseif ($action === 'delete_form') {
-        $id = (int)($_POST['form_id'] ?? 0);
-        $has = query_one("SELECT COUNT(*) AS c FROM eval_submissions WHERE form_id=?", [$id], 'i')['c'];
-        if ($has > 0) {
-            $error = 'This form has submitted evaluations and cannot be permanently deleted. Archive it instead.';
-        } else {
-            query("DELETE FROM evaluation_forms WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-            $success = 'Form deleted.';
-        }
-    } elseif ($action === 'duplicate_form') {
-        $id = (int)($_POST['form_id'] ?? 0);
-        $f = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        if ($f) {
-            $new_id = insert("INSERT INTO evaluation_forms (created_by, title, description, score_mode, status, version, parent_id) VALUES (?,?,?,?,'draft',?,?)",
-                [$uid, $f['title'] . ' (Copy)', $f['description'], $f['score_mode'], $f['version'], $f['id']], 'isssii');
-            $sections = query("SELECT * FROM eval_sections WHERE form_id=? ORDER BY sort_order", [$f['id']], 'i') ?: [];
-            foreach ($sections as $s) {
-                $sid = insert("INSERT INTO eval_sections (form_id, title, sort_order) VALUES (?,?,?)", [$new_id, $s['title'], $s['sort_order']], 'iss');
-                $crits = query("SELECT * FROM eval_criteria WHERE section_id=? ORDER BY sort_order", [$s['id']], 'i') ?: [];
-                foreach ($crits as $cr) {
-                    insert("INSERT INTO eval_criteria (section_id, label, sort_order) VALUES (?,?,?)", [$sid, $cr['label'], $cr['sort_order']], 'iss');
-                }
-            }
-            $rules = query("SELECT * FROM eval_rating_rules WHERE form_id=?", [$f['id']], 'i') ?: [];
-            foreach ($rules as $r) {
-                insert("INSERT INTO eval_rating_rules (form_id, score_min, score_max, equivalent, description) VALUES (?,?,?,?,?)", [$new_id, $r['score_min'], $r['score_max'], $r['equivalent'], $r['description']], 'iiids');
-            }
-            $success = 'Form duplicated as a new draft.';
-        }
-    } elseif ($action === 'archive_form') {
-        $id = (int)($_POST['form_id'] ?? 0);
-        $f = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        if ($f) {
-            $new_status = $f['status'] === 'archived' ? 'draft' : 'archived';
-            query("UPDATE evaluation_forms SET status=? WHERE id=?", [$new_status, $id], 'si');
-            $success = $new_status === 'archived' ? 'Form archived.' : 'Form restored to draft.';
-        }
-    } elseif ($action === 'publish_form') {
-        $id = (int)($_POST['form_id'] ?? 0);
-        $cnt = query_one("SELECT COUNT(*) AS c FROM eval_criteria c JOIN eval_sections s ON s.id=c.section_id WHERE s.form_id=?", [$id], 'i')['c'];
-        if ($cnt == 0) {
-            $error = 'Add at least one section and one criterion before publishing.';
-        } else {
-            query("UPDATE evaluation_forms SET status='active', published_at=NOW() WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-            $success = 'Form published and set to Active.';
-        }
-    } elseif ($action === 'edit_active') {
-        // Create a new draft version to preserve existing submissions
-        $id = (int)($_POST['form_id'] ?? 0);
-        $f = query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$id, $uid], 'ii');
-        if ($f && $f['status'] === 'active') {
-            $has = query_one("SELECT COUNT(*) AS c FROM eval_submissions WHERE form_id=?", [$id], 'i')['c'];
-            if ($has > 0) {
-                $new_id = insert("INSERT INTO evaluation_forms (created_by, title, description, score_mode, status, version, parent_id) VALUES (?,?,?,?,'draft',?,?)",
-                    [$uid, $f['title'], $f['description'], $f['score_mode'], $f['version'] + 1, $f['id']], 'isssii');
-                $sections = query("SELECT * FROM eval_sections WHERE form_id=? ORDER BY sort_order", [$f['id']], 'i') ?: [];
-                foreach ($sections as $s) {
-                    $sid = insert("INSERT INTO eval_sections (form_id, title, sort_order) VALUES (?,?,?)", [$new_id, $s['title'], $s['sort_order']], 'iss');
-                    $crits = query("SELECT * FROM eval_criteria WHERE section_id=? ORDER BY sort_order", [$s['id']], 'i') ?: [];
-                    foreach ($crits as $cr) {
-                        insert("INSERT INTO eval_criteria (section_id, label, sort_order) VALUES (?,?,?)", [$sid, $cr['label'], $cr['sort_order']], 'iss');
-                    }
-                }
-                $rules = query("SELECT * FROM eval_rating_rules WHERE form_id=?", [$f['id']], 'i') ?: [];
-                foreach ($rules as $r) {
-                    insert("INSERT INTO eval_rating_rules (form_id, score_min, score_max, equivalent, description) VALUES (?,?,?,?,?)", [$new_id, $r['score_min'], $r['score_max'], $r['equivalent'], $r['description']], 'iiids');
-                }
-                header('Location: /ojtrack/coordinator/evaluation.php?build=' . $new_id);
+        } elseif ($action === 'save_form') {
+            $id=(int)($_POST['form_id'] ?? 0);
+            $title=trim($_POST['title'] ?? '');
+            $desc=trim($_POST['description'] ?? '');
+            $mode=$_POST['score_mode'] ?? 'percentage';
+            if ($mode!=='percentage') request_error(422,'Only percentage scoring is currently supported.');
+            if ($title==='') {
+                $error='Title is required.';
+            } elseif ($id>0) {
+                normalized_eval_update_form($id,$uid,$title,$desc);
+                $success='Form details updated.';
+                log_activity($uid,'Evaluation Form Updated',$title);
+            } else {
+                $form_id=normalized_eval_create_form($uid,$title,$desc,$mode);
+                log_activity($uid,'Evaluation Form Created',$title);
+                header('Location: /ojtrack/coordinator/evaluation.php?build='.$form_id.'&new=1');
                 exit;
             }
-        }
-        header('Location: /ojtrack/coordinator/evaluation.php?build=' . $id);
-        exit;
-    }
-
-    // Structural edits in the builder
-    if ($action === 'add_section' || $action === 'rename_section' || $action === 'delete_section' ||
-        $action === 'add_criterion' || $action === 'delete_criterion' ||
-        $action === 'move_section_up' || $action === 'move_section_down' ||
-        $action === 'move_criterion_up' || $action === 'move_criterion_down' ||
-        $action === 'add_rule' || $action === 'delete_rule' ||
-        $action === 'reorder_sections' || $action === 'reorder_criteria') {
-
-        $form_id = (int)($_POST['form_id'] ?? 0);
-        $f = query_one("SELECT id FROM evaluation_forms WHERE id=? AND created_by=?", [$form_id, $uid], 'ii');
-        if (!$f) { $error = 'Form not found.'; }
-        else {
+        } elseif ($action === 'delete_form') {
+            $id=(int)($_POST['form_id'] ?? 0);
+            if (!normalized_eval_delete_form($id,$uid)) {
+                $error='Form not found.';
+            } else {
+                $success='Draft form deleted.';
+            }
+        } elseif ($action === 'duplicate_form') {
+            $id=(int)($_POST['form_id'] ?? 0);
+            $new_id=normalized_eval_clone_version($id,$uid,true);
+            $success='Form duplicated as a new draft.';
+        } elseif ($action === 'archive_form') {
+            $id=(int)($_POST['form_id'] ?? 0);
+            $new_status=normalized_eval_archive_toggle($id,$uid);
+            $success=$new_status==='archived' ? 'Form archived.' : 'Form restored as '.$new_status.'.';
+        } elseif ($action === 'publish_form') {
+            $id=(int)($_POST['form_id'] ?? 0);
+            normalized_eval_publish($id,$uid);
+            $success='Form published and set to Active.';
+        } elseif ($action === 'edit_active') {
+            $id=(int)($_POST['form_id'] ?? 0);
+            $new_id=normalized_eval_clone_version($id,$uid,false);
+            header('Location: /ojtrack/coordinator/evaluation.php?build='.$new_id);
+            exit;
+        } elseif (in_array($action,[
+            'add_section','rename_section','delete_section',
+            'add_criterion','delete_criterion',
+            'move_section_up','move_section_down','move_criterion_up','move_criterion_down',
+            'add_rule','delete_rule','reorder_sections','reorder_criteria'
+        ],true)) {
+            $form_id=(int)($_POST['form_id'] ?? 0);
             switch ($action) {
                 case 'add_section':
-                    $t = trim($_POST['section_title'] ?? '');
-                    if ($t) { $n = query_one("SELECT COALESCE(MAX(sort_order),0)+1 AS x FROM eval_sections WHERE form_id=?", [$form_id], 'i')['x']; insert("INSERT INTO eval_sections (form_id,title,sort_order) VALUES (?,?,?)", [$form_id, $t, $n], 'iss'); }
+                    $title=trim($_POST['section_title'] ?? '');
+                    if ($title!=='') normalized_eval_add_section($form_id,$uid,$title);
                     break;
                 case 'rename_section':
-                    $t = trim($_POST['title'] ?? '');
-                    if ($t) query("UPDATE eval_sections SET title=? WHERE id=? AND form_id=?", [$t, (int)$_POST['section_id'], $form_id], 'sii');
+                    $title=trim($_POST['title'] ?? '');
+                    if ($title!=='') normalized_eval_rename_section($form_id,$uid,(int)$_POST['section_id'],$title);
                     break;
                 case 'delete_section':
-                    query("DELETE FROM eval_sections WHERE id=? AND form_id=?", [(int)$_POST['section_id'], $form_id], 'ii');
+                    normalized_eval_delete_section($form_id,$uid,(int)$_POST['section_id']);
                     break;
                 case 'add_criterion':
-                    $t = trim($_POST['criterion_label'] ?? '');
-                    if ($t) { $n = query_one("SELECT COALESCE(MAX(sort_order),0)+1 AS x FROM eval_criteria WHERE section_id=?", [(int)$_POST['section_id']], 'i')['x']; insert("INSERT INTO eval_criteria (section_id,label,sort_order) VALUES (?,?,?)", [(int)$_POST['section_id'], $t, $n], 'iss'); }
+                    $label=trim($_POST['criterion_label'] ?? '');
+                    if ($label!=='') normalized_eval_add_criterion($form_id,$uid,(int)$_POST['section_id'],$label);
                     break;
                 case 'delete_criterion':
-                    query("DELETE FROM eval_criteria WHERE id=?", [(int)$_POST['criterion_id']], 'i');
-                    break;
-                case 'move_section_up':
-                case 'move_section_down':
-                case 'move_criterion_up':
-                case 'move_criterion_down':
+                    normalized_eval_delete_criterion($form_id,$uid,(int)$_POST['criterion_id']);
                     break;
                 case 'add_rule':
-                    $mn = (int)($_POST['score_min'] ?? 0); $mx = (int)($_POST['score_max'] ?? 0); $eq = (float)($_POST['equivalent'] ?? 0);
-                    $dsc = trim($_POST['description'] ?? '');
-                    if ($mn <= $mx && $eq > 0) insert("INSERT INTO eval_rating_rules (form_id,score_min,score_max,equivalent,description) VALUES (?,?,?,?,?)", [$form_id, $mn, $mx, $eq, $dsc], 'iiids');
+                    normalized_eval_add_rule(
+                        $form_id,$uid,
+                        (float)($_POST['score_min'] ?? 0),
+                        (float)($_POST['score_max'] ?? 0),
+                        (float)($_POST['equivalent'] ?? 0),
+                        trim($_POST['description'] ?? '')
+                    );
                     break;
                 case 'delete_rule':
-                    query("DELETE FROM eval_rating_rules WHERE id=? AND form_id=?", [(int)$_POST['rule_id'], $form_id], 'ii');
+                    normalized_eval_delete_rule($form_id,$uid,(int)$_POST['rule_id']);
                     break;
                 case 'reorder_sections':
-                    $ids = $_POST['order'] ?? [];
-                    foreach ($ids as $i => $sid) query("UPDATE eval_sections SET sort_order=? WHERE id=? AND form_id=?", [$i + 1, (int)$sid, $form_id], 'iii');
+                    normalized_eval_reorder_sections($form_id,$uid,$_POST['order'] ?? []);
                     break;
                 case 'reorder_criteria':
-                    $ids = $_POST['order'] ?? [];
-                    foreach ($ids as $i => $cid) query("UPDATE eval_criteria SET sort_order=? WHERE id=?", [$i + 1, (int)$cid], 'ii');
+                    normalized_eval_reorder_criteria($form_id,$uid,$_POST['order'] ?? []);
+                    break;
+                default:
+                    // Move buttons are represented by the builder's reorder requests.
                     break;
             }
-            if ($action === 'move_section_up' || $action === 'move_section_down' || $action === 'move_criterion_up' || $action === 'move_criterion_down') {
-                // handled client-side via reorder_* posts in this build
-            }
         }
+    } catch (DomainException $exception) {
+        if ($action==='add_rule') request_error(422,$exception->getMessage());
+        $error=$exception->getMessage();
     }
 }
 
 $build_id = isset($_GET['build']) ? (int)$_GET['build'] : 0;
-$build = $build_id ? query_one("SELECT * FROM evaluation_forms WHERE id=? AND created_by=?", [$build_id, $uid], 'ii') : null;
+$build = $build_id ? normalized_eval_form_row($build_id,$uid) : null;
+if ($build && ($build['status']!=='draft' || query_one(
+    "SELECT id FROM evaluation_requests WHERE evaluation_definition_version_id=? LIMIT 1",
+    [$build_id],
+    'i'
+))) {
+    request_error(409,'This form is read-only. Use Edit from the forms list to create a new version.');
+}
 
-$forms = query(
-    "SELECT f.*, (SELECT COUNT(*) FROM eval_submissions s WHERE s.form_id=f.id) AS sub_count,
-            (SELECT COUNT(*) FROM eval_submissions s WHERE s.form_id=f.id AND s.status='completed') AS done_count
-     FROM evaluation_forms f WHERE f.created_by=? ORDER BY f.id DESC", [$uid], 'i') ?: [];
-
-$students = query(
-    "SELECT s.id, u.name, c.company_name FROM students s JOIN users u ON u.id=s.user_id LEFT JOIN companies c ON c.id=s.company_id WHERE s.coordinator_id=? ORDER BY u.name",
-    [$coord['id']], 'i') ?: [];
-
-$submissions = query(
-    "SELECT s.*, f.title AS form_title, u.name AS student_name, c.company_name FROM eval_submissions s
-     JOIN evaluation_forms f ON f.id=s.form_id
-     JOIN students st ON st.id=s.student_id
-     JOIN users u ON u.id=st.user_id
-     LEFT JOIN companies c ON c.id=s.company_id
-     WHERE s.requested_by=? ORDER BY s.id DESC", [$uid], 'i') ?: [];
+$forms = normalized_eval_forms_for_owner($uid);
+$students = normalized_students_for_coordinator((int)$coord['id']);
+$submissions = normalized_eval_submissions_for_requester($uid);
 
 $page_title = 'Evaluation Forms';
 require_once __DIR__ . '/../includes/header.php';
@@ -244,8 +192,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php if ($build): ?>
   <?php
-  $sections = query("SELECT * FROM eval_sections WHERE form_id=? ORDER BY sort_order", [$build['id']], 'i') ?: [];
-  $rules = query("SELECT * FROM eval_rating_rules WHERE form_id=? ORDER BY score_min DESC", [$build['id']], 'i') ?: [];
+  $sections = normalized_eval_sections((int)$build['id']);
+  $rules = normalized_eval_rules((int)$build['id']);
   ?>
   <!-- Builder view -->
   <div class="mb-4" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -253,7 +201,7 @@ require_once __DIR__ . '/../includes/header.php';
     <span class="badge <?= $build['status']==='active'?'badge-approved':($build['status']==='archived'?'badge-rejected':'badge-pending') ?>"><?= ucfirst($build['status']) ?></span>
     <span class="text-xs text-muted">Version <?= (int)$build['version'] ?> · <?= ucfirst($build['score_mode']) ?> scoring</span>
     <span style="flex:1"></span>
-    <form method="POST" style="display:inline">
+    <form method="POST" style="display:inline"><?= csrf_field() ?>
       <input type="hidden" name="action" value="publish_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <button class="btn btn-primary btn-sm">Publish</button>
@@ -262,7 +210,7 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div class="card card-body mb-4">
     <div class="section-title mb-3">Form Details</div>
-    <form method="POST" class="form-row" style="align-items:end;gap:12px;flex-wrap:wrap">
+    <form method="POST" class="form-row" style="align-items:end;gap:12px;flex-wrap:wrap"><?= csrf_field() ?>
       <input type="hidden" name="action" value="save_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <div class="form-group" style="flex:2">
@@ -277,7 +225,7 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="form-label">Scoring Mode</label>
         <select name="score_mode" class="form-control">
           <option value="percentage" <?= $build['score_mode']==='percentage'?'selected':'' ?>>Percentage (0–100)</option>
-          <option value="raw" <?= $build['score_mode']==='raw'?'selected':'' ?>>Raw Score</option>
+
         </select>
       </div>
       <button type="submit" class="btn btn-secondary btn-sm" style="margin-bottom:0">Save</button>
@@ -290,12 +238,12 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div id="sectionsWrap" data-form="<?= $build['id'] ?>">
       <?php foreach ($sections as $s):
-        $crits = query("SELECT * FROM eval_criteria WHERE section_id=? ORDER BY sort_order", [$s['id']], 'i') ?: []; ?>
+        $crits = normalized_eval_criteria((int)$s['id']); ?>
       <div class="eval-section" draggable="true" data-id="<?= $s['id'] ?>" style="border:1px solid var(--border-light);border-radius:var(--radius);padding:14px;margin-bottom:12px;background:var(--bg)">
         <div class="flex-between mb-2" style="align-items:center">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="drag-handle" style="cursor:grab;color:var(--text-400)">⠿</span>
-            <form method="POST" style="display:flex;gap:6px">
+            <form method="POST" style="display:flex;gap:6px"><?= csrf_field() ?>
               <input type="hidden" name="action" value="rename_section">
               <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
               <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -303,7 +251,7 @@ require_once __DIR__ . '/../includes/header.php';
               <button class="btn btn-ghost btn-sm">Rename</button>
             </form>
           </div>
-          <form method="POST" onsubmit="return confirm('Delete this section and its criteria?')">
+          <form method="POST" onsubmit="return confirm('Delete this section and its criteria?')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_section">
             <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
             <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -316,7 +264,7 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="eval-criterion" draggable="true" data-id="<?= $cr['id'] ?>" style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px dashed var(--border-light)">
             <span class="drag-handle" style="cursor:grab;color:var(--text-400)">⠿</span>
             <span class="text-sm" style="flex:1"><?= e($cr['label']) ?></span>
-            <form method="POST" onsubmit="return confirm('Delete this criterion?')">
+            <form method="POST" onsubmit="return confirm('Delete this criterion?')"><?= csrf_field() ?>
               <input type="hidden" name="action" value="delete_criterion">
               <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
               <input type="hidden" name="criterion_id" value="<?= $cr['id'] ?>">
@@ -326,7 +274,7 @@ require_once __DIR__ . '/../includes/header.php';
           <?php endforeach; ?>
         </div>
 
-        <form method="POST" style="display:flex;gap:6px;margin-top:8px;padding-left:26px">
+        <form method="POST" style="display:flex;gap:6px;margin-top:8px;padding-left:26px"><?= csrf_field() ?>
           <input type="hidden" name="action" value="add_criterion">
           <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
           <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -337,7 +285,7 @@ require_once __DIR__ . '/../includes/header.php';
       <?php endforeach; ?>
     </div>
 
-    <form method="POST" style="display:flex;gap:6px">
+    <form method="POST" style="display:flex;gap:6px"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_section">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <input type="text" name="section_title" class="form-control" style="width:300px" placeholder="+ Add Section (e.g. Attendance and Punctuality)" required>
@@ -359,7 +307,7 @@ require_once __DIR__ . '/../includes/header.php';
               <td><strong><?= e($r['equivalent']) ?></strong></td>
               <td class="text-sm text-muted"><?= e($r['description']) ?></td>
               <td>
-                <form method="POST" onsubmit="return confirm('Delete this rule?')">
+                <form method="POST" onsubmit="return confirm('Delete this rule?')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="delete_rule">
                   <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
                   <input type="hidden" name="rule_id" value="<?= $r['id'] ?>">
@@ -372,7 +320,7 @@ require_once __DIR__ . '/../includes/header.php';
         </tbody>
       </table>
     </div>
-    <form method="POST" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+    <form method="POST" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_rule">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <input type="number" name="score_min" class="form-control" style="width:90px" placeholder="Min" required>
@@ -385,7 +333,7 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div style="display:flex;gap:8px">
     <button class="btn btn-secondary" onclick="openModal('previewModal')">Preview Form</button>
-    <form method="POST" style="display:inline" onsubmit="return confirm('Publish this form and set it Active?')">
+    <form method="POST" style="display:inline" onsubmit="return confirm('Publish this form and set it Active?')"><?= csrf_field() ?>
       <input type="hidden" name="action" value="publish_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <button class="btn btn-primary">Publish Form</button>
@@ -397,7 +345,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal modal-lg">
       <div class="modal-title"><?= e($build['title']) ?> — Preview</div>
       <p class="modal-sub">This is how the evaluation form will appear to the company</p>
-      <?php foreach ($sections as $s): $crits = query("SELECT * FROM eval_criteria WHERE section_id=? ORDER BY sort_order", [$s['id']], 'i') ?: []; ?>
+      <?php foreach ($sections as $s): $crits = normalized_eval_criteria((int)$s['id']); ?>
       <div class="section-title mb-2" style="margin-top:12px"><?= e($s['title']) ?></div>
       <?php foreach ($crits as $cr): ?>
       <div style="margin-bottom:10px">
@@ -433,7 +381,7 @@ require_once __DIR__ . '/../includes/header.php';
             const fd = new FormData();
             fd.append('action', action); fd.append('form_id', formId);
             ids.forEach(id => fd.append('order[]', id));
-            fetch('', { method: 'POST', body: fd }).then(() => location.reload());
+            fetch('', { method: 'POST', headers: {'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content}, body: fd }).then(() => location.reload());
           }
         });
       });
@@ -460,17 +408,17 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="text-xs text-muted mb-3">Version <?= (int)$f['version'] ?> · <?= ucfirst($f['score_mode']) ?> · <?= (int)$f['done_count'] ?>/<?= (int)$f['sub_count'] ?> submitted</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <?php if ($f['status'] === 'active'): ?>
-            <form method="POST" style="display:inline"><input type="hidden" name="action" value="edit_active"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-secondary btn-sm">Edit (v<?= (int)$f['version'] + 1 ?>)</button></form>
+            <form method="POST" style="display:inline"><?= csrf_field() ?><input type="hidden" name="action" value="edit_active"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-secondary btn-sm">Edit (v<?= (int)$f['version'] + 1 ?>)</button></form>
           <?php else: ?>
             <a href="?build=<?= $f['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
           <?php endif; ?>
-          <form method="POST" style="display:inline"><input type="hidden" name="action" value="duplicate_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-ghost btn-sm">Duplicate</button></form>
-          <form method="POST" style="display:inline" onsubmit="return confirm('<?= $f['status']==='archived'?'Restore this form?':'Archive this form? Companies can no longer fill it.' ?>')">
+          <form method="POST" style="display:inline"><?= csrf_field() ?><input type="hidden" name="action" value="duplicate_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-ghost btn-sm">Duplicate</button></form>
+          <form method="POST" style="display:inline" onsubmit="return confirm('<?= $f['status']==='archived'?'Restore this form?':'Archive this form? This stops new assignments; existing requests remain available.' ?>')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="archive_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>">
             <button class="btn btn-ghost btn-sm"><?= $f['status']==='archived'?'Restore':'Archive' ?></button>
           </form>
           <?php if ($f['sub_count'] == 0): ?>
-          <form method="POST" style="display:inline" onsubmit="return confirm('Permanently delete this form?')">
+          <form method="POST" style="display:inline" onsubmit="return confirm('Permanently delete this form?')"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>">
             <button class="btn btn-danger btn-sm">Delete</button>
           </form>
@@ -487,7 +435,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Create Evaluation Form</div>
     <p class="modal-sub">Start with the basics, then build sections and criteria</p>
-    <form method="POST">
+    <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="save_form">
       <div class="form-group">
         <label class="form-label">Form Title <span class="text-danger">*</span></label>
@@ -517,7 +465,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="modal">
     <div class="modal-title">Send Form to Company</div>
     <p class="modal-sub">Select an active form and a company related to your students</p>
-    <form method="POST" action="">
+    <form method="POST" action=""><?= csrf_field() ?>
       <input type="hidden" name="action" value="send_form">
       <div class="form-group">
         <label class="form-label">Evaluation Form</label>
