@@ -14,27 +14,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $report_id = (int)($_POST['report_id'] ?? 0);
     $remarks   = trim($_POST['remarks'] ?? '');
 
-    $rep = query_one("SELECT r.*, s.user_id, u.name AS student_name FROM reports r
-        JOIN students s ON s.id=r.student_id
-        JOIN users u ON u.id=s.user_id
-        WHERE r.id=? AND s.coordinator_id=?", [$report_id, $coord['id']], 'ii');
-
-    if (!$rep) {
-        $error = 'Report not found.';
-    } elseif ($action === 'approve_report' && (empty($rep['submitted_at']))) {
-        $error = 'A submission is required before approval.';
-    } elseif (in_array($action, ['reject', 'reject_report'], true) && $remarks === '') {
-        $error = 'Explain what the student needs to revise.';
-    } elseif ($action === 'approve_report' && $report_id) {
-        query("UPDATE reports SET status='approved', remarks=?, reviewed_at=NOW(), reviewed_by={$user['id']} WHERE id=?", [$remarks, $report_id], 'si');
-        log_activity($user['id'], 'Report Approved', "Report ID: $report_id ({$rep['report_name']}) for {$rep['student_name']}");
-        create_notification($rep['user_id'], "Your narrative report '{$rep['report_name']}' has been approved.", 'report', '/ojtrack/student/reports.php');
-        $success = 'Report approved successfully.';
-    } elseif ($action === 'reject_report' && $report_id) {
-        query("UPDATE reports SET status='rejected', remarks=?, reviewed_at=NOW(), reviewed_by={$user['id']} WHERE id=?", [$remarks, $report_id], 'si');
-        log_activity($user['id'], 'Report Rejected', "Report ID: $report_id ({$rep['report_name']}) for {$rep['student_name']}");
-        create_notification($rep['user_id'], "Your narrative report '{$rep['report_name']}' was returned with remarks: $remarks", 'report', '/ojtrack/student/reports.php');
-        $success = 'Report returned with remarks.';
+    try {
+        if ($action === 'approve_report') {
+            $rep=normalized_report_review(
+                $report_id,(int)$coord['id'],(int)$user['id'],'approved',$remarks
+            );
+            if (!$rep) {
+                $error='Report not found.';
+            } else {
+                log_activity($user['id'],'Report Approved',"Assignment ID: $report_id ({$rep['report_name']}) for {$rep['student_name']}");
+                create_notification((int)$rep['user_id'],"Your narrative report '{$rep['report_name']}' has been approved.",'info','/ojtrack/student/reports.php');
+                $success='Report approved successfully.';
+            }
+        } elseif ($action === 'reject_report') {
+            if ($remarks==='') {
+                $error='Explain what the student needs to revise.';
+            } else {
+                $rep=normalized_report_review(
+                    $report_id,(int)$coord['id'],(int)$user['id'],'returned',$remarks
+                );
+                if (!$rep) {
+                    $error='Report not found.';
+                } else {
+                    log_activity($user['id'],'Report Returned',"Assignment ID: $report_id ({$rep['report_name']}) for {$rep['student_name']}");
+                    create_notification((int)$rep['user_id'],"Your narrative report '{$rep['report_name']}' was returned with remarks: $remarks",'info','/ojtrack/student/reports.php');
+                    $success='Report returned with remarks.';
+                }
+            }
+        }
+    } catch (DomainException $exception) {
+        $error=$exception->getMessage();
     }
 }
 
@@ -42,44 +51,20 @@ $tab = $_GET['tab'] ?? 'for_review';
 $search = trim($_GET['q'] ?? '');
 
 if ($tab === 'evaluations') {
-    $where = "s.coordinator_id=?";
-    $params = [$coord['id']];
-    $types = 'i';
-    if ($search) {
-        $where .= " AND (u.name LIKE ? OR s.student_id_no LIKE ? OR co.company_name LIKE ?)";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        $types .= 'sss';
-    }
-    $evaluations = query("SELECT e.*, u.name AS student_name, s.student_id_no, s.program, co.company_name, cu.name AS evaluator_name
-        FROM evaluations e
-        JOIN students s ON s.id=e.student_id
-        JOIN users u ON u.id=s.user_id
-        JOIN companies co ON co.id=e.company_id
-        LEFT JOIN users cu ON cu.id=e.evaluator_id
-        WHERE $where ORDER BY e.evaluated_at DESC", $params, $types);
+    $evaluations = normalized_eval_completed_for_coordinator((int)$coord['id'], $search);
+    $reports = [];
 } else {
-    $where = "s.coordinator_id=? AND r.status=?";
-    $params = [$coord['id'], $tab];
-    $types = 'is';
-    if ($search) {
-        $where .= " AND (u.name LIKE ? OR r.report_name LIKE ? OR s.student_id_no LIKE ?)";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        $types .= 'sss';
-    }
-    $reports = query("SELECT r.*, u.name AS student_name, s.student_id_no, s.program FROM reports r
-        JOIN students s ON s.id=r.student_id JOIN users u ON u.id=s.user_id
-        WHERE $where ORDER BY r.submitted_at DESC", $params, $types);
+    if (!in_array($tab,['for_review','approved','rejected','pending'],true)) $tab='for_review';
+    $reports = normalized_report_rows_for_coordinator((int)$coord['id'], $tab, $search);
+    $evaluations = [];
 }
 
-$counts = [];
-foreach (['for_review', 'approved', 'rejected', 'pending'] as $st) {
-    $counts[$st] = query_one("SELECT COUNT(*) AS c FROM reports r JOIN students s ON s.id=r.student_id WHERE s.coordinator_id=? AND r.status=?", [$coord['id'], $st], 'is')['c'];
+$allReports=normalized_report_rows_for_coordinator((int)$coord['id'], '', '');
+$counts=[];
+foreach (['for_review','approved','rejected','pending'] as $state) {
+    $counts[$state]=count(array_filter($allReports,fn($r)=>$r['status']===$state));
 }
-$eval_count = query_one("SELECT COUNT(*) AS c FROM evaluations e JOIN students s ON s.id=e.student_id WHERE s.coordinator_id=?", [$coord['id']], 'i')['c'];
+$eval_count=count(normalized_eval_completed_for_coordinator((int)$coord['id']));
 
 $page_title = 'Reports & Evaluations';
 require_once __DIR__ . '/../includes/header.php';
