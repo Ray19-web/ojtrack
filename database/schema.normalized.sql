@@ -242,7 +242,7 @@ CREATE TABLE journal_days (
 
 CREATE TABLE journal_revisions (
   id BIGINT NOT NULL AUTO_INCREMENT,
-  journal_entry_id BIGINT NOT NULL,
+  journal_day_id BIGINT NOT NULL,
   revision_no INT NOT NULL,
   activities TEXT NOT NULL,
   learnings TEXT NOT NULL,
@@ -255,8 +255,8 @@ CREATE TABLE journal_revisions (
   review_notes TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_journal_revision (journal_entry_id, revision_no),
-  CONSTRAINT fk_journal_revisions_entry FOREIGN KEY (journal_entry_id) REFERENCES journal_days(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_journal_revision (journal_day_id, revision_no),
+  CONSTRAINT fk_journal_revisions_entry FOREIGN KEY (journal_day_id) REFERENCES journal_days(id) ON DELETE CASCADE,
   CONSTRAINT fk_journal_revisions_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
