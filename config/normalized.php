@@ -46,7 +46,7 @@ function normalized_enrollment_for_student(int $studentId): ?array
     if ($termId > 0) {
         $row = query_one(
             "SELECT oe.*, at.academic_year_start,at.academic_year_end,at.semester,
-                    p.code program_code,p.name program_name,p.department_name
+                    p.code program_code,p.name program_name,NULL department_name
              FROM ojt_enrollments oe
              JOIN academic_terms at ON at.id=oe.academic_term_id
              JOIN programs p ON p.id=oe.program_id
@@ -60,7 +60,7 @@ function normalized_enrollment_for_student(int $studentId): ?array
 
     return query_one(
         "SELECT oe.*, at.academic_year_start,at.academic_year_end,at.semester,
-                p.code program_code,p.name program_name,p.department_name
+                p.code program_code,p.name program_name,NULL department_name
          FROM ojt_enrollments oe
          JOIN academic_terms at ON at.id=oe.academic_term_id
          JOIN programs p ON p.id=oe.program_id
@@ -231,7 +231,7 @@ function normalized_students_for_coordinator(int $coordinatorId, string $search=
     }
 
     $rows=query(
-        "SELECT s.*,u.name,u.email,p.id program_id,p.code program,p.name program_name,p.department_name department,
+        "SELECT s.*,u.name,u.email,p.id program_id,p.code program,p.name program_name,NULL department,
                 oe.id _enrollment_id,oe.year_level,oe.required_hours,oe.status ojt_status,oe.status_notes,
                 oe.onboarding_completed_at,
                 pl.id _placement_id,pl.company_id,pl.starts_on ojt_start_date,pl.ends_on ojt_end_date,
