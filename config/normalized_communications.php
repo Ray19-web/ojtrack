@@ -173,7 +173,7 @@ function normalized_announcement_create(
              (title,body,tag,target_role,created_by,author_role_snapshot,is_active,is_pinned,expires_at,created_at)
              VALUES(?,?,?,?,?,?,1,?,?,NOW())",
             [$title,$body,$tag ?: 'General',$targetRole,$creatorUserId,$author['role'],$pinned?1:0,$expiresAt],
-            'ssssisi'
+            'ssssisis'
         );
         if ($attachmentPath) {
             $attachmentId=normalized_register_public_attachment(
