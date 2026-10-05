@@ -1,6 +1,8 @@
 name: OJTrack regression checks
 
 on:
+  push:
+    branches: [codex/finalization-phase-1]
   pull_request:
     branches: [main]
   workflow_dispatch:
