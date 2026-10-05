@@ -50,44 +50,14 @@ if ($action === 'update_profile') {
         }
     }
 } elseif ($action === 'upload_avatar') {
-    if (empty($_FILES['avatar']['name']) || ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        $flash_err = 'Please choose a profile picture to upload.';
-    } else {
-        $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $max = 5 * 1024 * 1024;
-
-        if (!in_array($ext, $allowed, true)) {
-            $flash_err = 'Profile picture must be JPG, PNG, GIF, or WEBP.';
-        } elseif (($_FILES['avatar']['size'] ?? 0) > $max) {
-            $flash_err = 'Profile picture is too large. Maximum size is 5MB.';
-        } else {
-            $dest_dir = __DIR__ . '/../uploads/avatars/';
-            if (!is_dir($dest_dir)) {
-                mkdir($dest_dir, 0755, true);
-            }
-
-            $old = query_one("SELECT avatar FROM users WHERE id=?", [$user['id']], 'i');
-            $new_filename = 'avatar_' . $user['id'] . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
-
-            if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dest_dir . $new_filename)) {
-                $path = 'avatars/' . $new_filename;
-                query("UPDATE users SET avatar=? WHERE id=?", [$path, $user['id']], 'si');
-                $_SESSION['avatar'] = $path;
-
-                if (!empty($old['avatar']) && str_starts_with($old['avatar'], 'avatars/')) {
-                    $old_path = __DIR__ . '/../uploads/' . $old['avatar'];
-                    if (is_file($old_path)) {
-                        @unlink($old_path);
-                    }
-                }
-
-                log_activity($user['id'], 'Avatar Updated', '');
-                $flash_ok = 'Profile picture updated.';
-            } else {
-                $flash_err = 'Failed to upload profile picture. Please try again.';
-            }
-        }
+    try {
+        save_user_avatar_upload((int)$user['id'], $_FILES['avatar'] ?? []);
+        log_activity($user['id'], 'Avatar Updated', '');
+        $flash_ok = 'Profile picture updated successfully.';
+    } catch (DomainException $error) {
+        $flash_err = $error->getMessage();
+    } catch (RuntimeException $error) {
+        $flash_err = $error->getMessage();
     }
 } elseif ($action === 'change_password') {
     $current = $_POST['current_password'] ?? '';
