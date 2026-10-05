@@ -161,16 +161,22 @@ require_once __DIR__ . '/../includes/header.php';
               <?php endif; ?>
             </td>
             <td onclick="stopRowClick(event)">
-              <?php if ((int)$a['created_by'] === $uid): ?><div class="flex-items-center gap-1">
-                <form method="POST" style="display:inline"><?= csrf_field() ?>
+              <?php if ((int)$a['created_by'] === $uid): ?><div class="table-actions">
+                <form method="POST"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="toggle_pin">
                   <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
-                  <button type="submit" class="btn btn-secondary btn-sm"><?= $a['is_pinned'] ? 'Unpin' : 'Pin' ?></button>
+                  <button type="submit" class="table-action-icon <?= $a['is_pinned'] ? 'is-primary' : '' ?>"
+                          title="<?= $a['is_pinned'] ? 'Unpin notice' : 'Pin notice to top' ?>"
+                          aria-label="<?= $a['is_pinned'] ? 'Unpin notice' : 'Pin notice to top' ?>">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-4-4 5-1 4-4 1-3Z"/><path d="m4 20 5-5"/></svg>
+                  </button>
                 </form>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
+                <form method="POST" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
-                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                  <button type="submit" class="table-action-icon is-danger" title="Delete notice" aria-label="Delete notice">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>
+                  </button>
                 </form>
               </div><?php endif; ?>
             </td>
