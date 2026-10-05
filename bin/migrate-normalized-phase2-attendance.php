@@ -250,7 +250,7 @@ $summary = [
     'legacy'=>[
         'attendance_rows'=>count($legacyRows),
         'expected_sessions'=>$expectedSessions,
-        'credited_minutes'=>(int)round(array_sum(array_map(fn($r)=>(float)$r['hours_rendered'], $legacyRows))*60),
+        'credited_minutes'=>array_sum(array_map(fn($r)=>max(0, (int)round(((float)$r['hours_rendered']) * 60)), $legacyRows)),
     ],
     'preflight_problems'=>$problems,
 ];
