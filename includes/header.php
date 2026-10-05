@@ -217,7 +217,7 @@ $has_avatar = !empty($user_avatar);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= e($page_title) ?> — OJTRACK</title>
-  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261005-dropdown-hover-v3">
+  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261005-dropdown-hover-v4">
   <script>
     (function () {
       try {
@@ -363,10 +363,10 @@ $has_avatar = !empty($user_avatar);
             </div>
           </div>
           <div class="user-dropdown-divider"></div>
-          <button type="button" class="user-dropdown-item" onclick="(function(){var m=document.getElementById('userDropdownMenu');var b=document.getElementById('userToggleBtn');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');if(typeof openModal==='function')openModal('profileModal');})();" style="width:100%;text-align:left;background:none;border:0;cursor:pointer">
+          <button type="button" class="user-dropdown-item" onclick="(function(){var m=document.getElementById('userDropdownMenu');var b=document.getElementById('userToggleBtn');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');if(typeof openModal==='function')openModal('profileModal');})();">
             <span>Profile</span>
           </button>
-          <button type="button" class="user-dropdown-item user-dropdown-logout" onclick="(function(){var m=document.getElementById('userDropdownMenu');var b=document.getElementById('userToggleBtn');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');if(typeof openModal==='function')openModal('logoutModal');})();" style="width:100%;text-align:left;background:none;border:0;cursor:pointer;font:inherit;">
+          <button type="button" class="user-dropdown-item user-dropdown-logout" onclick="(function(){var m=document.getElementById('userDropdownMenu');var b=document.getElementById('userToggleBtn');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');if(typeof openModal==='function')openModal('logoutModal');})();">
             <span>Sign Out</span>
           </button>
         </div>
