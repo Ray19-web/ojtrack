@@ -334,3 +334,28 @@ C:\xampp\php\php.exe bin\migrate-normalized-phase7-certificates-announcements.ph
 ```
 
 The migration blocks rather than guessing when a company has an invalid certificate-template owner, certificate JSON is malformed, a referenced logo/announcement file is missing or unreadable, or an announcement has an unsupported author/target.
+
+
+## Migration 008 — application cutover checkpoint
+
+Migration 008 requires migrations 001–007. Unlike the earlier phases, it does not copy business records. The application pages have been cut over to the normalized OJT data layer for training assignments, attendance, journals, requirements, reports, evaluations, certificate issuance/templates and announcements.
+
+Migration 008 verifies:
+- all required normalized tables exist;
+- requirement/report/evaluation/certificate-template/announcement legacy mapping counts still match;
+- normalized submissions, evaluation answers and announcement recipients have no orphan parent records;
+- the selected academic term still has normalized enrollment/training data.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase8-cutover.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, record the checkpoint:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase8-cutover.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+This phase intentionally keeps every legacy table. Phase 9 must not retire legacy structures until the real installation passes Phase 8 plus final user-acceptance/parity checks.
