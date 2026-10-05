@@ -97,3 +97,39 @@ C:\xampp\php\php.exe bin\resolve-legacy-attendance.php --attendance-id=18 --acad
 ```
 
 The resolver does not change `attendance` or `students.company_id`. It creates or reuses a historical normalized placement and records the explicit attendance-to-placement mapping in `legacy_attendance_resolutions`.
+
+
+## Migration 003 — journals and centralized attachment metadata
+
+Migration 003 requires migrations 001 and 002. It converts each legacy `journal_entries` row into a placement-scoped `journal_days` record plus revision 1 in `journal_revisions`.
+
+Legacy status mapping:
+
+- `pending` → `submitted`
+- `rejected` → `returned`
+- `approved` → `approved`
+
+Hours are converted to integer claimed minutes per journal row. Coordinator remarks, submitted/reviewed timestamps, activities, learnings and challenges are preserved.
+
+Existing proof images are **not moved or deleted**. When a legacy `proof_image` exists, the migration resolves the real file, records its storage key, detected MIME type, byte size and SHA-256 hash in `attachments`, then links it through `journal_revision_attachments`.
+
+Run the preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase3-journals.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase3-journals.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The preflight blocks instead of guessing if:
+- a journal cannot be tied to exactly one placement;
+- a referenced proof file is missing or unreadable;
+- a proof path is invalid;
+- duplicate student/date journals exist;
+- a journal has an invalid status or hours value.
+
+A successful apply verifies day/revision counts, status mapping, claimed minutes, proof links, and hashes the legacy journal rows before and after to prove the source rows were not changed.
