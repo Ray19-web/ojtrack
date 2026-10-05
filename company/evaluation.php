@@ -145,7 +145,16 @@ else:
             <td><strong><?= e($a['student_name']) ?></strong><div class="text-xs text-muted"><?= e($a['student_id_no'] ?? '') ?> · <?= e($a['program'] ?? '') ?></div></td>
             <td><?= status_badge($a['status']) ?></td>
             <td><?= $a['overall_score'] !== null ? number_format($a['overall_score'], 1) : '—' ?></td>
-            <td><a href="?esid=<?= $a['id'] ?>" class="btn btn-primary btn-sm"><?= $a['status'] === 'pending' ? 'Fill Out' : 'View' ?></a></td>
+            <td>
+              <div class="table-actions">
+                <a href="?esid=<?= $a['id'] ?>"
+                   class="table-action-icon is-primary"
+                   title="<?= $a['status'] === 'pending' ? 'Fill out evaluation' : 'View evaluation' ?>"
+                   aria-label="<?= $a['status'] === 'pending' ? 'Fill out evaluation' : 'View evaluation' ?>">
+                  <?= $a['status'] === 'pending' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6M9 13h6M9 17h4"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>' ?>
+                </a>
+              </div>
+            </td>
           </tr>
           <?php endforeach; ?>
         <?php endif; ?>
