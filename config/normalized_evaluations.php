@@ -218,6 +218,40 @@ function normalized_eval_clone_version(int $versionId,int $ownerUserId,bool $asC
     }
 }
 
+function normalized_eval_delete_form(int $versionId,int $ownerUserId): bool
+{
+    $form=normalized_eval_form_row($versionId,$ownerUserId);
+    if (!$form) return false;
+    $definitionId=(int)$form['definition_id'];
+    $hasRequests=(bool)query_one(
+        "SELECT er.id
+         FROM evaluation_requests er
+         JOIN evaluation_definition_versions ev ON ev.id=er.evaluation_definition_version_id
+         WHERE ev.evaluation_definition_id=? LIMIT 1",
+        [$definitionId],
+        'i'
+    );
+    if ($hasRequests) throw new DomainException('This form has evaluation history and cannot be permanently deleted. Archive it instead.');
+
+    db()->begin_transaction();
+    try {
+        $versions=query(
+            "SELECT id FROM evaluation_definition_versions WHERE evaluation_definition_id=?",
+            [$definitionId],
+            'i'
+        ) ?: [];
+        foreach ($versions as $version) {
+            query("DELETE FROM evaluation_definition_versions WHERE id=?",[(int)$version['id']],'i');
+        }
+        query("DELETE FROM evaluation_definitions WHERE id=? AND created_by=?",[$definitionId,$ownerUserId],'ii');
+        db()->commit();
+        return true;
+    } catch (Throwable $error) {
+        db()->rollback();
+        throw $error;
+    }
+}
+
 function normalized_eval_archive_toggle(int $versionId,int $ownerUserId): string
 {
     $form=normalized_eval_form_row($versionId,$ownerUserId);
