@@ -366,9 +366,9 @@ $has_avatar = !empty($user_avatar);
           <button type="button" class="user-dropdown-item" onclick="(function(){var m=document.getElementById('userDropdownMenu');var b=document.getElementById('userToggleBtn');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');if(typeof openModal==='function')openModal('profileModal');})();" style="width:100%;text-align:left;background:none;border:0;cursor:pointer">
             <span>Profile</span>
           </button>
-          <a href="/ojtrack/logout.php" class="user-dropdown-item user-dropdown-logout">
+          <button type="button" class="user-dropdown-item user-dropdown-logout" onclick="(function(){var m=document.getElementById('userDropdownMenu');var b=document.getElementById('userToggleBtn');if(m)m.classList.remove('open');if(b)b.setAttribute('aria-expanded','false');if(typeof openModal==='function')openModal('logoutModal');})();">
             <span>Sign Out</span>
-          </a>
+          </button>
         </div>
       </div>
     </div>
