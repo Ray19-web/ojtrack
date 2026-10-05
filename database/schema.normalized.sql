@@ -288,7 +288,7 @@ CREATE TABLE requirement_definitions (
   created_by INT DEFAULT NULL,
   title VARCHAR(200) NOT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
   KEY idx_requirement_definitions_title (title),
   CONSTRAINT fk_requirement_definitions_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
@@ -302,7 +302,7 @@ CREATE TABLE requirement_definition_versions (
   instructions TEXT DEFAULT NULL,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
   published_at TIMESTAMP NULL DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_requirement_definition_version (requirement_definition_id, version_no),
   CONSTRAINT fk_requirement_definition_versions_definition FOREIGN KEY (requirement_definition_id) REFERENCES requirement_definitions(id) ON DELETE RESTRICT
