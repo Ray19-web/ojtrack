@@ -76,9 +76,20 @@ c[3].req('company/evaluation.php',valid);c[3].req('company/evaluation.php',valid
 check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2')=='2','retry idempotent')
 check(sql('SELECT overall_score FROM eval_submissions WHERE id=2')=='50.00','zero and 100 accepted')
 check(sql('SELECT COUNT(*) FROM eval_answers WHERE submission_id=2 AND equivalent IS NULL')=='2','no equivalent overflow')
-# Returned journals are revisable; date change recalculates week.
-c[4].req('student/journal.php',{'action':'submit_journal','edit_id':1,'entry_date':'2026-09-08','activities':'Revised','learnings':'Revised','challenges':'Revised','hours_rendered':8})
-check(sql("SELECT CONCAT(status,':',week_number) FROM journal_entries WHERE id=1")=='pending:36','returned journal resubmitted with new week')
+# Returned journals create a new normalized immutable revision; legacy source stays unchanged.
+journal_day_id=int(sql("""SELECT jd.id
+FROM journal_days jd
+JOIN placements p ON p.id=jd.placement_id
+JOIN ojt_enrollments oe ON oe.id=p.ojt_enrollment_id
+WHERE oe.student_id=1 AND jd.entry_date='2026-09-01'
+ORDER BY jd.id LIMIT 1"""))
+c[4].req('student/journal.php',{'action':'submit_journal','edit_id':journal_day_id,'entry_date':'2026-09-08','activities':'Revised','learnings':'Revised','challenges':'Revised','hours_rendered':8})
+check(sql(f"""SELECT CONCAT(jr.status,':',jd.week_number,':',jr.revision_no)
+FROM journal_days jd
+JOIN journal_revisions jr ON jr.journal_day_id=jd.id
+WHERE jd.id={journal_day_id}
+ORDER BY jr.revision_no DESC LIMIT 1""")=='submitted:36:2','returned journal resubmitted as revision 2 with new week')
+check(sql("SELECT CONCAT(status,':',week_number) FROM journal_entries WHERE id=1")=='rejected:35','legacy journal source unchanged after cutover')
 # Scoped announcements and documents, including onboarding.
 body=c[4].req('student/announcements.php')[1]
 check('VISIBLE ASSIGNED' in body and 'VISIBLE ADMIN' in body and 'HIDDEN OTHER' not in body,'announcement audience')
