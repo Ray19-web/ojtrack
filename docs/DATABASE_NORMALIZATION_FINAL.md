@@ -195,3 +195,8 @@ Therefore:
 ### Requirement naming compatibility
 
 The current application already has a legacy `requirement_templates` library with a different shape. The final normalized model therefore uses `requirement_definitions` and `requirement_definition_versions` so migration remains additive and the legacy coordinator library stays usable until application cutover.
+
+
+### Evaluation naming compatibility
+
+The current application already owns legacy tables named `evaluation_forms`, `eval_sections`, `eval_criteria`, and `eval_rating_rules`. The normalized evaluation model therefore uses `evaluation_definitions`, `evaluation_definition_versions`, `evaluation_version_sections`, `evaluation_version_criteria`, and `evaluation_version_rating_rules`. This keeps migration 006 additive and preserves both legacy fixed evaluations and dynamic form-builder data until application cutover.
