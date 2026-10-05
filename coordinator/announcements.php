@@ -107,7 +107,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
-<div class="card">
+<div class="card announcement-management-card">
   <div class="card-header">
     <div class="card-title">Notices you posted</div>
     <span class="text-sm text-muted"><?= count($announcements) ?> items</span>
@@ -186,10 +186,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Compose Notice Modal -->
 <div class="modal-overlay" id="composeModal">
-  <div class="modal modal-lg">
-    <div class="modal-title">Post Department Notice</div>
-    <p class="modal-sub">This notifies only students assigned to you — not campus-wide</p>
-    <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
+  <div class="modal modal-lg announcement-modal">
+    <div class="announcement-modal-header">
+      <div>
+        <div class="modal-title">Post Department Notice</div>
+        <p class="modal-sub">This notifies only students assigned to you — not campus-wide</p>
+      </div>
+      <button type="button" class="announcement-modal-close" onclick="closeModal('composeModal')" aria-label="Close notice form">×</button>
+    </div>
+    <form method="POST" enctype="multipart/form-data" class="announcement-form"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -214,9 +219,12 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
 
       <div class="form-group flex-items-center">
-        <label class="flex-items-center gap-2 text-sm cursor-pointer">
+        <label class="announcement-pin-control">
           <input type="checkbox" name="is_pinned" value="1">
-          <span class="font-bold">Pin this notice to top</span>
+          <span>
+            <strong>Pin this notice to top</strong>
+            <small>Keep it visible above regular department notices.</small>
+          </span>
         </label>
       </div>
 
@@ -227,8 +235,12 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Attachment (image or file, optional)</label>
-        <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx,image/*">
-        <div class="text-xs text-muted mt-1">PDF, DOC, images, office files · Max 10MB</div>
+<div class="upload-area announcement-upload" role="button" tabindex="0">
+          <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx,image/*">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>
+          <div class="upload-title">Browse or drop a file here</div>
+          <div class="upload-sub">PDF, DOC, images, and office files · Max 10MB</div>
+        </div>
       </div>
 
       <div class="modal-footer">
@@ -241,10 +253,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- View / Edit Notice Modal -->
 <div class="modal-overlay" id="viewEditAnnModal">
-  <div class="modal modal-lg">
-    <div class="modal-title">View &amp; Edit Notice</div>
-    <p class="modal-sub" id="viewEditAnnMeta"></p>
-    <form method="POST" id="viewEditAnnForm" enctype="multipart/form-data"><?= csrf_field() ?>
+  <div class="modal modal-lg announcement-modal">
+    <div class="announcement-modal-header">
+      <div>
+        <div class="modal-title">View &amp; Edit Notice</div>
+        <p class="modal-sub" id="viewEditAnnMeta"></p>
+      </div>
+      <button type="button" class="announcement-modal-close" onclick="closeModal('viewEditAnnModal')" aria-label="Close notice details">×</button>
+    </div>
+    <form method="POST" id="viewEditAnnForm" enctype="multipart/form-data" class="announcement-form"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit">
       <input type="hidden" name="ann_id" id="editAnnId">
       <div class="form-group">
@@ -270,9 +287,12 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
 
       <div class="form-group flex-items-center">
-        <label class="flex-items-center gap-2 text-sm cursor-pointer">
+        <label class="announcement-pin-control">
           <input type="checkbox" name="is_pinned" value="1" id="editAnnPinned">
-          <span class="font-bold">Pin this notice to top</span>
+          <span>
+            <strong>Pin this notice to top</strong>
+            <small>Keep it visible above regular department notices.</small>
+          </span>
         </label>
       </div>
 
@@ -281,10 +301,10 @@ require_once __DIR__ . '/../includes/header.php';
         <textarea name="body" id="editAnnBody" class="form-control" rows="7" required></textarea>
       </div>
 
-      <div class="form-group" id="editAnnCurrentFileWrap" style="display:none">
+      <div class="form-group announcement-current-file" id="editAnnCurrentFileWrap" style="display:none">
         <label class="form-label">Current Attachment</label>
         <a id="editAnnCurrentFile" href="#" target="_blank" class="btn btn-secondary btn-sm">View file</a>
-        <label class="flex-items-center gap-2 text-sm cursor-pointer mt-2">
+        <label class="announcement-remove-control mt-2">
           <input type="checkbox" name="remove_attachment" value="1">
           <span>Remove attachment</span>
         </label>
@@ -292,7 +312,12 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Replace / Add Attachment (optional)</label>
-        <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx,image/*">
+<div class="upload-area announcement-upload" role="button" tabindex="0">
+          <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx,image/*">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>
+          <div class="upload-title">Choose a replacement file</div>
+          <div class="upload-sub">PDF, DOC, images, and office files · Max 10MB</div>
+        </div>
       </div>
 
       <div class="modal-footer">
