@@ -84,8 +84,8 @@ Official credited time is stored in integer minutes to avoid floating-point/roun
 ## Requirement workflow
 
 ```text
-requirement_templates
-└── requirement_template_versions
+requirement_definitions
+└── requirement_definition_versions
     └── requirement_assignments
         └── requirement_submissions
             └── requirement_submission_attachments
@@ -190,3 +190,8 @@ Therefore:
 - `database/schema.sql` = current compatibility/fresh-test schema for the existing code.
 - `database/schema.normalized.sql` = final target schema.
 - Existing databases must migrate; never overwrite them with either file.
+
+
+### Requirement naming compatibility
+
+The current application already has a legacy `requirement_templates` library with a different shape. The final normalized model therefore uses `requirement_definitions` and `requirement_definition_versions` so migration remains additive and the legacy coordinator library stays usable until application cutover.
