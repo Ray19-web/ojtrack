@@ -193,14 +193,22 @@ require_once __DIR__ . '/../includes/header.php';
           <td><?= status_badge($r['status']) ?></td>
           <td class="text-xs text-muted" style="max-width:200px"><?= $r['remarks'] ? e($r['remarks']) : '—' ?></td>
           <td>
-            <div style="display:flex;gap:4px">
-              <!-- <button class="btn btn-secondary btn-xs" onclick='viewReq(<?= json_encode($r) ?>, "<?= status_badge($r['status']) ?>")'>View</button> -->
+            <div class="table-actions">
               <?php if ($tab === 'pending'): ?>
-                <button class="btn btn-success btn-xs" onclick="openReview(<?= $r['id'] ?>,'approve','<?= e(addslashes($r['student_name'])) ?>','<?= e(addslashes($r['document_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">Approve</button>
-                <button class="btn btn-danger btn-xs" onclick="openReview(<?= $r['id'] ?>,'reject','<?= e(addslashes($r['student_name'])) ?>','<?= e(addslashes($r['document_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">Return</button>
+                <button type="button" class="table-action-icon is-success" title="Approve requirement" aria-label="Approve requirement"
+                        onclick="openReview(<?= $r['id'] ?>,'approve','<?= e(addslashes($r['student_name'])) ?>','<?= e(addslashes($r['document_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+                </button>
+                <button type="button" class="table-action-icon is-danger" title="Return requirement" aria-label="Return requirement"
+                        onclick="openReview(<?= $r['id'] ?>,'reject','<?= e(addslashes($r['student_name'])) ?>','<?= e(addslashes($r['document_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M5 12h8a6 6 0 0 1 6 6"/></svg>
+                </button>
               <?php else: ?>
-                <button class="btn btn-secondary btn-xs" onclick="openReview(<?= $r['id'] ?>,'<?= $r['status']==='approved'?'reject':'approve' ?>','<?= e(addslashes($r['student_name'])) ?>','<?= e(addslashes($r['document_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
-                  <?= $r['status']==='approved' ? 'Re-evaluate' : 'Re-approve' ?>
+                <button type="button" class="table-action-icon is-primary"
+                        title="<?= $r['status']==='approved' ? 'Re-evaluate requirement' : 'Re-approve requirement' ?>"
+                        aria-label="<?= $r['status']==='approved' ? 'Re-evaluate requirement' : 'Re-approve requirement' ?>"
+                        onclick="openReview(<?= $r['id'] ?>,'<?= $r['status']==='approved'?'reject':'approve' ?>','<?= e(addslashes($r['student_name'])) ?>','<?= e(addslashes($r['document_name'])) ?>','<?= e(addslashes($r['remarks'] ?? '')) ?>')">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.4-2.6L20 9M4 15l2.5 2.6A7 7 0 0 0 17.9 15"/></svg>
                 </button>
               <?php endif; ?>
             </div>
