@@ -359,3 +359,40 @@ C:\xampp\php\php.exe bin\migrate-normalized-phase8-cutover.php --academic-year=2
 ```
 
 This phase intentionally keeps every legacy table. Phase 9 must not retire legacy structures until the real installation passes Phase 8 plus final user-acceptance/parity checks.
+
+
+## Migration 009 — reversible legacy retirement
+
+Migration 009 requires the `008_application_cutover` checkpoint.
+
+This phase deliberately does **not** drop historical workflow rows. It quarantines retired legacy workflow tables by atomically renaming them to `legacy_retired_*` names only after these checks pass:
+
+- every expected legacy source table still exists and no retired target name already exists;
+- the live PHP application source contains no direct SQL against the legacy workflow table names;
+- requirement/report/evaluation/announcement legacy mapping counts still match;
+- normalized submissions and evaluation answers have no orphan parent records.
+
+Retired table names include legacy attendance, journals, requirement templates/assignments, reports, fixed/dynamic evaluation tables, and announcements. Core identity tables such as `users`, `students`, `coordinators`, `companies`, programs, messaging, notifications and activity logs are **not** retired by this phase.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The apply result must report `rows_deleted: 0` and `legacy_data_preserved: true`.
+
+Structural rollback is available:
+
+```powershell
+C:\xampp\php\php.exe bin\rollback-normalized-phase9-retirement.php --dry-run
+C:\xampp\php\php.exe bin\rollback-normalized-phase9-retirement.php --apply
+```
+
+Rollback restores the old table names only. It does not undo normalized writes or reverse the Phase 8 application cutover.
