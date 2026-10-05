@@ -428,7 +428,7 @@ CREATE TABLE evaluation_requests (
   KEY idx_evaluation_requests_evaluator_status (evaluator_company_user_id, status),
   CONSTRAINT fk_evaluation_requests_version FOREIGN KEY (evaluation_definition_version_id) REFERENCES evaluation_definition_versions(id) ON DELETE RESTRICT,
   CONSTRAINT fk_evaluation_requests_placement FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_evaluation_requests_evaluator FOREIGN KEY (evaluator_company_user_id) REFERENCES company_users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_evaluation_requests_evaluator FOREIGN KEY (evaluator_company_user_id) REFERENCES users(id) ON DELETE RESTRICT,
   CONSTRAINT fk_evaluation_requests_requester FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -510,7 +510,8 @@ CREATE TABLE announcement_posts (
   created_at TIMESTAMP NOT NULL,
   PRIMARY KEY (id),
   KEY idx_announcement_posts_active (is_active, expires_at, created_at),
-  CONSTRAINT fk_announcement_posts_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_announcement_posts_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_announcement_posts_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
