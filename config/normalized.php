@@ -105,7 +105,7 @@ function normalized_current_placement_for_enrollment(int $enrollmentId, ?int $co
         $types.='i';
     }
     return query_one(
-        "SELECT p.*,co.company_name,co.location,co.contact_number,co.email company_email
+        "SELECT p.*,co.company_name,co.location,co.contact_number,NULL company_email
          FROM placements p
          JOIN companies co ON co.id=p.company_id
          WHERE p.ojt_enrollment_id=? $companySql
