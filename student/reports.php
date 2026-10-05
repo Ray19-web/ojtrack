@@ -175,9 +175,11 @@ $compile_month = $_GET['cm'] ?? '';
 $can_compile = $compile_month && preg_match('/^\d{4}-\d{2}$/', $compile_month) && $compile_month < date('Y-m');
 $cm_att_days = $cm_att_hours = $cm_journal = 0;
 if ($can_compile) {
-    $cm_att_days = (int)(query_one("SELECT COUNT(*) AS c FROM attendance WHERE student_id=? AND DATE_FORMAT(date,'%Y-%m')=? AND status='present'", [$sid, $compile_month], 'is')['c'] ?? 0);
-    $cm_att_hours = (float)(query_one("SELECT COALESCE(SUM(hours_rendered),0) AS h FROM attendance WHERE student_id=? AND DATE_FORMAT(date,'%Y-%m')=?", [$sid, $compile_month], 'is')['h'] ?? 0);
-    $cm_journal = (int)(query_one("SELECT COUNT(*) AS c FROM journal_entries WHERE student_id=? AND DATE_FORMAT(entry_date,'%Y-%m')=?", [$sid, $compile_month], 'is')['c'] ?? 0);
+    $cm_attendance = normalized_attendance_rows_for_student((int)$sid, $compile_month, 500);
+    $cm_att_days = count(array_filter($cm_attendance, fn($row) => ($row['status'] ?? '') === 'present'));
+    $cm_att_hours = array_sum(array_map(fn($row) => (float)($row['hours_rendered'] ?? 0), $cm_attendance));
+    $cm_journals = normalized_journal_rows_for_student((int)$sid, 500);
+    $cm_journal = count(array_filter($cm_journals, fn($row) => str_starts_with((string)($row['entry_date'] ?? ''), $compile_month . '-')));
 }
 ?>
 <div class="card card-body mb-4">
