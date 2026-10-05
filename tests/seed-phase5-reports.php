@@ -8,6 +8,16 @@ if (!query_one("SELECT 1 FROM schema_migrations WHERE version='004_requirements'
     exit("Migration 004 must be applied first.\n");
 }
 
+$placement=(int)query_one(
+    "SELECT p.id
+     FROM placements p
+     JOIN ojt_enrollments oe ON oe.id=p.ojt_enrollment_id
+     WHERE oe.student_id=1
+     ORDER BY p.id LIMIT 1"
+)['id'];
+query("INSERT INTO attendance_days(placement_id,attendance_date,status,credited_minutes,remarks)
+       VALUES($placement,'2026-09-15','present',480,'Synthetic September evidence')");
+
 query("INSERT INTO reports
  (id,student_id,report_name,report_type,file_path,deadline,submitted_at,status,remarks,reviewed_by,reviewed_at)
  VALUES
