@@ -1213,6 +1213,17 @@ select.form-control { cursor: pointer; }
   cursor: pointer;
 }
 
+.user-dropdown-menu button.user-dropdown-item:hover,
+.user-dropdown-menu a.user-dropdown-item:hover {
+  background: #eef4fb;
+}
+
+.user-dropdown-menu button.user-dropdown-logout:hover,
+.user-dropdown-menu a.user-dropdown-logout:hover {
+  background: #fff1f2;
+  color: var(--danger);
+}
+
 .user-dropdown-menu .user-dropdown-logout {
   color: var(--danger);
 }
