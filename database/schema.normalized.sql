@@ -418,83 +418,82 @@ CREATE TABLE report_submission_attachments (
   CONSTRAINT fk_rsp_attachment_file FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE evaluation_forms (
+CREATE TABLE evaluation_definitions (
   id INT NOT NULL AUTO_INCREMENT,
-  created_by INT NOT NULL,
+  created_by INT DEFAULT NULL,
   title VARCHAR(200) NOT NULL,
   description TEXT DEFAULT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
-  CONSTRAINT fk_evaluation_forms_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_evaluation_definitions_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE evaluation_form_versions (
+CREATE TABLE evaluation_definition_versions (
   id INT NOT NULL AUTO_INCREMENT,
-  evaluation_form_id INT NOT NULL,
+  evaluation_definition_id INT NOT NULL,
   version_no INT NOT NULL,
   score_mode ENUM('percentage','rating') NOT NULL DEFAULT 'percentage',
   rating_max INT NOT NULL DEFAULT 100,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
   published_at TIMESTAMP NULL DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_evaluation_form_version (evaluation_form_id, version_no),
-  CONSTRAINT fk_evaluation_form_versions_form FOREIGN KEY (evaluation_form_id) REFERENCES evaluation_forms(id) ON DELETE RESTRICT
+  UNIQUE KEY uq_evaluation_definition_version (evaluation_definition_id, version_no),
+  CONSTRAINT fk_evaluation_definition_versions_definition FOREIGN KEY (evaluation_definition_id) REFERENCES evaluation_definitions(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE evaluation_sections (
+CREATE TABLE evaluation_version_sections (
   id INT NOT NULL AUTO_INCREMENT,
-  evaluation_form_version_id INT NOT NULL,
+  evaluation_definition_version_id INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
-  KEY idx_evaluation_sections_version_order (evaluation_form_version_id, sort_order),
-  CONSTRAINT fk_evaluation_sections_version FOREIGN KEY (evaluation_form_version_id) REFERENCES evaluation_form_versions(id) ON DELETE CASCADE
+  KEY idx_evaluation_version_sections_order (evaluation_definition_version_id, sort_order),
+  CONSTRAINT fk_evaluation_version_sections_version FOREIGN KEY (evaluation_definition_version_id) REFERENCES evaluation_definition_versions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE evaluation_criteria (
+CREATE TABLE evaluation_version_criteria (
   id INT NOT NULL AUTO_INCREMENT,
-  evaluation_section_id INT NOT NULL,
+  evaluation_version_section_id INT NOT NULL,
   criterion_code VARCHAR(80) NOT NULL,
   label VARCHAR(255) NOT NULL,
   description TEXT DEFAULT NULL,
   weight DECIMAL(6,3) NOT NULL DEFAULT 1.000,
   sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_evaluation_criterion_code (evaluation_section_id, criterion_code),
-  CONSTRAINT fk_evaluation_criteria_section FOREIGN KEY (evaluation_section_id) REFERENCES evaluation_sections(id) ON DELETE CASCADE
+  UNIQUE KEY uq_evaluation_version_criterion_code (evaluation_version_section_id, criterion_code),
+  CONSTRAINT fk_evaluation_version_criteria_section FOREIGN KEY (evaluation_version_section_id) REFERENCES evaluation_version_sections(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE evaluation_rating_rules (
+CREATE TABLE evaluation_version_rating_rules (
   id INT NOT NULL AUTO_INCREMENT,
-  evaluation_form_version_id INT NOT NULL,
+  evaluation_definition_version_id INT NOT NULL,
   score_min DECIMAL(6,2) NOT NULL,
   score_max DECIMAL(6,2) NOT NULL,
   equivalent DECIMAL(6,2) DEFAULT NULL,
   description VARCHAR(150) DEFAULT NULL,
   PRIMARY KEY (id),
-  KEY idx_evaluation_rating_rules_version (evaluation_form_version_id, score_min, score_max),
-  CONSTRAINT fk_evaluation_rating_rules_version FOREIGN KEY (evaluation_form_version_id) REFERENCES evaluation_form_versions(id) ON DELETE CASCADE
+  KEY idx_evaluation_version_rating_rules (evaluation_definition_version_id, score_min, score_max),
+  CONSTRAINT fk_evaluation_version_rating_rules_version FOREIGN KEY (evaluation_definition_version_id) REFERENCES evaluation_definition_versions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_requests (
   id BIGINT NOT NULL AUTO_INCREMENT,
-  evaluation_form_version_id INT NOT NULL,
+  evaluation_definition_version_id INT NOT NULL,
   placement_id INT NOT NULL,
   evaluator_company_user_id INT NOT NULL,
-  requested_by INT NOT NULL,
+  requested_by INT DEFAULT NULL,
   evaluation_kind ENUM('midterm','final','custom') NOT NULL DEFAULT 'custom',
   due_date DATE DEFAULT NULL,
   status ENUM('pending','submitted','cancelled') NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_evaluation_request_once (evaluation_form_version_id, placement_id, evaluator_company_user_id, evaluation_kind),
   KEY idx_evaluation_requests_evaluator_status (evaluator_company_user_id, status),
-  CONSTRAINT fk_evaluation_requests_version FOREIGN KEY (evaluation_form_version_id) REFERENCES evaluation_form_versions(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_evaluation_requests_version FOREIGN KEY (evaluation_definition_version_id) REFERENCES evaluation_definition_versions(id) ON DELETE RESTRICT,
   CONSTRAINT fk_evaluation_requests_placement FOREIGN KEY (placement_id) REFERENCES placements(id) ON DELETE RESTRICT,
   CONSTRAINT fk_evaluation_requests_evaluator FOREIGN KEY (evaluator_company_user_id) REFERENCES company_users(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_evaluation_requests_requester FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_evaluation_requests_requester FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_submissions (
@@ -504,7 +503,7 @@ CREATE TABLE evaluation_submissions (
   overall_score DECIMAL(7,2) DEFAULT NULL,
   overall_equivalent DECIMAL(7,2) DEFAULT NULL,
   comments TEXT DEFAULT NULL,
-  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  submitted_at TIMESTAMP NOT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_evaluation_submission_request (evaluation_request_id),
   CONSTRAINT fk_evaluation_submissions_request FOREIGN KEY (evaluation_request_id) REFERENCES evaluation_requests(id) ON DELETE RESTRICT,
@@ -515,13 +514,14 @@ CREATE TABLE evaluation_answers (
   id BIGINT NOT NULL AUTO_INCREMENT,
   evaluation_submission_id BIGINT NOT NULL,
   evaluation_criterion_id INT NOT NULL,
+  section_title_snapshot VARCHAR(200) DEFAULT NULL,
   criterion_label_snapshot VARCHAR(255) NOT NULL,
   score DECIMAL(7,2) NOT NULL,
   equivalent DECIMAL(7,2) DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_evaluation_answer_criterion (evaluation_submission_id, evaluation_criterion_id),
   CONSTRAINT fk_evaluation_answers_submission FOREIGN KEY (evaluation_submission_id) REFERENCES evaluation_submissions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_evaluation_answers_criterion FOREIGN KEY (evaluation_criterion_id) REFERENCES evaluation_criteria(id) ON DELETE RESTRICT
+  CONSTRAINT fk_evaluation_answers_criterion FOREIGN KEY (evaluation_criterion_id) REFERENCES evaluation_version_criteria(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE certificate_templates (
