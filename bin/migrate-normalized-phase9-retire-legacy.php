@@ -32,7 +32,7 @@ function p9_id(string $name): string {
 function p9_source_refs(array $tables): array {
     $root=realpath(__DIR__.'/..');
     if (!$root) throw new RuntimeException('Repository root cannot be resolved.');
-    $skip=['bin','tests','database','docs','.git','uploads','vendor','node_modules'];
+    $skip=['bin','tests','database','docs','scratch','.git','uploads','vendor','node_modules'];
     $hits=[];
     $filter=new RecursiveCallbackFilterIterator(
         new RecursiveDirectoryIterator($root,FilesystemIterator::SKIP_DOTS),
