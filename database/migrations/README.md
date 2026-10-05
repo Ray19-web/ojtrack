@@ -225,3 +225,46 @@ C:\xampp\php\php.exe bin\migrate-normalized-phase5-reports.php --academic-year=2
 ```
 
 The migration blocks rather than guessing if it finds a missing normalized enrollment, invalid reviewer, file without submission timestamp, missing/unreadable file, invalid path, invalid status/type, or a returned/for-review state without a submission timestamp.
+
+
+## Migration 006 — evaluations
+
+Migration 006 requires migrations 001–005 and preserves both evaluation systems that exist in legacy OJTrack:
+
+1. the fixed `evaluations` table with six percentage criteria;
+2. the dynamic form builder using `evaluation_forms`, `eval_sections`, `eval_criteria`, `eval_rating_rules`, `eval_submissions` and `eval_answers`.
+
+The collision-safe normalized target is:
+
+```text
+evaluation_definitions
+└── evaluation_definition_versions
+    ├── evaluation_version_sections
+    │   └── evaluation_version_criteria
+    ├── evaluation_version_rating_rules
+    └── evaluation_requests
+        └── evaluation_submissions
+            └── evaluation_answers
+```
+
+Each legacy dynamic form is migrated as its own immutable normalized definition/version snapshot. Structured sections and criteria are preserved. Older draft forms that only contain the legacy JSON `criteria` list are preserved under a synthetic `Criteria` section.
+
+Each `eval_submissions` row becomes an evaluation request. Completed rows create a normalized submission plus criterion answers; pending rows remain requests only. Answer migration resolves the exact legacy section title + criterion label and stores both as snapshots.
+
+The older fixed six-score `evaluations` table is preserved under one archived historical form with these criteria: Technical Skills, Work Ethic & Punctuality, Communication Skills, Teamwork & Collaboration, Initiative & Problem Solving, and Adaptability.
+
+The transitional `evaluation_assignments` table is not used by the current application. If it contains any rows, migration 006 deliberately returns `BLOCKED` rather than ignoring or guessing how its serialized answers should map.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase6-evaluations.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase6-evaluations.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The migration blocks rather than guessing when a form snapshot/version is inconsistent, criteria cannot be resolved uniquely, a placement/evaluator cannot be mapped exactly, completed rows lack required scores/timestamps, pending rows contain completed data, or transitional assignments exist.
