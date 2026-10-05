@@ -5,20 +5,38 @@ require_once __DIR__ . '/../config/auth.php';
 require_login(['student']);
 
 $user    = current_user();
-$student = query_one("SELECT s.*, co.company_name, cu.name AS supervisor
-    FROM students s LEFT JOIN companies co ON co.id=s.company_id LEFT JOIN users cu ON cu.id=co.user_id
-    WHERE s.user_id=?", [$user['id']], 'i');
-$sid = $student['id'];
+$student = normalized_student_context_by_user((int)$user['id']);
+$sid = (int)($student['id'] ?? 0);
 
-$evaluations = query("SELECT * FROM evaluations WHERE student_id=? ORDER BY evaluation_type", [$sid], 'i');
+$allEvaluations = normalized_eval_requests_for_student($sid);
+$evaluations = [];
+$assignments = [];
+foreach ($allEvaluations as $evaluation) {
+    if (in_array($evaluation['evaluation_kind'], ['midterm','final'], true)) {
+        $answers = normalized_eval_answers_for_request((int)$evaluation['id']);
+        $evaluation['technical_skills'] = null;
+        $evaluation['work_ethic'] = null;
+        $evaluation['communication'] = null;
+        $evaluation['teamwork'] = null;
+        $evaluation['initiative'] = null;
+        $evaluation['adaptability'] = null;
+        foreach ($answers as $answer) {
+            $code = $answer['criterion_code'] ?? '';
+            if (array_key_exists($code, $evaluation)) $evaluation[$code] = $answer['score'];
+        }
+        $evaluation['evaluation_type'] = $evaluation['evaluation_kind'];
+        $evaluations[] = $evaluation;
+    } else {
+        $assignments[] = $evaluation;
+    }
+}
 
-$assignments = query(
-    "SELECT s.*, f.title AS form_title, f.description, c.company_name
-     FROM eval_submissions s
-     JOIN evaluation_forms f ON f.id=s.form_id
-     LEFT JOIN companies c ON c.id=s.company_id
-     WHERE s.student_id=? ORDER BY s.id DESC",
-    [$sid], 'i') ?: [];
+$placement = !empty($student['_enrollment_id'])
+    ? normalized_current_placement_for_enrollment((int)$student['_enrollment_id'])
+    : null;
+$supervisor = $placement ? normalized_company_user((int)$placement['company_id']) : null;
+$student['supervisor'] = $supervisor['name'] ?? 'Company Supervisor';
+$issuedCertificate = normalized_certificate_for_student($sid);
 
 $page_title = 'Evaluation';
 require_once __DIR__ . '/../includes/header.php';
@@ -29,11 +47,11 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="page-sub">View your company performance evaluation scores and feedback</div>
 </div>
 
-<?php if (($student['ojt_status'] ?? '') === 'completed'): ?>
+<?php if ($issuedCertificate): ?>
 <div class="card card-body mb-4" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0">
   <div>
-    <div class="font-bold text-base mb-1" style="color:#059669">OJT Completed — Certificate Available</div>
-    <div class="text-sm text-muted">Your Certificate of Recognition is ready. Click below to view and download it.</div>
+    <div class="font-bold text-base mb-1" style="color:#059669">Official Certificate Issued</div>
+    <div class="text-sm text-muted">Your permanent Certificate of Recognition is ready to view or download.</div>
   </div>
   <a href="/ojtrack/student/certificate.php" class="btn btn-primary">🎓 Download Certificate</a>
 </div>
