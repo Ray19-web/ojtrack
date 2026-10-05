@@ -43,3 +43,32 @@ php bin/migrate-normalized-phase1.php --academic-year=2026-2027 --semester=1st -
 A successful apply returns `PASS` and records `001_core_identity_and_terms` in `schema_migrations`. Running the same command again returns `ALREADY_APPLIED` and does not duplicate records.
 
 If the preflight reports invalid/missing role users, programs, coordinators, companies or duplicate role profiles, fix those legacy records first. The runner refuses to migrate them silently.
+
+
+## Migration 002 — normalized attendance
+
+Migration 002 depends on migration 001. It converts the legacy one-row attendance model into placement-scoped attendance days and sessions while keeping the original `attendance` table unchanged.
+
+Run the preflight first:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase2-attendance.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only apply when the result is `READY`:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase2-attendance.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The preflight blocks if a legacy attendance row cannot be tied to exactly one normalized placement. It prints the attendance ID, student, date and placement count so the legacy assignment can be corrected without guessing.
+
+A successful apply:
+- creates `attendance_days`, `attendance_sessions` and `attendance_corrections`;
+- preserves legacy statuses and credited minutes;
+- reconstructs generic or morning/afternoon punch sessions without inventing missing times;
+- verifies row counts, statuses and credited minutes;
+- hashes the legacy attendance rows before/after to ensure they were not changed;
+- records `002_attendance` in `schema_migrations`.
+
+The PHP application continues using the legacy attendance table until attendance read/write cutover is implemented and verified.
