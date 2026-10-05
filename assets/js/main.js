@@ -299,10 +299,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const input = area.querySelector('input[type=file]');
     if (!input) return;
     area.addEventListener('click', () => input.click());
-    area.addEventListener('dragover', e => { e.preventDefault(); area.style.borderColor = 'var(--primary)'; });
-    area.addEventListener('dragleave', () => { area.style.borderColor = ''; });
+    area.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        input.click();
+      }
+    });
+    area.addEventListener('dragover', e => {
+      e.preventDefault();
+      area.classList.add('is-dragging');
+      area.style.borderColor = 'var(--primary)';
+    });
+    area.addEventListener('dragleave', () => {
+      area.classList.remove('is-dragging');
+      area.style.borderColor = '';
+    });
     area.addEventListener('drop', e => {
       e.preventDefault();
+      area.classList.remove('is-dragging');
       area.style.borderColor = '';
       if (e.dataTransfer.files.length) {
         input.files = e.dataTransfer.files;
@@ -318,6 +332,8 @@ document.addEventListener('DOMContentLoaded', function() {
 function updateUploadLabel(area, filename) {
   const title = area.querySelector('.upload-title');
   if (title) title.textContent = filename;
+  area.classList.toggle('has-file', !!filename);
+  if (filename) area.setAttribute('aria-label', 'Selected file: ' + filename);
 }
 
 // ── Confirm dialog ───────────────────────────────────────────
