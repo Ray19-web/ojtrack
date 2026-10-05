@@ -91,3 +91,17 @@ CREATE TABLE IF NOT EXISTS legacy_requirement_migration_map (
   CONSTRAINT fk_legacy_requirement_map_submission
     FOREIGN KEY (requirement_submission_id) REFERENCES requirement_submissions(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS legacy_requirement_template_migration_map (
+  legacy_template_id INT NOT NULL,
+  requirement_definition_id INT NOT NULL,
+  requirement_definition_version_id INT NOT NULL,
+  PRIMARY KEY (legacy_template_id),
+  UNIQUE KEY uq_legacy_requirement_template_definition (requirement_definition_id),
+  CONSTRAINT fk_legacy_requirement_template_map_source
+    FOREIGN KEY (legacy_template_id) REFERENCES requirement_templates(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_legacy_requirement_template_map_definition
+    FOREIGN KEY (requirement_definition_id) REFERENCES requirement_definitions(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_legacy_requirement_template_map_version
+    FOREIGN KEY (requirement_definition_version_id) REFERENCES requirement_definition_versions(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
