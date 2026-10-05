@@ -5,46 +5,14 @@ require_once __DIR__ . '/../config/auth.php';
 require_login(['student']);
 
 $user = current_user();
-$student = query_one(
-    "SELECT s.*, c.user_id AS coordinator_user_id
-     FROM students s
-     LEFT JOIN coordinators c ON c.id=s.coordinator_id
-     WHERE s.user_id=?",
-    [$user['id']],
-    'i'
-);
-$coord_uid = (int)($student['coordinator_user_id'] ?? 0);
+$uid = (int)$user['id'];
+$student = normalized_student_context_by_user($uid);
 
 $tag_filter = trim($_GET['tag'] ?? '');
 $search     = trim($_GET['q'] ?? '');
 
-// Campus/admin notices + notices from THIS student's coordinator only
-$where = announcement_scope($user);
-$params = []; $types = '';
-
-if ($tag_filter) {
-    $where .= " AND a.tag=?";
-    $params[] = $tag_filter;
-    $types .= 's';
-}
-if ($search) {
-    $where .= " AND (a.title LIKE ? OR a.body LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'ss';
-}
-
-$announcements = query(
-    "SELECT a.*, u.name AS author_name, u.role AS author_role
-     FROM announcements a
-     LEFT JOIN users u ON u.id=a.created_by
-     WHERE $where
-     ORDER BY a.is_pinned DESC, a.created_at DESC",
-    $params,
-    $types
-) ?: [];
-
-$all_tags = query("SELECT DISTINCT a.tag FROM announcements a WHERE " . announcement_scope($user) . " AND a.tag IS NOT NULL AND a.tag!=''") ?: [];
+$announcements = normalized_announcements_for_user($uid, false, $tag_filter, $search);
+$all_tags = normalized_announcement_tags_for_user($uid);
 
 $page_title = 'Announcements';
 require_once __DIR__ . '/../includes/header.php';
