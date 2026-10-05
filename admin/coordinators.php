@@ -98,69 +98,124 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<div class="grid grid-3 gap-4 mb-5">
+<div class="grid grid-3 gap-4 mb-5 coordinator-grid">
   <?php foreach ($coordinators as $c): ?>
-  <div class="card card-body card-clickable" onclick='openEditCoord(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)' title="Click to view &amp; edit">
-    <div class="flex-between mb-3">
-      <div style="display:flex;gap:12px;align-items:center">
-        <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0">
-          <?= strtoupper(substr($c['name'],0,2)) ?>
-        </div>
-        <div>
-          <div class="font-bold text-base"><?= e($c['name']) ?></div>
-          <div class="text-xs text-muted"><?= e($c['email']) ?></div>
-          <?php
-            $dept_raw = trim((string)($c['department'] ?? ''));
-            $dept_label = $program_label_by_code[strtoupper($dept_raw)] ?? ($dept_raw !== '' ? $dept_raw : 'No Program Assigned');
-          ?>
-          <div class="text-xs font-semibold text-primary"><?= e($dept_label) ?></div>
+  <?php
+    $dept_raw = trim((string)($c['department'] ?? ''));
+    $dept_label = $program_label_by_code[strtoupper($dept_raw)] ?? ($dept_raw !== '' ? $dept_raw : 'No Program Assigned');
+
+    // Build meaningful initials while ignoring common professional titles.
+    $coord_words = preg_split('/\s+/', trim((string)$c['name'])) ?: [];
+    $coord_prefixes = ['prof', 'prof.', 'dr', 'dr.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'engr', 'engr.'];
+    $coord_words = array_values(array_filter($coord_words, function ($word) use ($coord_prefixes) {
+        return !in_array(strtolower(trim($word)), $coord_prefixes, true);
+    }));
+    if (count($coord_words) >= 2) {
+        $coord_initials = strtoupper(substr($coord_words[0], 0, 1) . substr($coord_words[count($coord_words) - 1], 0, 1));
+    } elseif (count($coord_words) === 1) {
+        $coord_initials = strtoupper(substr($coord_words[0], 0, 2));
+    } else {
+        $coord_initials = 'OC';
+    }
+  ?>
+  <div class="card coordinator-card card-clickable"
+       onclick='openEditCoord(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'
+       title="Click to view &amp; edit">
+    <div class="coordinator-card-head">
+      <div class="coordinator-identity">
+        <div class="coordinator-avatar" aria-hidden="true"><?= e($coord_initials) ?></div>
+        <div class="coordinator-identity-copy">
+          <div class="coordinator-name"><?= e($c['name']) ?></div>
+          <div class="coordinator-email" title="<?= e($c['email']) ?>"><?= e($c['email']) ?></div>
+          <div class="coordinator-program" title="<?= e($dept_label) ?>">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 10.5 12 5l9 5.5L12 16l-9-5.5Z"/>
+              <path d="M7 13.2V17c2.9 2 7.1 2 10 0v-3.8"/>
+            </svg>
+            <span><?= e($dept_label) ?></span>
+          </div>
         </div>
       </div>
-      <?= status_badge($c['status']) ?>
+      <div class="coordinator-status"><?= status_badge($c['status']) ?></div>
     </div>
 
-    <!-- ID Number & Phone Number Details -->
-    <div style="background:var(--bg);padding:10px 12px;border-radius:var(--radius);font-size:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:6px">
-      <div style="display:flex;justify-content:space-between">
-        <span class="text-muted">Coordinator ID:</span>
-        <span class="td-mono font-bold"><?= e($c['coordinator_id_no'] ?: 'Not Set') ?></span>
+    <div class="coordinator-meta">
+      <div class="coordinator-meta-row">
+        <span class="coordinator-meta-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h4M7 13h6M16 10h2M16 14h2"/></svg>
+        </span>
+        <span class="coordinator-meta-copy">
+          <span class="coordinator-meta-label">Coordinator ID</span>
+          <strong class="coordinator-meta-value td-mono"><?= e($c['coordinator_id_no'] ?: 'Not Set') ?></strong>
+        </span>
       </div>
-      <div style="display:flex;justify-content:space-between">
-        <span class="text-muted">Phone Number:</span>
-        <span class="font-medium"><?= e($c['contact_number'] ?: 'Not Set') ?></span>
+      <div class="coordinator-meta-row">
+        <span class="coordinator-meta-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"/></svg>
+        </span>
+        <span class="coordinator-meta-copy">
+          <span class="coordinator-meta-label">Phone Number</span>
+          <strong class="coordinator-meta-value"><?= e($c['contact_number'] ?: 'Not Set') ?></strong>
+        </span>
       </div>
     </div>
 
-    <div class="grid grid-2 gap-2 text-center py-2 mb-3" style="border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light)">
-      <div>
-        <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--primary)"><?= $c['student_count'] ?></div>
-        <div class="text-xs text-muted">Assigned Trainees</div>
+    <div class="coordinator-stats">
+      <div class="coordinator-stat coordinator-stat-assigned">
+        <span class="coordinator-stat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+        </span>
+        <span class="coordinator-stat-copy">
+          <strong><?= (int)$c['student_count'] ?></strong>
+          <span>Assigned Trainees</span>
+        </span>
       </div>
-      <div>
-        <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:#16a34a"><?= $c['active_students'] ?></div>
-        <div class="text-xs text-muted">Active in OJT</div>
+      <div class="coordinator-stat coordinator-stat-active">
+        <span class="coordinator-stat-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/><circle cx="12" cy="12" r="9"/></svg>
+        </span>
+        <span class="coordinator-stat-copy">
+          <strong><?= (int)$c['active_students'] ?></strong>
+          <span>Active in OJT</span>
+        </span>
       </div>
     </div>
 
     <?php if (!empty($unassigned)): ?>
-    <form method="POST" style="margin-bottom:10px;display:flex;gap:6px" onclick="stopRowClick(event)"><?= csrf_field() ?>
-      <input type="hidden" name="action" value="assign_student">
-      <input type="hidden" name="coord_id" value="<?= $c['id'] ?>">
-      <select name="student_id" class="form-control" style="flex:1;font-size:12px" required>
-        <option value="">Assign student...</option>
-        <?php foreach ($unassigned as $us): ?>
-          <option value="<?= $us['id'] ?>"><?= e($us['name']) ?> (<?= e($us['student_id_no'] ?? '') ?>)</option>
-        <?php endforeach; ?>
-      </select>
-      <button type="submit" class="btn btn-primary btn-xs">Assign</button>
-    </form>
+    <div class="coordinator-assignment" onclick="stopRowClick(event)">
+      <div class="coordinator-assignment-label">Quick student assignment</div>
+      <form method="POST" class="coordinator-assignment-form">\n        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="assign_student">
+        <input type="hidden" name="coord_id" value="<?= $c['id'] ?>">
+        <select name="student_id" class="form-control" required>
+          <option value="">Select unassigned student...</option>
+          <?php foreach ($unassigned as $us): ?>
+            <option value="<?= $us['id'] ?>"><?= e($us['name']) ?> (<?= e($us['student_id_no'] ?? '') ?>)</option>
+          <?php endforeach; ?>
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+      </form>
+    </div>
     <?php endif; ?>
 
-    <button type="button" class="btn btn-secondary btn-xs" style="width:100%" onclick='stopRowClick(event); openEditCoord(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Edit Details</button>
+    <div class="coordinator-card-footer">
+      <button type="button"
+              class="coordinator-edit-btn"
+              onclick='stopRowClick(event); openEditCoord(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>
+        <span class="coordinator-edit-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </span>
+        <span>View &amp; Edit Details</span>
+        <svg class="coordinator-edit-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+    </div>
   </div>
   <?php endforeach; ?>
+
   <?php if (empty($coordinators)): ?>
-  <div class="card card-body" style="grid-column:span 3"><div class="empty-state"><p>No coordinators registered in the system yet.</p></div></div>
+  <div class="card card-body coordinator-empty">
+    <div class="empty-state"><p>No coordinators registered in the system yet.</p></div>
+  </div>
   <?php endif; ?>
 </div>
 
