@@ -730,7 +730,7 @@ function normalized_eval_completed_for_coordinator(int $coordinatorId,string $se
 function normalized_eval_submissions_for_requester(int $requesterUserId): array
 {
     return query(
-        "SELECT er.id,er.evaluation_definition_version_id form_id,
+        "SELECT er.id,er.evaluation_definition_version_id form_id,ev.version_no form_version,
                 CASE er.status WHEN 'submitted' THEN 'completed' ELSE er.status END status,
                 ed.title form_title,u.name student_name,co.company_name,
                 es.overall_score,es.overall_equivalent,es.comments,es.submitted_at
