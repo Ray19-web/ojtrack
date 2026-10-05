@@ -1,9 +1,12 @@
 <?php
 if (!defined('OJTRACK') || ($user['role'] ?? '') !== 'student') { http_response_code(403); exit; }
 $progress_sid = (int)$student['id'];
-$progress_req = query_one("SELECT COUNT(*) total, SUM(status='approved') done FROM ojt_requirements WHERE student_id=?", [$progress_sid], 'i');
-$progress_rep = query_one("SELECT COUNT(*) total, SUM(status='approved') done FROM reports WHERE student_id=?", [$progress_sid], 'i');
-$progress_eval = query_one("SELECT COUNT(*) total, SUM(status='completed') done FROM eval_submissions WHERE student_id=?", [$progress_sid], 'i');
+$progress_req_rows = normalized_requirement_rows_for_student($progress_sid);
+$progress_rep_rows = normalized_report_rows_for_student($progress_sid);
+$progress_eval_rows = normalized_eval_requests_for_student($progress_sid);
+$progress_req = ['total'=>count($progress_req_rows),'done'=>count(array_filter($progress_req_rows,fn($row)=>($row['status'] ?? '')==='approved'))];
+$progress_rep = ['total'=>count($progress_rep_rows),'done'=>count(array_filter($progress_rep_rows,fn($row)=>($row['status'] ?? '')==='approved'))];
+$progress_eval = ['total'=>count($progress_eval_rows),'done'=>count(array_filter($progress_eval_rows,fn($row)=>($row['status'] ?? '')==='completed'))];
 $progress_items = [
     ['Required hours', (float)$student['rendered_hours'], (float)$student['required_hours']],
     ['Requirements approved', (int)$progress_req['done'], (int)$progress_req['total']],
