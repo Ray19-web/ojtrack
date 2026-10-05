@@ -382,19 +382,27 @@ require_once __DIR__ . '/../includes/header.php';
           </td>
           <td><?= status_badge($s['ojt_status']) ?></td>
           <td onclick="stopRowClick(event)">
-            <div style="display:flex;gap:4px;align-items:center">
+            <div class="table-actions">
               <?php if ($is_arch): ?>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Restore this student to active status?')"><?= csrf_field() ?>
+                <form method="POST" onsubmit="return confirm('Restore this student to active status?')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="restore_student">
                   <input type="hidden" name="student_id" value="<?= (int)$s['id'] ?>">
-                  <button type="submit" class="btn btn-secondary btn-xs" style="color:var(--success);border-color:var(--success);font-weight:600">Restore</button>
+                  <button type="submit" class="table-action-icon is-success" title="Restore student" aria-label="Restore student">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                  </button>
                 </form>
               <?php else: ?>
-                <button type="button" class="btn btn-secondary btn-xs" onclick='openAssignModal(<?= htmlspecialchars(json_encode($modal_payload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Assign / Edit</button>
-                <form method="POST" style="display:inline" onsubmit="return confirm('Are you sure you want to archive this student? All historical logs, hours, and evaluations will be preserved.')"><?= csrf_field() ?>
+                <button type="button" class="table-action-icon is-primary"
+                        title="Assign or edit student placement" aria-label="Assign or edit student placement"
+                        onclick='openAssignModal(<?= htmlspecialchars(json_encode($modal_payload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+                <form method="POST" onsubmit="return confirm('Are you sure you want to archive this student? All historical logs, hours, and evaluations will be preserved.')"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="archive_student">
                   <input type="hidden" name="student_id" value="<?= (int)$s['id'] ?>">
-                  <button type="submit" class="btn btn-warning btn-xs">Archive</button>
+                  <button type="submit" class="table-action-icon is-warning" title="Archive student" aria-label="Archive student">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M9 13h6"/></svg>
+                  </button>
                 </form>
               <?php endif; ?>
             </div>
