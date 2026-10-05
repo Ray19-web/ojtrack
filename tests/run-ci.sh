@@ -154,3 +154,8 @@ php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/rollback-normalized-phas
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --dry-run
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/phase9-retirement.php
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/cleanup-normalized-migration-artifacts.php --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/cleanup-normalized-migration-artifacts.php --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/cleanup-normalized-migration-artifacts.php --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/cleanup-normalized-artifacts.php
+python3 tests/phase9-web-smoke.py
