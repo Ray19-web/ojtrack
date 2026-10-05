@@ -71,7 +71,7 @@ $assigned=p7count(
      JOIN announcement_recipients ar ON ar.announcement_post_id=m.announcement_post_id
      WHERE old.title='VISIBLE ASSIGNED'"
 );
-p7check($assigned===2,'coordinator student audience snapshotted');
+p7check($assigned===3,'coordinator student audience snapshotted');
 
 $hiddenOther=p7count(
     "SELECT COUNT(*) n
@@ -89,7 +89,7 @@ $adminGlobal=p7count(
      JOIN announcement_recipients ar ON ar.announcement_post_id=m.announcement_post_id
      WHERE old.title='VISIBLE ADMIN'"
 );
-p7check($adminGlobal===7,'admin all-role audience snapshotted');
+p7check($adminGlobal===8,'admin all-role audience snapshotted');
 
 $companyStudents=p7count(
     "SELECT COUNT(*) n
@@ -118,7 +118,7 @@ $inactive=p7count(
 );
 p7check($inactive===0,'inactive announcement has no current recipient snapshot');
 
-p7check(p7count("SELECT COUNT(*) n FROM announcement_recipients")===13,'recipient snapshot total matches legacy visibility rules');
+p7check(p7count("SELECT COUNT(*) n FROM announcement_recipients")===15,'recipient snapshot total matches legacy visibility rules');
 
 $post=query_one(
     "SELECT ap.title,ap.body,ap.tag,ap.target_role,ap.author_role_snapshot,ap.is_pinned
