@@ -26,8 +26,8 @@ query("INSERT INTO evaluation_forms
 
 query("INSERT INTO eval_rating_rules(id,form_id,score_min,score_max,equivalent,description)
        VALUES
-       (1,1,90,100,1.25,'Excellent'),
-       (2,1,80,89,1.50,'Very Good')");
+       (1,4,90,100,1.25,'Excellent'),
+       (2,4,80,89,1.50,'Very Good')");
 
 query("UPDATE eval_submissions
        SET status='completed',overall_score=92.50,overall_equivalent=1.25,
