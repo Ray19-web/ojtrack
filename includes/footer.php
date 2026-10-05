@@ -52,41 +52,72 @@
 <?php endif; ?>
 
 <!-- Profile Modal -->
-<div class="modal-overlay" id="profileModal">
-  <div class="modal modal-lg">
-    <div class="modal-title"><?= e($profile_title) ?></div>
-    <p class="modal-sub"><?= e($profile_modal_sub) ?></p>
-
-    <?php if ($flash_success): ?>
-      <div class="alert alert-success mb-3"><div class="alert-body"><p><?= e($flash_success) ?></p></div></div>
-    <?php endif; ?>
-    <?php if ($flash_error): ?>
-      <div class="alert alert-error mb-3"><div class="alert-body"><p><?= e($flash_error) ?></p></div></div>
-    <?php endif; ?>
-
-    <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border-light)">
-      <div style="text-align:center">
-        <?php if (!empty($ap_avatar)): ?>
-          <img src="/ojtrack/uploads/<?= e($ap_avatar) ?>" alt="Profile" class="sidebar-avatar-img" style="width:72px;height:72px;margin:0 auto 8px;display:block">
-        <?php else: ?>
-          <div class="avatar avatar-xl mb-2 mx-auto" style="width:72px;height:72px;font-size:22px"><?= e($initials) ?></div>
-        <?php endif; ?>
-        <div class="text-xs text-muted"><?= status_badge($profile_user['status'] ?? 'active') ?></div>
+<div class="modal-overlay" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+  <div class="modal modal-lg profile-modal">
+    <div class="profile-modal-header">
+      <div>
+        <div class="modal-title" id="profileModalTitle"><?= e($profile_title) ?></div>
+        <p class="modal-sub profile-modal-sub"><?= e($profile_modal_sub) ?></p>
       </div>
-      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" enctype="multipart/form-data" style="flex:1"><?= csrf_field() ?>
-        <input type="hidden" name="action" value="upload_avatar">
-        <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
-        <label class="form-label">Profile Picture</label>
-        <input type="file" name="avatar" class="form-control" accept="image/jpeg,image/png,image/gif,image/webp" required>
-        <div class="text-xs text-muted mt-1 mb-2">JPG, PNG, GIF, or WEBP · Max 5MB</div>
-        <button type="submit" class="btn btn-secondary btn-sm">Upload Photo</button>
-      </form>
+      <button type="button" class="profile-modal-close" onclick="closeModal('profileModal')" aria-label="Close profile settings">×</button>
     </div>
 
-    <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" class="mb-4"><?= csrf_field() ?>
-      <input type="hidden" name="action" value="update_profile">
-      <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
-      <div class="form-row">
+    <?php if ($flash_success): ?>
+      <div class="alert alert-success profile-modal-alert"><div class="alert-body"><p><?= e($flash_success) ?></p></div></div>
+    <?php endif; ?>
+    <?php if ($flash_error): ?>
+      <div class="alert alert-error profile-modal-alert"><div class="alert-body"><p><?= e($flash_error) ?></p></div></div>
+    <?php endif; ?>
+
+    <section class="profile-photo-card">
+      <div class="profile-avatar-column">
+        <div class="profile-avatar-preview" id="profileAvatarPreview">
+          <?php if (!empty($ap_avatar)): ?>
+            <img src="/ojtrack/uploads/<?= e($ap_avatar) ?>" alt="<?= e($profile_user['name'] ?? 'Profile') ?> profile photo" class="profile-avatar-preview-img">
+          <?php else: ?>
+            <div class="profile-avatar-preview-fallback"><?= e($initials) ?></div>
+          <?php endif; ?>
+        </div>
+        <div class="profile-avatar-status"><?= status_badge($profile_user['status'] ?? 'active') ?></div>
+      </div>
+
+      <div class="profile-photo-content">
+        <div class="profile-photo-title">Profile picture</div>
+        <p class="profile-photo-help">Choose a clear square photo. You’ll see a preview here before anything is saved.</p>
+
+        <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" enctype="multipart/form-data" class="profile-avatar-form" id="profileAvatarForm">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="upload_avatar">
+          <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
+          <input type="file" name="avatar" id="profileAvatarInput" class="profile-avatar-input" accept="image/jpeg,image/png,image/gif,image/webp" required>
+
+          <div class="profile-avatar-actions">
+            <label for="profileAvatarInput" class="btn btn-secondary btn-sm profile-photo-picker">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Choose Photo
+            </label>
+            <button type="submit" class="btn btn-primary btn-sm" id="profileAvatarSave" disabled>Save Photo</button>
+          </div>
+
+          <div class="profile-avatar-file" id="profileAvatarFileName">JPG, PNG, GIF, or WEBP · Max 5MB</div>
+        </form>
+      </div>
+    </section>
+
+    <section class="profile-settings-section">
+      <div class="profile-section-heading">
+        <div>
+          <div class="profile-section-title">Account details</div>
+          <div class="profile-section-sub">Keep your profile information accurate and up to date.</div>
+        </div>
+      </div>
+
+      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php"><?= csrf_field() ?>
+        <input type="hidden" name="action" value="update_profile">
+        <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
+        <div class="form-row">
         <?php if ($role === 'company'): ?>
         <div class="form-group">
           <label class="form-label">Company Name <span class="text-danger">*</span></label>
@@ -129,13 +160,19 @@
         </div>
       </div>
       <?php endif; ?>
-      <div class="form-actions-right">
-        <button type="submit" class="btn btn-primary btn-sm">Save Profile</button>
-      </div>
-    </form>
+        <div class="profile-section-actions">
+          <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+        </div>
+      </form>
+    </section>
 
-    <div style="border-top:1px solid var(--border-light);padding-top:14px">
-      <div class="section-title mb-2" style="font-size:14px">Change Password</div>
+    <section class="profile-settings-section profile-password-section">
+      <div class="profile-section-heading">
+        <div>
+          <div class="profile-section-title">Password & security</div>
+          <div class="profile-section-sub">Use your current password to set a new one.</div>
+        </div>
+      </div>
       <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php"><?= csrf_field() ?>
         <input type="hidden" name="action" value="change_password">
         <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
@@ -153,12 +190,12 @@
             <input type="password" name="confirm_password" class="form-control" minlength="6" required>
           </div>
         </div>
-        <div class="modal-footer" style="padding-left:0;padding-right:0">
+        <div class="profile-section-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal('profileModal')">Close</button>
           <button type="submit" class="btn btn-primary">Update Password</button>
         </div>
       </form>
-    </div>
+    </section>
   </div>
 </div>
 
