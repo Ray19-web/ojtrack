@@ -4144,7 +4144,12 @@ body.role-admin .coordinator-empty {
 
 /* ── Shared minimalist announcement UI ───────────────────── */
 .announcement-management-card{overflow:hidden}
-.announcement-modal{max-width:760px;padding:0;overflow:hidden;border:1px solid #e4e9f0;border-radius:18px;box-shadow:0 24px 64px rgba(15,23,42,.18)}
+.announcement-management-card .card-header{padding:15px 18px;border-bottom-color:#edf0f4;background:#fff}
+.announcement-management-card th{font-size:10.5px}
+.announcement-management-card td{vertical-align:middle}
+.announcement-management-card tbody tr{transition:background-color .14s ease}
+.announcement-management-card tbody tr.row-clickable:hover{background:#f8fafc}
+.announcement-modal{max-width:760px;padding:0;overflow-x:hidden;overflow-y:auto;border:1px solid #e4e9f0;border-radius:18px;box-shadow:0 24px 64px rgba(15,23,42,.18)}
 .announcement-modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 26px 18px;border-bottom:1px solid #edf0f4;background:#fff}
 .announcement-modal-header>div{min-width:0}
 .announcement-modal .modal-title{margin:0;color:var(--text-900);font-size:19px;line-height:1.3}
