@@ -52,19 +52,70 @@ s=Client(4);onboard=Client(8);company=Client(3);admin=Client(1);coord=Client(2)
 report_id=int(sql("SELECT COALESCE(MAX(id),0)+1 FROM reports"))
 sql(f"INSERT INTO reports(id,student_id,report_name,report_type) VALUES({report_id},1,'Synthetic upload report','final')")
 pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF'
-# MIME spoof, empty upload and explicit no-file submission.
+# MIME spoof, empty upload and explicit no-file submission use normalized assignments.
+req_id=int(sql("SELECT requirement_assignment_id FROM legacy_requirement_migration_map WHERE legacy_requirement_id=3"))
+foreign_req_id=int(sql("SELECT requirement_assignment_id FROM legacy_requirement_migration_map WHERE legacy_requirement_id=2"))
 for name,content in [('fake.pdf',b'<?php echo "bad"; ?>'),('fake.jpg',b'not an image'),('empty.pdf',b'')]:
-    check(s.post('student/requirements.php',{'action':'upload','req_id':3},[('document',name,content)])[0]==422,'reject '+name)
-check(sql('SELECT submitted_at IS NULL FROM ojt_requirements WHERE id=3')=='1','invalid files do not submit')
-check(s.post('student/requirements.php',{'action':'upload','req_id':3})[0]==422,'no phantom submission')
-check(s.post('student/requirements.php',{'action':'upload','req_id':2},[('document','valid.pdf',pdf)])[0]==404,'foreign assignment denied')
-check(s.post('student/requirements.php',{'action':'upload','req_id':3},[('document','valid.pdf',pdf)])[0]==200,'valid PDF upload')
-path=sql('SELECT file_path FROM ojt_requirements WHERE id=3')
-check(bool(re.search(r'_[0-9a-f]{32}\.pdf$',path)),'random file name')
+    check(s.post('student/requirements.php',{'action':'upload','req_id':req_id},[('document',name,content)])[0]==422,'reject '+name)
+check(sql(f"SELECT COUNT(*) FROM requirement_submissions WHERE requirement_assignment_id={req_id}")=='0','invalid files do not submit')
+check(s.post('student/requirements.php',{'action':'upload','req_id':req_id})[0]==422,'no phantom submission')
+check(s.post('student/requirements.php',{'action':'upload','req_id':foreign_req_id},[('document','valid.pdf',pdf)])[0]==404,'foreign assignment denied')
+check(s.post('student/requirements.php',{'action':'upload','req_id':req_id},[('document','valid.pdf',pdf)])[0]==200,'valid PDF upload')
+path=sql(f"""SELECT a.storage_key
+FROM requirement_submissions rs
+JOIN requirement_submission_attachments rsa ON rsa.requirement_submission_id=rs.id
+JOIN attachments a ON a.id=rsa.attachment_id
+WHERE rs.requirement_assignment_id={req_id}
+ORDER BY rs.version_no DESC,a.id LIMIT 1""")
+check(bool(re.search(r'_[0-9a-f]{32}\.pdf
+# Images normalized before storage; payload removed.
+image=png()+b'<?php synthetic_tail ?>'
+for who,role in [(s,'student'),(company,'company'),(admin,'admin'),(coord,'coordinator')]:
+    check(who.post(role+'/profile.php',{'action':'upload_avatar'},[('avatar','picture.png',image)])[0]==200,role+' avatar accepted')
+for uid in [1,2,3,4]:
+    path=sql(f'SELECT avatar FROM users WHERE id={uid}')
+    check(b'synthetic_tail' not in (ROOT/'uploads'/path).read_bytes(),'image payload removed '+str(uid))
+check(company.post('company/certificate.php',{'action':'save_template'},[('logo','logo.svg',b'<svg xmlns="http://www.w3.org/2000/svg"/>')])[0]==422,'SVG rejected')
+check(company.post('company/certificate.php',{'action':'save_template'},[('logo','logo.png',png())])[0]==200,'raster logo accepted')
+# Office ZIP type matching and macro rejection.
+for name,content in [('fake.docx',b'PKinvalid'),('macro.docx',office(macro=True)),('wrong.xlsx',office())]:
+    who=admin if name.endswith('xlsx') else s
+    route='admin/announcements.php' if name.endswith('xlsx') else 'student/reports.php'
+    field='attachment' if name.endswith('xlsx') else 'report_file'
+    data={'action':'post','title':'Bad','body':'Bad','target_role':'all'} if name.endswith('xlsx') else {'action':'submit_report','rep_id':report_id}
+    check(who.post(route,data,[(field,name,content)])[0]==422,'reject Office '+name)
+check(s.post('student/reports.php',{'action':'submit_report','rep_id':report_id},[('report_file','valid.docx',office())])[0]==200,'DOCX accepted')
+check(sql(f'SELECT status FROM reports WHERE id={report_id}')=='for_review','report submitted')
+# Entire onboarding batch is validated before any page mutation.
+old=sql('SELECT file_path FROM ojt_requirements WHERE id=2')
+check(onboard.post('student/onboarding.php',{'action':'upload_all'},[('documents[2]','valid.pdf',pdf),('documents[999]','bad.pdf',b'bad')])[0]==422,'bad batch blocked')
+check(sql('SELECT file_path FROM ojt_requirements WHERE id=2')==old,'batch no partial mutation')
+check(onboard.post('student/onboarding.php',{'action':'upload_all'},[('documents[2]','valid.pdf',pdf)])[0]==200,'valid onboarding batch')
+# Application file limits, journal proof and PHP body limit.
+check(s.post('student/profile.php',{'action':'upload_avatar'},[('avatar','large.png',png()+b'x'*(5*1024*1024))])[0]==422,'5MB image limit')
+journal={'action':'submit_journal','edit_id':1,'entry_date':'2026-09-08','activities':'Upload test','learnings':'Test','challenges':'Test','hours_rendered':8}
+check(s.post('student/journal.php',journal,[('proof_image','proof.png',image)])[0]==200,'journal proof accepted')
+path=sql('SELECT proof_image FROM journal_entries WHERE id=1')
+check(b'synthetic_tail' not in (PRIVATE/path).read_bytes(),'journal proof normalized')
+check(not (ROOT/'uploads'/path).exists(),'new journal proof stays outside public uploads')
+check(s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(11*1024*1024))])[0]==422,'PHP upload limit handled')
+try:
+    status,_=s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(33*1024*1024))])
+    check(status==413,'PHP post limit handled')
+except urllib.error.URLError as error:
+    check(isinstance(error.reason, ConnectionResetError),'oversized request rejected by server')
+    check(s.get('login.php')[0]==200,'server remains healthy after oversized request')
+print({'upload_checks_passed':count,'result':'PASS'})
+,path)),'random file name')
 check((PRIVATE/path).read_bytes()==pdf,'PDF stored')
-sql("UPDATE ojt_requirements SET status='approved' WHERE id=3")
-check(s.post('student/requirements.php',{'action':'upload','req_id':3},[('document','valid.pdf',pdf)])[0]==409,'approved upload preserved')
-check(sql('SELECT file_path FROM ojt_requirements WHERE id=3')==path,'approved file unchanged')
+check(coord.post('coordinator/requirements.php',{'action':'approve','req_id':req_id,'remarks':'Approved by synthetic test'})[0]==200,'normalized requirement approval')
+check(s.post('student/requirements.php',{'action':'upload','req_id':req_id},[('document','valid.pdf',pdf)])[0]==409,'approved upload preserved')
+check(sql(f"""SELECT a.storage_key
+FROM requirement_submissions rs
+JOIN requirement_submission_attachments rsa ON rsa.requirement_submission_id=rs.id
+JOIN attachments a ON a.id=rsa.attachment_id
+WHERE rs.requirement_assignment_id={req_id}
+ORDER BY rs.version_no DESC,a.id LIMIT 1""")==path,'approved file unchanged')
 # Images normalized before storage; payload removed.
 image=png()+b'<?php synthetic_tail ?>'
 for who,role in [(s,'student'),(company,'company'),(admin,'admin'),(coord,'coordinator')]:
