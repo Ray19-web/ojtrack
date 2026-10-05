@@ -217,7 +217,7 @@ $has_avatar = !empty($user_avatar);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= e($page_title) ?> — OJTRACK</title>
-  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261005-logout-polish-v5">
+  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261005-profile-avatar-v6">
   <script>
     (function () {
       try {
