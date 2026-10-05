@@ -302,3 +302,35 @@ Only when the result is `READY`, apply:
 ```powershell
 C:\xampp\php\php.exe bin\migrate-normalized-phase6-evaluations.php --academic-year=2026-2027 --semester=1st --apply
 ```
+
+
+## Migration 007 — certificate templates and announcements
+
+Migration 007 requires migrations 001–006.
+
+Certificate handling:
+- Creates one normalized effective certificate template per company from the same defaults + saved `companies.cert_template` JSON that the current UI uses.
+- Registers a saved company logo in centralized `attachments` metadata when one exists.
+- Does **not** create historical `certificates` rows. Legacy OJTrack renders certificates on demand and never persisted a reliable issuance event, certificate number, rendered snapshot, or issued timestamp. Fabricating those would create false history.
+- Leaves `companies.cert_template` and public logo files unchanged.
+
+Announcement handling:
+- Legacy `announcements` remains untouched.
+- Normalized posts use `announcement_posts` to avoid colliding with the legacy table.
+- Existing attachment files are hashed/registered in `attachments` and linked through `announcement_attachments`; files are not moved.
+- `announcement_recipients` materializes who can currently see each active, unexpired legacy announcement under the existing student/coordinator/company visibility rules and current assignments.
+- Recipient rows are explicitly a migration-time visibility snapshot, not a claim about the original recipients at the time the announcement was first posted.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase7-certificates-announcements.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase7-certificates-announcements.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The migration blocks rather than guessing when a company has an invalid certificate-template owner, certificate JSON is malformed, a referenced logo/announcement file is missing or unreadable, or an announcement has an unsupported author/target.
