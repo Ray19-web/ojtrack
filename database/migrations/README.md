@@ -177,3 +177,51 @@ C:\xampp\php\php.exe bin\migrate-normalized-phase4-requirements.php --academic-y
 ```
 
 The migration blocks rather than guessing if a source row lacks a normalized enrollment, a reviewer ID is invalid, an attachment is missing/unreadable, a file path is invalid, a file exists without a submitted timestamp, or a legacy template match is ambiguous.
+
+
+## Migration 005 — reports
+
+Migration 005 requires migrations 001–004. It converts every legacy `reports` row into a normalized report assignment and, when `submitted_at` exists, submission version 1.
+
+Normalized structure:
+
+```text
+report_templates
+└── report_template_versions
+    └── report_assignments
+        └── report_submissions
+            └── report_submission_attachments
+```
+
+Distinct legacy report name + type pairs share one normalized template/version, while every historical report row remains a separate assignment.
+
+Legacy status mapping:
+
+- pending without submission → assigned, no submission
+- pending/for_review with submission → assigned + submitted
+- rejected with submission → assigned + returned
+- approved with submission → closed + approved
+- approved without submission → waived, no fabricated submission
+
+Legacy `remarks` is inherently ambiguous because the old table used the same field for student notes and coordinator feedback. Migration 005 preserves it without guessing:
+- `pending` / `for_review` submitted rows → `student_note`
+- `approved` / `rejected` submitted rows → `review_notes`
+- unknown/lost prior text is not fabricated
+
+For submitted monthly reports, migration 005 creates `evidence_snapshot` JSON containing the normalized attendance days and latest journal revisions for that month. Because the old system did not save an immutable source snapshot at submission time, migrated snapshots explicitly identify their basis as **current normalized records at migration time, not the original historical submission snapshot**.
+
+Existing report files are not moved or deleted. Their storage key, MIME type, byte size and SHA-256 are registered in `attachments` and linked to the normalized submission.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase5-reports.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase5-reports.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The migration blocks rather than guessing if it finds a missing normalized enrollment, invalid reviewer, file without submission timestamp, missing/unreadable file, invalid path, invalid status/type, or a returned/for-review state without a submission timestamp.
