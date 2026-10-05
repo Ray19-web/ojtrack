@@ -21,6 +21,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
         $assignment = normalized_requirement_get($req_id, $sid);
         if (!$assignment) request_error(404, 'Submission assignment not found.');
         if ($assignment['status'] === 'approved') request_error(409, 'Approved submissions cannot be replaced.');
+        if (($_FILES['document']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE && empty($assignment['file_path'])) {
+            request_error(422, 'Choose a document before submitting this assignment.');
+        }
 
         $file_path = null;
         $original_name = null;
