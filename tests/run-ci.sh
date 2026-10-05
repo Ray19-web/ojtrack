@@ -162,4 +162,5 @@ php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase10-lean-schema.php --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase10-lean-schema.php --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/lean-schema.php
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/lean-schema-writes.php
 python3 tests/phase9-web-smoke.py
