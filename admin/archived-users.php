@@ -121,11 +121,15 @@ require_once __DIR__ . '/../includes/header.php';
           <td class="td-mono text-sm"><?= isset($u['created_at']) ? date('M d, Y', strtotime($u['created_at'])) : '—' ?></td>
           <td><?= status_badge('archived') ?></td>
           <td>
-            <form method="POST" style="display:inline" onsubmit="return confirm('Restore this <?= e($u['role']) ?> account to active status?')"><?= csrf_field() ?>
-              <input type="hidden" name="action" value="restore_user">
-              <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-              <button type="submit" class="btn btn-secondary btn-xs" style="color:var(--success);border-color:var(--success);font-weight:600">Restore</button>
-            </form>
+            <div class="table-actions">
+              <form method="POST" onsubmit="return confirm('Restore this <?= e($u['role']) ?> account to active status?')"><?= csrf_field() ?>
+                <input type="hidden" name="action" value="restore_user">
+                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                <button type="submit" class="table-action-icon is-success" title="Restore account" aria-label="Restore account">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+              </form>
+            </div>
           </td>
         </tr>
         <?php endforeach; ?>
