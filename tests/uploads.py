@@ -83,10 +83,12 @@ ORDER BY rs.version_no DESC,a.id LIMIT 1""")
 check(path_after==path,'approved file unchanged')
 # Images normalized before storage; payload removed.
 image=png()+b'<?php synthetic_tail ?>'
-for who,role in [(s,'student'),(company,'company'),(admin,'admin'),(coord,'coordinator')]:
-    check(who.post(role+'/profile.php',{'action':'upload_avatar'},[('avatar','picture.png',image)])[0]==200,role+' avatar accepted')
-for uid in [1,2,3,4]:
+for who,role,uid in [(s,'student',4),(company,'company',3),(admin,'admin',1),(coord,'coordinator',2)]:
+    status,body=who.post(role+'/profile.php',{'action':'upload_avatar'},[('avatar','picture.png',image)])
+    check(status==200,role+' avatar accepted')
     path=sql(f'SELECT avatar FROM users WHERE id={uid}')
+    check(bool(path) and ('/ojtrack/uploads/'+path) in body,role+' refreshed UI renders saved avatar')
+    check('id="profileAvatarInput"' in body and 'id="profileAvatarSave"' in body,role+' shared avatar controls rendered')
     check(b'synthetic_tail' not in (ROOT/'uploads'/path).read_bytes(),'image payload removed '+str(uid))
 check(company.post('company/certificate.php',{'action':'save_template'},[('logo','logo.svg',b'<svg xmlns="http://www.w3.org/2000/svg"/>')])[0]==422,'SVG rejected')
 check(company.post('company/certificate.php',{'action':'save_template'},[('logo','logo.png',png())])[0]==200,'raster logo accepted')
@@ -105,7 +107,8 @@ check(onboard.post('student/onboarding.php',{'action':'upload_all'},[(f'document
 check(sql(f"SELECT COUNT(*) FROM requirement_submissions WHERE requirement_assignment_id={onboard_req_id}")==before_onboard,'batch no partial mutation')
 check(onboard.post('student/onboarding.php',{'action':'upload_all'},[(f'documents[{onboard_req_id}]','valid.pdf',pdf)])[0]==200,'valid onboarding batch')
 # Application file limits, journal proof and PHP body limit.
-check(s.post('student/profile.php',{'action':'upload_avatar'},[('avatar','large.png',png()+b'x'*(5*1024*1024))])[0]==422,'5MB image limit')
+large_status,large_body=s.post('student/profile.php',{'action':'upload_avatar'},[('avatar','large.png',png()+b'x'*(5*1024*1024))])
+check(large_status==200 and 'profileModal' in large_body and ('5 MB' in large_body or '5MB' in large_body),'avatar validation returns to profile modal with useful error')
 journal={'action':'submit_journal','edit_id':1,'entry_date':'2026-09-08','activities':'Upload test','learnings':'Test','challenges':'Test','hours_rendered':8}
 check(s.post('student/journal.php',journal,[('proof_image','proof.png',image)])[0]==200,'journal proof accepted')
 path=sql("""SELECT a.storage_key
