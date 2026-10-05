@@ -49,8 +49,9 @@ def office(kind='docx',macro=False):
         if macro:z.writestr('word/vbaProject.bin',b'not-a-real-macro')
     return b.getvalue()
 s=Client(4);onboard=Client(8);company=Client(3);admin=Client(1);coord=Client(2)
-report_id=int(sql("SELECT COALESCE(MAX(id),0)+1 FROM reports"))
-sql(f"INSERT INTO reports(id,student_id,report_name,report_type) VALUES({report_id},1,'Synthetic upload report','final')")
+report_id=int(sql("SELECT report_assignment_id FROM legacy_report_migration_map WHERE legacy_report_id=3"))
+onboard_req_id=int(sql("SELECT requirement_assignment_id FROM legacy_requirement_migration_map WHERE legacy_requirement_id=2"))
+huge_req_id=int(sql("SELECT requirement_assignment_id FROM legacy_requirement_migration_map WHERE legacy_requirement_id=7"))
 pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF'
 # MIME spoof, empty upload and explicit no-file submission use normalized assignments.
 req_id=int(sql("SELECT requirement_assignment_id FROM legacy_requirement_migration_map WHERE legacy_requirement_id=3"))
@@ -97,22 +98,27 @@ for name,content in [('fake.docx',b'PKinvalid'),('macro.docx',office(macro=True)
     data={'action':'post','title':'Bad','body':'Bad','target_role':'all'} if name.endswith('xlsx') else {'action':'submit_report','rep_id':report_id}
     check(who.post(route,data,[(field,name,content)])[0]==422,'reject Office '+name)
 check(s.post('student/reports.php',{'action':'submit_report','rep_id':report_id},[('report_file','valid.docx',office())])[0]==200,'DOCX accepted')
-check(sql(f'SELECT status FROM reports WHERE id={report_id}')=='for_review','report submitted')
+check(sql(f"SELECT status FROM report_submissions WHERE report_assignment_id={report_id} ORDER BY version_no DESC,id DESC LIMIT 1")=='submitted','report submitted')
 # Entire onboarding batch is validated before any page mutation.
-old=sql('SELECT file_path FROM ojt_requirements WHERE id=2')
-check(onboard.post('student/onboarding.php',{'action':'upload_all'},[('documents[2]','valid.pdf',pdf),('documents[999]','bad.pdf',b'bad')])[0]==422,'bad batch blocked')
-check(sql('SELECT file_path FROM ojt_requirements WHERE id=2')==old,'batch no partial mutation')
-check(onboard.post('student/onboarding.php',{'action':'upload_all'},[('documents[2]','valid.pdf',pdf)])[0]==200,'valid onboarding batch')
+before_onboard=sql(f"SELECT COUNT(*) FROM requirement_submissions WHERE requirement_assignment_id={onboard_req_id}")
+check(onboard.post('student/onboarding.php',{'action':'upload_all'},[(f'documents[{onboard_req_id}]','valid.pdf',pdf),('documents[999]','bad.pdf',b'bad')])[0]==422,'bad batch blocked')
+check(sql(f"SELECT COUNT(*) FROM requirement_submissions WHERE requirement_assignment_id={onboard_req_id}")==before_onboard,'batch no partial mutation')
+check(onboard.post('student/onboarding.php',{'action':'upload_all'},[(f'documents[{onboard_req_id}]','valid.pdf',pdf)])[0]==200,'valid onboarding batch')
 # Application file limits, journal proof and PHP body limit.
 check(s.post('student/profile.php',{'action':'upload_avatar'},[('avatar','large.png',png()+b'x'*(5*1024*1024))])[0]==422,'5MB image limit')
 journal={'action':'submit_journal','edit_id':1,'entry_date':'2026-09-08','activities':'Upload test','learnings':'Test','challenges':'Test','hours_rendered':8}
 check(s.post('student/journal.php',journal,[('proof_image','proof.png',image)])[0]==200,'journal proof accepted')
-path=sql('SELECT proof_image FROM journal_entries WHERE id=1')
+path=sql("""SELECT a.storage_key
+FROM journal_revisions jr
+JOIN journal_revision_attachments jra ON jra.journal_revision_id=jr.id
+JOIN attachments a ON a.id=jra.attachment_id
+WHERE jr.journal_day_id=1
+ORDER BY jr.revision_no DESC,a.id DESC LIMIT 1""")
 check(b'synthetic_tail' not in (PRIVATE/path).read_bytes(),'journal proof normalized')
 check(not (ROOT/'uploads'/path).exists(),'new journal proof stays outside public uploads')
-check(s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(11*1024*1024))])[0]==422,'PHP upload limit handled')
+check(s.post('student/requirements.php',{'action':'upload','req_id':huge_req_id},[('document','huge.pdf',pdf+b'x'*(11*1024*1024))])[0]==422,'PHP upload limit handled')
 try:
-    status,_=s.post('student/requirements.php',{'action':'upload','req_id':1},[('document','huge.pdf',pdf+b'x'*(33*1024*1024))])
+    status,_=s.post('student/requirements.php',{'action':'upload','req_id':huge_req_id},[('document','huge.pdf',pdf+b'x'*(33*1024*1024))])
     check(status==413,'PHP post limit handled')
 except urllib.error.URLError as error:
     check(isinstance(error.reason, ConnectionResetError),'oversized request rejected by server')
