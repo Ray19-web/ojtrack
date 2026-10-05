@@ -389,7 +389,7 @@ try {
            'supervisor' AS company_role,
            1 AS is_primary,
            CASE WHEN c.status='active' AND u.status='active' THEN 'active' ELSE 'inactive' END AS status,
-           c.created_at
+           u.created_at
          FROM companies c
          JOIN users u ON u.id=c.user_id"
     );
