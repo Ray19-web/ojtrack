@@ -172,9 +172,14 @@ require_once __DIR__ . '/../includes/header.php';
             </td>
             <td class="text-sm" onclick="stopRowClick(event)">
               <?php if (!empty($a['attachment_file'])): ?>
-                <a href="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" target="_blank" class="btn btn-secondary btn-xs">
-                  <?= e($a['attachment_name'] ?: 'View file') ?>
-                </a>
+                <div class="table-actions">
+                  <a href="/ojtrack/uploads/<?= e($a['attachment_file']) ?>" target="_blank"
+                     class="table-action-icon is-primary"
+                     title="View attachment: <?= e($a['attachment_name'] ?: 'Announcement file') ?>"
+                     aria-label="View announcement attachment">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                  </a>
+                </div>
               <?php else: ?>
                 <span class="text-xs text-muted">—</span>
               <?php endif; ?>
