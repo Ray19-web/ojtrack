@@ -54,6 +54,8 @@ php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase1.php --academic-year=2026-2027 --semester=1st --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/phase1-normalization.php
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/seed-phase2-attendance.php
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/resolve-legacy-attendance.php --attendance-id=105 --academic-year=2026-2027 --semester=1st --company-id=1 --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/resolve-legacy-attendance.php --attendance-id=105 --academic-year=2026-2027 --semester=1st --company-id=1 --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase2-attendance.php --academic-year=2026-2027 --semester=1st --dry-run
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase2-attendance.php --academic-year=2026-2027 --semester=1st --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase2-attendance.php --academic-year=2026-2027 --semester=1st --apply
