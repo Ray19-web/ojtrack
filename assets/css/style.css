@@ -1139,6 +1139,69 @@ select.form-control { cursor: pointer; }
 .modal-sub { font-size: 13px; color: var(--text-500); margin-bottom: 20px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
+/* Minimal logout confirmation */
+.logout-modal {
+  max-width: 390px;
+  padding: 28px;
+  text-align: center;
+}
+
+.logout-modal-icon {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.logout-modal-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.logout-modal-sub {
+  margin: 8px auto 0;
+  max-width: 270px;
+  line-height: 1.55;
+}
+
+.logout-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.logout-modal-actions .btn {
+  min-width: 104px;
+}
+
+.user-dropdown-menu button.user-dropdown-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (max-width: 520px) {
+  .logout-modal {
+    padding: 24px 20px;
+  }
+
+  .logout-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .logout-modal-actions .btn {
+    width: 100%;
+  }
+}
+
 /* ── Tabs / Filter Pills ─────────────────────────────────── */
 .tab-bar {
   display: flex;
