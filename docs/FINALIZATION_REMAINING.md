@@ -426,3 +426,12 @@ Start from codex/finalization-phase-1. Read this checkpoint and the original aud
 ### Phase 8 application cutover checkpoint
 
 The active application data layer is now normalized for training assignment/progress, attendance, journals, requirements, reports, evaluations, announcements and certificate templates/issuance. `008_application_cutover` is a non-destructive checkpoint that verifies legacy mapping parity and normalized referential integrity before Phase 9. It does not delete legacy tables.
+
+
+### Phase 9 reversible legacy retirement checkpoint
+
+The nine-phase normalization/cutover migration sequence is now complete in code. `009_legacy_retirement` performs a reversible quarantine rather than destructive deletion: retired workflow tables are renamed to `legacy_retired_*` only after static live-source scanning reports zero direct legacy SQL references and parity/integrity checks pass. No historical rows are deleted.
+
+CI verifies the sequence end-to-end by retiring the tables, running post-retirement web smoke checks across Admin, Coordinator, Company and Student pages, exercising the structural rollback helper, and retiring the tables again.
+
+This completes the **database migration roadmap**, but it does **not** mean every item in this broader finalization backlog is complete. Remaining items such as core identity-column cleanup, additional constraints/indexes, messaging transaction hardening, UI/accessibility cleanup, certificate revocation/reissue policy and final UAT should continue to be tracked separately before production deployment.
