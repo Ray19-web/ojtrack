@@ -139,9 +139,12 @@ require_once __DIR__ . '/../includes/header.php';
             </td>
             <td>
               <?php if (!empty($r['file_path'])): ?>
-                <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank" class="btn btn-secondary btn-sm" title="View attached report">
-                  View
-                </a>
+                <div class="table-actions">
+                  <a href="/ojtrack/download.php?file=<?= rawurlencode($r['file_path']) ?>" target="_blank"
+                     class="table-action-icon is-primary" title="View attached report" aria-label="View attached report">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+                  </a>
+                </div>
               <?php else: ?>
                 <span class="text-xs text-muted">No file</span>
               <?php endif; ?>
