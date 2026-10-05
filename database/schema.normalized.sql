@@ -283,19 +283,20 @@ CREATE TABLE journal_revision_attachments (
   CONSTRAINT fk_jra_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE requirement_templates (
+CREATE TABLE requirement_definitions (
   id INT NOT NULL AUTO_INCREMENT,
-  created_by INT NOT NULL,
+  created_by INT DEFAULT NULL,
   title VARCHAR(200) NOT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  CONSTRAINT fk_requirement_templates_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+  KEY idx_requirement_definitions_title (title),
+  CONSTRAINT fk_requirement_definitions_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE requirement_template_versions (
+CREATE TABLE requirement_definition_versions (
   id INT NOT NULL AUTO_INCREMENT,
-  requirement_template_id INT NOT NULL,
+  requirement_definition_id INT NOT NULL,
   version_no INT NOT NULL,
   description TEXT DEFAULT NULL,
   instructions TEXT DEFAULT NULL,
@@ -303,24 +304,25 @@ CREATE TABLE requirement_template_versions (
   published_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_requirement_template_version (requirement_template_id, version_no),
-  CONSTRAINT fk_requirement_template_versions_template FOREIGN KEY (requirement_template_id) REFERENCES requirement_templates(id) ON DELETE RESTRICT
+  UNIQUE KEY uq_requirement_definition_version (requirement_definition_id, version_no),
+  CONSTRAINT fk_requirement_definition_versions_definition FOREIGN KEY (requirement_definition_id) REFERENCES requirement_definitions(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_assignments (
   id BIGINT NOT NULL AUTO_INCREMENT,
-  requirement_template_version_id INT NOT NULL,
+  requirement_definition_version_id INT NOT NULL,
   ojt_enrollment_id INT NOT NULL,
-  assigned_by INT NOT NULL,
+  assigned_by INT DEFAULT NULL,
   due_date DATE DEFAULT NULL,
+  assignment_note TEXT DEFAULT NULL,
   status ENUM('assigned','closed','waived') NOT NULL DEFAULT 'assigned',
-  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  assigned_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_requirement_assignment (requirement_template_version_id, ojt_enrollment_id),
   KEY idx_requirement_assignments_enrollment (ojt_enrollment_id, status),
-  CONSTRAINT fk_requirement_assignments_version FOREIGN KEY (requirement_template_version_id) REFERENCES requirement_template_versions(id) ON DELETE RESTRICT,
+  KEY idx_requirement_assignments_version (requirement_definition_version_id),
+  CONSTRAINT fk_requirement_assignments_version FOREIGN KEY (requirement_definition_version_id) REFERENCES requirement_definition_versions(id) ON DELETE RESTRICT,
   CONSTRAINT fk_requirement_assignments_enrollment FOREIGN KEY (ojt_enrollment_id) REFERENCES ojt_enrollments(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_requirement_assignments_assigner FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE RESTRICT
+  CONSTRAINT fk_requirement_assignments_assigner FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_submissions (
@@ -329,7 +331,7 @@ CREATE TABLE requirement_submissions (
   version_no INT NOT NULL,
   submitted_by INT NOT NULL,
   status ENUM('submitted','returned','approved') NOT NULL DEFAULT 'submitted',
-  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  submitted_at TIMESTAMP NOT NULL,
   reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
