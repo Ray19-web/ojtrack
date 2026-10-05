@@ -110,6 +110,12 @@ function status_badge($status) {
         'inactive'    => ['Inactive',    'badge-inactive'],
         'archived'    => ['Archived',    'badge-archived'],
         'for_review'  => ['For Review',  'badge-review'],
+        'submitted'   => ['Submitted',   'badge-review'],
+        'returned'    => ['Returned',    'badge-rejected'],
+        'assigned'    => ['Assigned',    'badge-pending'],
+        'closed'      => ['Closed',      'badge-approved'],
+        'waived'      => ['Waived',      'badge-approved'],
+        'cancelled'   => ['Cancelled',   'badge-inactive'],
         'present'     => ['Present',     'badge-approved'],
         'absent'      => ['Absent',      'badge-rejected'],
         'excused'     => ['Excused',     'badge-pending'],
@@ -279,3 +285,6 @@ function generate_student_id() {
 function generate_coordinator_id() {
     return generate_next_id('C', 'coordinators', 'coordinator_id_no');
 }
+
+
+require_once __DIR__ . '/normalized.php';
