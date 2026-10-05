@@ -5,7 +5,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 CREATE TABLE schema_migrations (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id BIGINT NOT NULL AUTO_INCREMENT,
   version VARCHAR(50) NOT NULL,
   description VARCHAR(255) NOT NULL,
   applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -14,7 +14,7 @@ CREATE TABLE schema_migrations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE users (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id INT NOT NULL AUTO_INCREMENT,
   name VARCHAR(100) NOT NULL,
   email VARCHAR(150) NOT NULL,
   password VARCHAR(255) NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE programs (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id INT NOT NULL AUTO_INCREMENT,
   code VARCHAR(50) NOT NULL,
   name VARCHAR(150) NOT NULL,
   department_name VARCHAR(150) DEFAULT NULL,
@@ -41,14 +41,14 @@ CREATE TABLE programs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE academic_terms (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id INT NOT NULL AUTO_INCREMENT,
   academic_year_start SMALLINT UNSIGNED NOT NULL,
   academic_year_end SMALLINT UNSIGNED NOT NULL,
   semester ENUM('1st','2nd','summer') NOT NULL,
   starts_on DATE DEFAULT NULL,
   ends_on DATE DEFAULT NULL,
   status ENUM('draft','active','closed') NOT NULL DEFAULT 'draft',
-  created_by INT UNSIGNED DEFAULT NULL,
+  created_by INT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_academic_term (academic_year_start, academic_year_end, semester),
@@ -56,8 +56,8 @@ CREATE TABLE academic_terms (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE students (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
   student_id_no VARCHAR(30) NOT NULL,
   contact_number VARCHAR(30) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -69,8 +69,8 @@ CREATE TABLE students (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE coordinators (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
   coordinator_id_no VARCHAR(50) DEFAULT NULL,
   department VARCHAR(100) DEFAULT NULL,
   contact_number VARCHAR(30) DEFAULT NULL,
@@ -83,7 +83,7 @@ CREATE TABLE coordinators (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE companies (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id INT NOT NULL AUTO_INCREMENT,
   company_name VARCHAR(150) NOT NULL,
   location VARCHAR(255) DEFAULT NULL,
   contact_number VARCHAR(30) DEFAULT NULL,
@@ -97,9 +97,9 @@ CREATE TABLE companies (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE company_users (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  company_id INT UNSIGNED NOT NULL,
-  user_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  company_id INT NOT NULL,
+  user_id INT NOT NULL,
   position_title VARCHAR(100) DEFAULT NULL,
   company_role ENUM('supervisor','hr','manager','other') NOT NULL DEFAULT 'supervisor',
   is_primary TINYINT(1) NOT NULL DEFAULT 0,
@@ -113,12 +113,12 @@ CREATE TABLE company_users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE ojt_enrollments (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  student_id INT UNSIGNED NOT NULL,
-  academic_term_id INT UNSIGNED NOT NULL,
-  program_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  student_id INT NOT NULL,
+  academic_term_id INT NOT NULL,
+  program_id INT NOT NULL,
   year_level VARCHAR(30) DEFAULT NULL,
-  required_hours INT UNSIGNED NOT NULL DEFAULT 486,
+  required_hours INT NOT NULL DEFAULT 486,
   status ENUM('pending','not_started','ongoing','on_hold','completed','withdrawn') NOT NULL DEFAULT 'pending',
   onboarding_completed_at TIMESTAMP NULL DEFAULT NULL,
   status_notes TEXT DEFAULT NULL,
@@ -135,10 +135,10 @@ CREATE TABLE ojt_enrollments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE enrollment_coordinators (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  ojt_enrollment_id INT UNSIGNED NOT NULL,
-  coordinator_id INT UNSIGNED NOT NULL,
-  assigned_by INT UNSIGNED DEFAULT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  ojt_enrollment_id INT NOT NULL,
+  coordinator_id INT NOT NULL,
+  assigned_by INT DEFAULT NULL,
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
@@ -150,13 +150,13 @@ CREATE TABLE enrollment_coordinators (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE placements (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  ojt_enrollment_id INT UNSIGNED NOT NULL,
-  company_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  ojt_enrollment_id INT NOT NULL,
+  company_id INT NOT NULL,
   status ENUM('planned','active','on_hold','completed','terminated','transferred') NOT NULL DEFAULT 'planned',
   starts_on DATE DEFAULT NULL,
   ends_on DATE DEFAULT NULL,
-  assigned_by INT UNSIGNED DEFAULT NULL,
+  assigned_by INT DEFAULT NULL,
   notes TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -169,9 +169,9 @@ CREATE TABLE placements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE placement_supervisors (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  placement_id INT UNSIGNED NOT NULL,
-  company_user_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  placement_id INT NOT NULL,
+  company_user_id INT NOT NULL,
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
@@ -182,11 +182,11 @@ CREATE TABLE placement_supervisors (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attendance_days (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  placement_id INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  placement_id INT NOT NULL,
   attendance_date DATE NOT NULL,
   status ENUM('present','absent','excused','leave') NOT NULL DEFAULT 'present',
-  credited_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+  credited_minutes INT NOT NULL DEFAULT 0,
   remarks VARCHAR(500) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -196,13 +196,13 @@ CREATE TABLE attendance_days (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attendance_sessions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  attendance_day_id BIGINT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  attendance_day_id BIGINT NOT NULL,
   time_in DATETIME DEFAULT NULL,
   time_out DATETIME DEFAULT NULL,
-  credited_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+  credited_minutes INT NOT NULL DEFAULT 0,
   source ENUM('company','coordinator','migration','correction') NOT NULL DEFAULT 'company',
-  recorded_by INT UNSIGNED DEFAULT NULL,
+  recorded_by INT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_attendance_sessions_day (attendance_day_id),
@@ -211,14 +211,14 @@ CREATE TABLE attendance_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attendance_corrections (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  attendance_day_id BIGINT UNSIGNED NOT NULL,
-  requested_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  attendance_day_id BIGINT NOT NULL,
+  requested_by INT NOT NULL,
   reason TEXT NOT NULL,
   before_state JSON DEFAULT NULL,
   requested_state JSON NOT NULL,
   status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-  reviewed_by INT UNSIGNED DEFAULT NULL,
+  reviewed_by INT DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
   requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
@@ -230,10 +230,10 @@ CREATE TABLE attendance_corrections (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE journal_entries (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  placement_id INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  placement_id INT NOT NULL,
   entry_date DATE NOT NULL,
-  week_number INT UNSIGNED DEFAULT NULL,
+  week_number INT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_journal_entry_day (placement_id, entry_date),
@@ -241,16 +241,16 @@ CREATE TABLE journal_entries (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE journal_revisions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  journal_entry_id BIGINT UNSIGNED NOT NULL,
-  revision_no INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  journal_entry_id BIGINT NOT NULL,
+  revision_no INT NOT NULL,
   activities TEXT NOT NULL,
   learnings TEXT NOT NULL,
   challenges TEXT NOT NULL,
-  claimed_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+  claimed_minutes INT NOT NULL DEFAULT 0,
   status ENUM('draft','submitted','returned','approved') NOT NULL DEFAULT 'draft',
   submitted_at TIMESTAMP NULL DEFAULT NULL,
-  reviewed_by INT UNSIGNED DEFAULT NULL,
+  reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -261,13 +261,13 @@ CREATE TABLE journal_revisions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE attachments (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id BIGINT NOT NULL AUTO_INCREMENT,
   storage_key VARCHAR(500) NOT NULL,
   original_filename VARCHAR(255) NOT NULL,
   detected_mime VARCHAR(150) NOT NULL,
-  size_bytes BIGINT UNSIGNED NOT NULL,
+  size_bytes BIGINT NOT NULL,
   sha256 CHAR(64) NOT NULL,
-  uploaded_by INT UNSIGNED NOT NULL,
+  uploaded_by INT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_attachments_storage_key (storage_key),
@@ -276,16 +276,16 @@ CREATE TABLE attachments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE journal_revision_attachments (
-  journal_revision_id BIGINT UNSIGNED NOT NULL,
-  attachment_id BIGINT UNSIGNED NOT NULL,
+  journal_revision_id BIGINT NOT NULL,
+  attachment_id BIGINT NOT NULL,
   PRIMARY KEY (journal_revision_id, attachment_id),
   CONSTRAINT fk_jra_revision FOREIGN KEY (journal_revision_id) REFERENCES journal_revisions(id) ON DELETE CASCADE,
   CONSTRAINT fk_jra_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_templates (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  created_by INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  created_by INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -294,9 +294,9 @@ CREATE TABLE requirement_templates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_template_versions (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  requirement_template_id INT UNSIGNED NOT NULL,
-  version_no INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  requirement_template_id INT NOT NULL,
+  version_no INT NOT NULL,
   description TEXT DEFAULT NULL,
   instructions TEXT DEFAULT NULL,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
@@ -308,10 +308,10 @@ CREATE TABLE requirement_template_versions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_assignments (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  requirement_template_version_id INT UNSIGNED NOT NULL,
-  ojt_enrollment_id INT UNSIGNED NOT NULL,
-  assigned_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  requirement_template_version_id INT NOT NULL,
+  ojt_enrollment_id INT NOT NULL,
+  assigned_by INT NOT NULL,
   due_date DATE DEFAULT NULL,
   status ENUM('assigned','closed','waived') NOT NULL DEFAULT 'assigned',
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -324,13 +324,13 @@ CREATE TABLE requirement_assignments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_submissions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  requirement_assignment_id BIGINT UNSIGNED NOT NULL,
-  version_no INT UNSIGNED NOT NULL,
-  submitted_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  requirement_assignment_id BIGINT NOT NULL,
+  version_no INT NOT NULL,
+  submitted_by INT NOT NULL,
   status ENUM('submitted','returned','approved') NOT NULL DEFAULT 'submitted',
   submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  reviewed_by INT UNSIGNED DEFAULT NULL,
+  reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
   PRIMARY KEY (id),
@@ -341,16 +341,16 @@ CREATE TABLE requirement_submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE requirement_submission_attachments (
-  requirement_submission_id BIGINT UNSIGNED NOT NULL,
-  attachment_id BIGINT UNSIGNED NOT NULL,
+  requirement_submission_id BIGINT NOT NULL,
+  attachment_id BIGINT NOT NULL,
   PRIMARY KEY (requirement_submission_id, attachment_id),
   CONSTRAINT fk_rsa_submission FOREIGN KEY (requirement_submission_id) REFERENCES requirement_submissions(id) ON DELETE CASCADE,
   CONSTRAINT fk_rsa_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_templates (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  created_by INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  created_by INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -359,9 +359,9 @@ CREATE TABLE report_templates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_template_versions (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  report_template_id INT UNSIGNED NOT NULL,
-  version_no INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  report_template_id INT NOT NULL,
+  version_no INT NOT NULL,
   report_type ENUM('initial','midterm','final','monthly','custom') NOT NULL,
   instructions TEXT DEFAULT NULL,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
@@ -373,10 +373,10 @@ CREATE TABLE report_template_versions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_assignments (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  report_template_version_id INT UNSIGNED NOT NULL,
-  ojt_enrollment_id INT UNSIGNED NOT NULL,
-  assigned_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  report_template_version_id INT NOT NULL,
+  ojt_enrollment_id INT NOT NULL,
+  assigned_by INT NOT NULL,
   period_start DATE DEFAULT NULL,
   period_end DATE DEFAULT NULL,
   due_date DATE DEFAULT NULL,
@@ -390,13 +390,13 @@ CREATE TABLE report_assignments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_submissions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  report_assignment_id BIGINT UNSIGNED NOT NULL,
-  version_no INT UNSIGNED NOT NULL,
-  submitted_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  report_assignment_id BIGINT NOT NULL,
+  version_no INT NOT NULL,
+  submitted_by INT NOT NULL,
   status ENUM('submitted','returned','approved') NOT NULL DEFAULT 'submitted',
   submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  reviewed_by INT UNSIGNED DEFAULT NULL,
+  reviewed_by INT DEFAULT NULL,
   reviewed_at TIMESTAMP NULL DEFAULT NULL,
   review_notes TEXT DEFAULT NULL,
   evidence_snapshot JSON DEFAULT NULL,
@@ -408,16 +408,16 @@ CREATE TABLE report_submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE report_submission_attachments (
-  report_submission_id BIGINT UNSIGNED NOT NULL,
-  attachment_id BIGINT UNSIGNED NOT NULL,
+  report_submission_id BIGINT NOT NULL,
+  attachment_id BIGINT NOT NULL,
   PRIMARY KEY (report_submission_id, attachment_id),
   CONSTRAINT fk_rsp_attachment_submission FOREIGN KEY (report_submission_id) REFERENCES report_submissions(id) ON DELETE CASCADE,
   CONSTRAINT fk_rsp_attachment_file FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_forms (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  created_by INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  created_by INT NOT NULL,
   title VARCHAR(200) NOT NULL,
   description TEXT DEFAULT NULL,
   status ENUM('active','archived') NOT NULL DEFAULT 'active',
@@ -427,11 +427,11 @@ CREATE TABLE evaluation_forms (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_form_versions (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_form_id INT UNSIGNED NOT NULL,
-  version_no INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  evaluation_form_id INT NOT NULL,
+  version_no INT NOT NULL,
   score_mode ENUM('percentage','rating') NOT NULL DEFAULT 'percentage',
-  rating_max INT UNSIGNED NOT NULL DEFAULT 100,
+  rating_max INT NOT NULL DEFAULT 100,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
   published_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -441,31 +441,31 @@ CREATE TABLE evaluation_form_versions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_sections (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_form_version_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  evaluation_form_version_id INT NOT NULL,
   title VARCHAR(200) NOT NULL,
-  sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_evaluation_sections_version_order (evaluation_form_version_id, sort_order),
   CONSTRAINT fk_evaluation_sections_version FOREIGN KEY (evaluation_form_version_id) REFERENCES evaluation_form_versions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_criteria (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_section_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  evaluation_section_id INT NOT NULL,
   criterion_code VARCHAR(80) NOT NULL,
   label VARCHAR(255) NOT NULL,
   description TEXT DEFAULT NULL,
   weight DECIMAL(6,3) NOT NULL DEFAULT 1.000,
-  sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY uq_evaluation_criterion_code (evaluation_section_id, criterion_code),
   CONSTRAINT fk_evaluation_criteria_section FOREIGN KEY (evaluation_section_id) REFERENCES evaluation_sections(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_rating_rules (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_form_version_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  evaluation_form_version_id INT NOT NULL,
   score_min DECIMAL(6,2) NOT NULL,
   score_max DECIMAL(6,2) NOT NULL,
   equivalent DECIMAL(6,2) DEFAULT NULL,
@@ -476,11 +476,11 @@ CREATE TABLE evaluation_rating_rules (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_requests (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_form_version_id INT UNSIGNED NOT NULL,
-  placement_id INT UNSIGNED NOT NULL,
-  evaluator_company_user_id INT UNSIGNED NOT NULL,
-  requested_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  evaluation_form_version_id INT NOT NULL,
+  placement_id INT NOT NULL,
+  evaluator_company_user_id INT NOT NULL,
+  requested_by INT NOT NULL,
   evaluation_kind ENUM('midterm','final','custom') NOT NULL DEFAULT 'custom',
   due_date DATE DEFAULT NULL,
   status ENUM('pending','submitted','cancelled') NOT NULL DEFAULT 'pending',
@@ -495,9 +495,9 @@ CREATE TABLE evaluation_requests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_submissions (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_request_id BIGINT UNSIGNED NOT NULL,
-  submitted_by INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  evaluation_request_id BIGINT NOT NULL,
+  submitted_by INT NOT NULL,
   overall_score DECIMAL(7,2) DEFAULT NULL,
   overall_equivalent DECIMAL(7,2) DEFAULT NULL,
   comments TEXT DEFAULT NULL,
@@ -509,9 +509,9 @@ CREATE TABLE evaluation_submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE evaluation_answers (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  evaluation_submission_id BIGINT UNSIGNED NOT NULL,
-  evaluation_criterion_id INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  evaluation_submission_id BIGINT NOT NULL,
+  evaluation_criterion_id INT NOT NULL,
   criterion_label_snapshot VARCHAR(255) NOT NULL,
   score DECIMAL(7,2) NOT NULL,
   equivalent DECIMAL(7,2) DEFAULT NULL,
@@ -522,12 +522,12 @@ CREATE TABLE evaluation_answers (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE certificate_templates (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  company_id INT UNSIGNED NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  company_id INT NOT NULL,
   name VARCHAR(150) NOT NULL,
   template_body MEDIUMTEXT NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_by INT UNSIGNED NOT NULL,
+  created_by INT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -537,14 +537,14 @@ CREATE TABLE certificate_templates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE certificates (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  placement_id INT UNSIGNED NOT NULL,
-  certificate_template_id INT UNSIGNED DEFAULT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  placement_id INT NOT NULL,
+  certificate_template_id INT DEFAULT NULL,
   certificate_no VARCHAR(100) NOT NULL,
-  issued_by INT UNSIGNED NOT NULL,
+  issued_by INT NOT NULL,
   issued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   rendered_snapshot MEDIUMTEXT NOT NULL,
-  attachment_id BIGINT UNSIGNED DEFAULT NULL,
+  attachment_id BIGINT DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_certificates_no (certificate_no),
   UNIQUE KEY uq_certificates_placement (placement_id),
@@ -555,12 +555,12 @@ CREATE TABLE certificates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE announcements (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id BIGINT NOT NULL AUTO_INCREMENT,
   title VARCHAR(200) NOT NULL,
   body TEXT NOT NULL,
   tag VARCHAR(50) DEFAULT 'General',
   target_role ENUM('all','student','coordinator','company','admin') NOT NULL DEFAULT 'all',
-  created_by INT UNSIGNED NOT NULL,
+  created_by INT NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   is_pinned TINYINT(1) NOT NULL DEFAULT 0,
   expires_at DATE DEFAULT NULL,
@@ -571,27 +571,27 @@ CREATE TABLE announcements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE announcement_attachments (
-  announcement_id BIGINT UNSIGNED NOT NULL,
-  attachment_id BIGINT UNSIGNED NOT NULL,
+  announcement_id BIGINT NOT NULL,
+  attachment_id BIGINT NOT NULL,
   PRIMARY KEY (announcement_id, attachment_id),
   CONSTRAINT fk_announcement_attachments_announcement FOREIGN KEY (announcement_id) REFERENCES announcements(id) ON DELETE CASCADE,
   CONSTRAINT fk_announcement_attachments_attachment FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE message_threads (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  id BIGINT NOT NULL AUTO_INCREMENT,
   name VARCHAR(150) DEFAULT NULL,
   thread_type ENUM('group','direct') NOT NULL DEFAULT 'group',
   description VARCHAR(255) DEFAULT NULL,
-  created_by INT UNSIGNED DEFAULT NULL,
+  created_by INT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   CONSTRAINT fk_message_threads_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE thread_members (
-  thread_id BIGINT UNSIGNED NOT NULL,
-  user_id INT UNSIGNED NOT NULL,
+  thread_id BIGINT NOT NULL,
+  user_id INT NOT NULL,
   joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   left_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (thread_id, user_id),
@@ -601,9 +601,9 @@ CREATE TABLE thread_members (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE messages (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  thread_id BIGINT UNSIGNED NOT NULL,
-  sender_id INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  thread_id BIGINT NOT NULL,
+  sender_id INT NOT NULL,
   message TEXT NOT NULL,
   sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -613,8 +613,8 @@ CREATE TABLE messages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE message_reads (
-  message_id BIGINT UNSIGNED NOT NULL,
-  user_id INT UNSIGNED NOT NULL,
+  message_id BIGINT NOT NULL,
+  user_id INT NOT NULL,
   read_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (message_id, user_id),
   CONSTRAINT fk_message_reads_message FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
@@ -622,8 +622,8 @@ CREATE TABLE message_reads (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE notifications (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id INT UNSIGNED NOT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id INT NOT NULL,
   message TEXT NOT NULL,
   notif_type ENUM('info','warning','error','success') NOT NULL DEFAULT 'info',
   link VARCHAR(500) DEFAULT NULL,
@@ -635,11 +635,11 @@ CREATE TABLE notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE activity_log (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  actor_user_id INT UNSIGNED DEFAULT NULL,
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  actor_user_id INT DEFAULT NULL,
   action VARCHAR(100) NOT NULL,
   entity_type VARCHAR(80) DEFAULT NULL,
-  entity_id BIGINT UNSIGNED DEFAULT NULL,
+  entity_id BIGINT DEFAULT NULL,
   before_data JSON DEFAULT NULL,
   after_data JSON DEFAULT NULL,
   details TEXT DEFAULT NULL,
