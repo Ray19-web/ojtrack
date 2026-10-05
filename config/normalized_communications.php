@@ -317,10 +317,10 @@ function normalized_announcements_admin(string $search=''): array
     $params=[];
     $types='';
     if ($search!=='') {
-        $where.=" AND (ap.title LIKE ? OR ap.body LIKE ? OR u.name LIKE ?)";
+        $where.=" AND (ap.title LIKE ? OR ap.body LIKE ? OR ap.tag LIKE ? OR u.name LIKE ?)";
         $like="%$search%";
-        array_push($params,$like,$like,$like);
-        $types='sss';
+        array_push($params,$like,$like,$like,$like);
+        $types='ssss';
     }
     return query(
         normalized_announcement_select_sql()." WHERE $where ORDER BY ap.is_pinned DESC,ap.created_at DESC",
