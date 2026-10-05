@@ -32,31 +32,31 @@ $otherCoord=query_one(
 );
 lwcheck((bool)$otherCoord,'alternate coordinator available');
 $originalCoordinator=(int)$enrollment['coordinator_id'];
-normalized_upsert_student_training(
+normalized_update_training_assignment(
     (int)$enrollment['student_id'],
-    (int)$enrollment['program_id'],
-    (int)$enrollment['required_hours'],
-    (string)$enrollment['status'],
+    1,
     (int)$otherCoord['id'],
     !empty($enrollment['company_id']) ? (int)$enrollment['company_id'] : null,
+    (int)$enrollment['program_id'],
+    (string)$enrollment['status'],
+    (int)$enrollment['required_hours'],
     $enrollment['starts_on'] ?? null,
     $enrollment['ends_on'] ?? null,
-    'Lean schema write test',
-    1
+    'Lean schema write test'
 );
 $changed=query_one("SELECT coordinator_id FROM ojt_enrollments WHERE id=?",[(int)$enrollment['id']],'i');
 lwcheck((int)$changed['coordinator_id']===(int)$otherCoord['id'],'coordinator changed directly on enrollment');
-normalized_upsert_student_training(
+normalized_update_training_assignment(
     (int)$enrollment['student_id'],
-    (int)$enrollment['program_id'],
-    (int)$enrollment['required_hours'],
-    (string)$enrollment['status'],
+    1,
     $originalCoordinator,
     !empty($enrollment['company_id']) ? (int)$enrollment['company_id'] : null,
+    (int)$enrollment['program_id'],
+    (string)$enrollment['status'],
+    (int)$enrollment['required_hours'],
     $enrollment['starts_on'] ?? null,
     $enrollment['ends_on'] ?? null,
-    'Lean schema write test restore',
-    1
+    'Lean schema write test restore'
 );
 $restored=query_one("SELECT coordinator_id FROM ojt_enrollments WHERE id=?",[(int)$enrollment['id']],'i');
 lwcheck((int)$restored['coordinator_id']===$originalCoordinator,'coordinator restored directly on enrollment');
