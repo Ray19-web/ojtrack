@@ -65,13 +65,17 @@ $artifactTables=[
     'legacy_retired_ojt_requirements',
     'legacy_retired_reports',
     'legacy_retired_evaluations',
+
+    // Legacy evaluation tables must be dropped child-first because they
+    // still retain their original foreign-key relationships after rename.
+    'legacy_retired_eval_answers',
+    'legacy_retired_eval_submissions',
+    'legacy_retired_eval_criteria',
+    'legacy_retired_eval_sections',
+    'legacy_retired_eval_rating_rules',
     'legacy_retired_evaluation_assignments',
     'legacy_retired_evaluation_forms',
-    'legacy_retired_eval_sections',
-    'legacy_retired_eval_criteria',
-    'legacy_retired_eval_rating_rules',
-    'legacy_retired_eval_submissions',
-    'legacy_retired_eval_answers',
+
     'legacy_retired_announcements'
 ];
 
