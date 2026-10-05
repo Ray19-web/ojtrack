@@ -307,12 +307,16 @@ require_once __DIR__ . '/../includes/header.php';
               <td><strong><?= e($r['equivalent']) ?></strong></td>
               <td class="text-sm text-muted"><?= e($r['description']) ?></td>
               <td>
-                <form method="POST" onsubmit="return confirm('Delete this rule?')"><?= csrf_field() ?>
-                  <input type="hidden" name="action" value="delete_rule">
-                  <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
-                  <input type="hidden" name="rule_id" value="<?= $r['id'] ?>">
-                  <button class="btn btn-ghost btn-sm">✕</button>
-                </form>
+                <div class="table-actions">
+                  <form method="POST" onsubmit="return confirm('Delete this rule?')"><?= csrf_field() ?>
+                    <input type="hidden" name="action" value="delete_rule">
+                    <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
+                    <input type="hidden" name="rule_id" value="<?= $r['id'] ?>">
+                    <button type="submit" class="table-action-icon is-danger" title="Delete rating rule" aria-label="Delete rating rule">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>
+                    </button>
+                  </form>
+                </div>
               </td>
             </tr>
             <?php endforeach; ?>
