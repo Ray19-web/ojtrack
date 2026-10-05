@@ -87,6 +87,17 @@ function phase2_snapshot(array $rows): string
     return hash('sha256', json_encode($rows, JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION));
 }
 
+function phase2_table_exists(string $table): bool
+{
+    $row = query_one(
+        "SELECT COUNT(*) n FROM information_schema.tables
+         WHERE table_schema=DATABASE() AND table_name=?",
+        [$table],
+        's'
+    );
+    return (int)($row['n'] ?? 0) === 1;
+}
+
 $phase1 = query_one("SELECT applied_at FROM schema_migrations WHERE version='001_core_identity_and_terms' LIMIT 1");
 if (!$phase1) {
     echo json_encode([
@@ -136,21 +147,70 @@ $legacyRows = query(
 );
 $legacySnapshot = phase2_snapshot($legacyRows);
 
-$unmapped = query(
-    "SELECT a.id attendance_id, a.student_id, a.date, u.name student_name, s.student_id_no,
-            COUNT(p.id) placement_count
-     FROM attendance a
-     JOIN students s ON s.id=a.student_id
-     JOIN users u ON u.id=s.user_id
-     LEFT JOIN ojt_enrollments oe
-       ON oe.student_id=s.id AND oe.academic_term_id=?
-     LEFT JOIN placements p ON p.ojt_enrollment_id=oe.id
-     GROUP BY a.id, a.student_id, a.date, u.name, s.student_id_no
-     HAVING COUNT(p.id) <> 1
-     ORDER BY a.id",
-    [$termId],
-    'i'
-);
+$hasResolutionTable = phase2_table_exists('legacy_attendance_resolutions');
+$mappedRows = [];
+$unmapped = [];
+
+foreach ($legacyRows as $row) {
+    $placementId = 0;
+    $placementCount = 0;
+
+    if ($hasResolutionTable) {
+        $resolution = query_one(
+            "SELECT lar.placement_id
+             FROM legacy_attendance_resolutions lar
+             JOIN placements p ON p.id=lar.placement_id
+             JOIN ojt_enrollments oe ON oe.id=p.ojt_enrollment_id
+             WHERE lar.attendance_id=?
+               AND oe.student_id=?
+               AND oe.academic_term_id=?
+             LIMIT 1",
+            [(int)$row['id'], (int)$row['student_id'], $termId],
+            'iii'
+        );
+        if ($resolution) {
+            $placementId = (int)$resolution['placement_id'];
+            $placementCount = 1;
+        }
+    }
+
+    if ($placementId === 0) {
+        $placements = query(
+            "SELECT p.id
+             FROM placements p
+             JOIN ojt_enrollments oe ON oe.id=p.ojt_enrollment_id
+             WHERE oe.student_id=? AND oe.academic_term_id=?
+             ORDER BY p.id",
+            [(int)$row['student_id'], $termId],
+            'ii'
+        ) ?: [];
+        $placementCount = count($placements);
+        if ($placementCount === 1) {
+            $placementId = (int)$placements[0]['id'];
+        }
+    }
+
+    if ($placementId > 0) {
+        $row['_placement_id'] = $placementId;
+        $mappedRows[] = $row;
+    } else {
+        $student = query_one(
+            "SELECT s.student_id_no, u.name student_name
+             FROM students s JOIN users u ON u.id=s.user_id
+             WHERE s.id=?",
+            [(int)$row['student_id']],
+            'i'
+        );
+        $unmapped[] = [
+            'attendance_id'=>(int)$row['id'],
+            'student_id'=>(int)$row['student_id'],
+            'date'=>$row['date'],
+            'student_name'=>$student['student_name'] ?? '',
+            'student_id_no'=>$student['student_id_no'] ?? '',
+            'placement_count'=>$placementCount,
+        ];
+    }
+}
 
 $invalidStatus = phase2_scalar(
     "SELECT COUNT(*) FROM attendance WHERE status NOT IN ('present','absent','excused') OR status IS NULL"
@@ -222,6 +282,7 @@ if ($dryRun) {
 
 try {
     phase2_ddl($conn, __DIR__ . '/../database/migrations/002_attendance.sql');
+    phase2_ddl($conn, __DIR__ . '/../database/migrations/002a_legacy_attendance_resolution.sql');
 
     $existing = phase2_scalar(
         "SELECT COUNT(*)
@@ -238,16 +299,7 @@ try {
         );
     }
 
-    $mapped = query(
-        "SELECT a.*, p.id AS placement_id
-         FROM attendance a
-         JOIN ojt_enrollments oe
-           ON oe.student_id=a.student_id AND oe.academic_term_id=?
-         JOIN placements p ON p.ojt_enrollment_id=oe.id
-         ORDER BY a.id",
-        [$termId],
-        'i'
-    );
+    $mapped = $mappedRows;
 
     $conn->begin_transaction();
 
@@ -266,7 +318,7 @@ try {
     $sessionsCreated = 0;
 
     foreach ($mapped as $row) {
-        $placementId = (int)$row['placement_id'];
+        $placementId = (int)$row['_placement_id'];
         $date = $row['date'];
         $status = $row['status'];
         $dayMinutes = max(0, (int)round(((float)$row['hours_rendered']) * 60));
@@ -308,43 +360,27 @@ try {
     }
 
     $verification = [
-        'missing_days'=>phase2_scalar(
-            "SELECT COUNT(*)
-             FROM attendance a
-             JOIN ojt_enrollments oe
-               ON oe.student_id=a.student_id AND oe.academic_term_id=?
-             JOIN placements p ON p.ojt_enrollment_id=oe.id
-             LEFT JOIN attendance_days ad
-               ON ad.placement_id=p.id AND ad.attendance_date=a.date
-             WHERE ad.id IS NULL",
-            [$termId],
-            'i'
-        ),
-        'status_mismatches'=>phase2_scalar(
-            "SELECT COUNT(*)
-             FROM attendance a
-             JOIN ojt_enrollments oe
-               ON oe.student_id=a.student_id AND oe.academic_term_id=?
-             JOIN placements p ON p.ojt_enrollment_id=oe.id
-             JOIN attendance_days ad
-               ON ad.placement_id=p.id AND ad.attendance_date=a.date
-             WHERE ad.status<>a.status",
-            [$termId],
-            'i'
-        ),
-        'credited_minute_mismatches'=>phase2_scalar(
-            "SELECT COUNT(*)
-             FROM attendance a
-             JOIN ojt_enrollments oe
-               ON oe.student_id=a.student_id AND oe.academic_term_id=?
-             JOIN placements p ON p.ojt_enrollment_id=oe.id
-             JOIN attendance_days ad
-               ON ad.placement_id=p.id AND ad.attendance_date=a.date
-             WHERE ad.credited_minutes<>ROUND(a.hours_rendered*60)",
-            [$termId],
-            'i'
-        ),
+        'missing_days'=>0,
+        'status_mismatches'=>0,
+        'credited_minute_mismatches'=>0,
     ];
+    foreach ($mappedRows as $legacy) {
+        $day = query_one(
+            "SELECT id,status,credited_minutes
+             FROM attendance_days
+             WHERE placement_id=? AND attendance_date=? LIMIT 1",
+            [(int)$legacy['_placement_id'], $legacy['date']],
+            'is'
+        );
+        if (!$day) {
+            $verification['missing_days']++;
+            continue;
+        }
+        if ($day['status'] !== $legacy['status']) $verification['status_mismatches']++;
+        if ((int)$day['credited_minutes'] !== (int)round(((float)$legacy['hours_rendered'])*60)) {
+            $verification['credited_minute_mismatches']++;
+        }
+    }
 
     if ($daysCreated !== count($legacyRows)) {
         throw new RuntimeException("Verification failed: migrated days=$daysCreated legacy rows=" . count($legacyRows));
