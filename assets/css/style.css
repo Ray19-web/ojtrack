@@ -2720,23 +2720,18 @@ input[type=range] { width: 100%; accent-color: var(--primary); }
   color: var(--text-700);
   text-decoration: none;
   cursor: pointer;
-  transition:
-    background-color .16s ease,
-    color .16s ease,
-    transform .16s ease;
+  transition: background-color .16s ease;
 }
 
 .user-dropdown-item:hover {
-  background: #f1f5f9;
-  color: var(--primary);
+  background: #eef4fb;
   text-decoration: none;
-  transform: translateX(3px);
 }
 
 .user-dropdown-item:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent);
   outline-offset: -2px;
-  background: #f1f5f9;
+  background: #eef4fb;
 }
 
 .user-dropdown-logout {
@@ -2744,9 +2739,8 @@ input[type=range] { width: 100%; accent-color: var(--primary); }
 }
 
 .user-dropdown-logout:hover {
-  background: var(--danger-bg);
+  background: #fff1f2;
   color: var(--danger);
-  transform: translateX(3px);
 }
 
 /* ============================================================
@@ -3234,12 +3228,11 @@ body.role-admin .user-dropdown-header {
 }
 
 body.role-admin .user-dropdown-item:hover {
-  background: rgba(16, 59, 120, 0.08);
-  color: #103b78;
+  background: #eef4fb;
 }
 
 body.role-admin .user-dropdown-logout:hover {
-  background: var(--danger-bg);
+  background: #fff1f2;
   color: var(--danger);
 }
 
