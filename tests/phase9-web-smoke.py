@@ -32,7 +32,8 @@ class Client:
         return r.status,body,r.url
     def login(self,i):
         self.req('login.php')
-        return self.req('login.php',{'action':'login','email':f'test{i}@example.invalid','password':'Synthetic-test-pass-42'})
+        password='Synthetic-new-pass-43' if i==4 else 'Synthetic-test-pass-42'
+        return self.req('login.php',{'action':'login','email':f'test{i}@example.invalid','password':password})
 
 root=Path(__file__).resolve().parents[1]
 for idx,role in [(1,'admin'),(2,'coordinator'),(3,'company'),(4,'student')]:
