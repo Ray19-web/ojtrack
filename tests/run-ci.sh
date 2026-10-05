@@ -70,6 +70,11 @@ php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase4-requirements.php --academic-year=2026-2027 --semester=1st --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase4-requirements.php --academic-year=2026-2027 --semester=1st --apply
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/phase4-requirements.php
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/seed-phase5-reports.php
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase5-reports.php --academic-year=2026-2027 --semester=1st --dry-run
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase5-reports.php --academic-year=2026-2027 --semester=1st --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase5-reports.php --academic-year=2026-2027 --semester=1st --apply
+php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" tests/phase5-reports.php
 # Use the same web-server family as XAMPP and exercise real .htaccess denies.
 php_module="$(find /usr/lib/apache2/modules -maxdepth 1 -name 'libphp*.so' -print -quit)"
 if [[ -z "$php_module" ]]; then echo "Install libapache2-mod-php" >&2; exit 1; fi
