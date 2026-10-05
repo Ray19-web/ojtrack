@@ -232,6 +232,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php endif; ?>
 
-<script src="/ojtrack/assets/js/main.js?v=20261003-phase1"></script>
+<script src="/ojtrack/assets/js/main.js?v=20261005-profile-avatar-v2"></script>
 </body>
 </html>
