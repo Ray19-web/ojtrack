@@ -61,7 +61,10 @@ if (!$conn->query("RENAME TABLE ".implode(', ',$parts))) {
     fwrite(STDERR,"Rollback rename failed: ".$conn->error.PHP_EOL);
     exit(1);
 }
-execute("DELETE FROM schema_migrations WHERE version='009_legacy_retirement'");
+if (!$conn->query("DELETE FROM schema_migrations WHERE version='009_legacy_retirement'")) {
+    fwrite(STDERR,"Rollback checkpoint cleanup failed: ".$conn->error.PHP_EOL);
+    exit(1);
+}
 $out['result']='PASS';
 $out['message']='Legacy table names restored. Normalized application cutover remains in place.';
 echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
