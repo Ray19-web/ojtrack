@@ -6,7 +6,7 @@ require_login(['student']);
 
 $user    = current_user();
 $uid     = (int)$user['id'];
-$student = query_one("SELECT * FROM students WHERE user_id=?", [$uid], 'i');
+$student = normalized_student_context_by_user($uid);
 $sid     = (int)($student['id'] ?? 0);
 
 $success = ''; $error = '';
@@ -30,14 +30,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (!empty($student['ojt_end_date']) && $date > $student['ojt_end_date']) || $hours < 0 || $hours > 24) {
             $error = 'Use a valid training date and hours between 0 and 24.';
         }
-        if ($edit_id && !query_one("SELECT id FROM journal_entries WHERE id=? AND student_id=? AND status IN ('pending','rejected')", [$edit_id, $sid], 'ii')) {
-            request_error(403, 'This journal cannot be edited.');
+        if ($edit_id) {
+            $editable = normalized_journal_get($edit_id, $sid);
+            if (!$editable || !in_array($editable['status'], ['pending','rejected'], true)) {
+                request_error(403, 'This journal cannot be edited.');
+            }
         }
-        if (query_one("SELECT id FROM journal_entries WHERE student_id=? AND entry_date=? AND id!=?", [$sid, $date, $edit_id], 'isi')) $error = 'A journal already exists for this date.';
-        // Optional proof image upload
+
         $proof_image = null;
+        $proof_name = null;
         if (!$error && !empty($_FILES['proof_image']['name']) && ($_FILES['proof_image']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
-            $ext = strtolower(pathinfo($_FILES['proof_image']['name'], PATHINFO_EXTENSION));
+            $proof_name = $_FILES['proof_image']['name'];
+            $ext = strtolower(pathinfo($proof_name, PATHINFO_EXTENSION));
             if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
                 $error = 'Proof image must be a JPG, PNG, GIF, or WEBP file.';
             } else {
@@ -54,66 +58,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $view = 'form';
         } elseif (!$date || !$activities || !$learnings || !$challenges) {
             $error = 'All fields are required.';
+            $view = 'form';
         } else {
             $start = !empty($student['ojt_start_date']) ? strtotime($student['ojt_start_date']) : strtotime($date);
             $week = (int)max(1, floor((strtotime($date) - $start) / (7 * 86400)) + 1);
-            if ($edit_id > 0) {
-                // Edit existing pending entry
-                query(
-                    "UPDATE journal_entries
-                     SET entry_date=?, week_number=?, activities=?, learnings=?, challenges=?, hours_rendered=?, status='pending', reviewed_at=NULL,
-                         proof_image = COALESCE(?, proof_image)
-                     WHERE id=? AND student_id=? AND status IN ('pending','rejected')",
-                    [$date, $week, $activities, $learnings, $challenges, $hours, $proof_image, $edit_id, $sid],
-                    'sisssdsii'
+            try {
+                $savedId = normalized_journal_save(
+                    $sid,$uid,$date,$week,$activities,$learnings,$challenges,$hours,
+                    $edit_id,$proof_image,$proof_name
                 );
-                log_activity($uid, 'Journal Entry Updated', "Date: $date (#$edit_id)");
-                $success = 'Journal entry updated successfully.';
+                log_activity($uid, $edit_id ? 'Journal Revision Submitted' : 'Journal Entry Submitted', "Date: $date (#$savedId)");
+                $success = $edit_id
+                    ? 'Journal revision submitted successfully. Earlier revisions were preserved.'
+                    : 'Journal entry submitted for coordinator verification.';
                 $view = 'list';
-            } else {
-                $existing = query_one("SELECT id FROM journal_entries WHERE student_id=? AND entry_date=?", [$sid, $date], 'is');
-                if ($existing) {
-                    $error = "A journal entry for $date already exists.";
-                } else {
-                    $start = !empty($student['ojt_start_date']) ? strtotime($student['ojt_start_date']) : strtotime($date);
-                    $week = max(1, floor((strtotime($date) - $start) / (7 * 86400)) + 1);
-
-                    insert(
-                        "INSERT INTO journal_entries (student_id, entry_date, week_number, activities, learnings, challenges, hours_rendered, status, proof_image)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-                        [$sid, $date, $week, $activities, $learnings, $challenges, $hours, $proof_image],
-                        'isssssds'
-                    );
-
-                    log_activity($uid, 'Journal Entry Submitted', "Date: $date");
-                    $success = 'Journal entry submitted for coordinator verification.';
-                    $view = 'list';
-                }
+            } catch (DomainException $exception) {
+                $error = $exception->getMessage();
+                $view = 'form';
             }
         }
     } elseif ($action === 'delete_journal') {
-        $del_id = (int)($_POST['del_id'] ?? 0);
-        query("DELETE FROM journal_entries WHERE id=? AND student_id=? AND status IN ('pending','rejected')", [$del_id, $sid], 'ii');
-        log_activity($uid, 'Journal Entry Deleted', "ID: $del_id");
-        $success = 'Journal entry deleted.';
+        $error = 'Submitted journal history is retained for audit. Edit and resubmit the entry instead of deleting it.';
         $view = 'list';
     }
 }
 
-$entries = query("SELECT * FROM journal_entries WHERE student_id=? ORDER BY entry_date DESC", [$sid], 'i') ?: [];
+$entries = normalized_journal_rows_for_student($sid);
 $approved = count(array_filter($entries, fn($e) => $e['status'] === 'approved'));
 $pending  = count(array_filter($entries, fn($e) => $e['status'] === 'pending'));
 $rejected = count(array_filter($entries, fn($e) => $e['status'] === 'rejected'));
 
 $detail = null;
 if ($view === 'detail' && $entry_id > 0) {
-    $detail = query_one("SELECT * FROM journal_entries WHERE id=? AND student_id=?", [$entry_id, $sid], 'ii');
+    $detail = normalized_journal_get($entry_id, $sid);
 }
 
 $edit_entry = null;
 if ($view === 'edit' && $entry_id > 0) {
-    $edit_entry = query_one("SELECT * FROM journal_entries WHERE id=? AND student_id=? AND status IN ('pending','rejected')", [$entry_id, $sid], 'ii');
-    if ($edit_entry) $view = 'form';
+    $edit_entry = normalized_journal_get($entry_id, $sid);
+    if ($edit_entry && in_array($edit_entry['status'], ['pending','rejected'], true)) $view = 'form';
+    else $edit_entry = null;
 }
 
 $page_title = 'Daily Journal';
@@ -126,11 +110,6 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (in_array($detail['status'], ['pending', 'rejected'], true)): ?>
       <div class="flex-items-center gap-2">
         <a href="/ojtrack/student/journal.php?view=edit&id=<?= $detail['id'] ?>" class="btn btn-secondary btn-sm">Edit Entry</a>
-        <form method="POST" style="display:inline" onsubmit="return confirm('Delete this pending journal entry?')"><?= csrf_field() ?>
-          <input type="hidden" name="action" value="delete_journal">
-          <input type="hidden" name="del_id" value="<?= $detail['id'] ?>">
-          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
       </div>
     <?php endif; ?>
   </div>
@@ -261,7 +240,10 @@ require_once __DIR__ . '/../includes/header.php';
 
   <?php
   $today = date('Y-m-d');
-  $today_entry = query_one("SELECT id FROM journal_entries WHERE student_id=? AND entry_date=?", [$sid, $today], 'is');
+  $today_entry = null;
+  foreach ($entries as $entry) {
+      if ($entry['entry_date'] === $today) { $today_entry = $entry; break; }
+  }
   if (!$today_entry):
   ?>
     <div class="alert alert-warn mb-4 flex-between">
