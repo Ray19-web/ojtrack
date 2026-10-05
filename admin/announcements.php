@@ -186,13 +186,17 @@ require_once __DIR__ . '/../includes/header.php';
               <?= format_date($a['created_at']) ?>
             </td>
             <td onclick="stopRowClick(event)">
-              <form method="POST" style="display:inline"><?= csrf_field() ?>
-                <input type="hidden" name="action" value="toggle_pin">
-                <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
-                <button type="submit" class="btn btn-secondary btn-sm" title="<?= $a['is_pinned'] ? 'Unpin' : 'Pin to top' ?>">
-                  <?= $a['is_pinned'] ? 'Unpin' : 'Pin' ?>
-                </button>
-              </form>
+              <div class="table-actions">
+                <form method="POST"><?= csrf_field() ?>
+                  <input type="hidden" name="action" value="toggle_pin">
+                  <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
+                  <button type="submit" class="table-action-icon <?= $a['is_pinned'] ? 'is-primary' : '' ?>"
+                          title="<?= $a['is_pinned'] ? 'Unpin announcement' : 'Pin announcement to top' ?>"
+                          aria-label="<?= $a['is_pinned'] ? 'Unpin announcement' : 'Pin announcement to top' ?>">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-4-4 5-1 4-4 1-3Z"/><path d="m4 20 5-5"/></svg>
+                  </button>
+                </form>
+              </div>
             </td>
           </tr>
         <?php endforeach; ?>
