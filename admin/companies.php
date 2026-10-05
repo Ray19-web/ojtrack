@@ -157,12 +157,20 @@ require_once __DIR__ . '/../includes/header.php';
           <td class="text-center text-success font-bold"><?= $c['active_trainees'] ?></td>
           <td><?= status_badge($c['status']) ?></td>
           <td onclick="stopRowClick(event)">
-            <div style="display:flex;gap:4px">
-              <button type="button" class="btn btn-secondary btn-xs" onclick='openEditCompany(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>Edit</button>
-              <form method="POST" style="display:inline"><?= csrf_field() ?>
+            <div class="table-actions">
+              <button type="button" class="table-action-icon is-primary"
+                      title="Edit company" aria-label="Edit company"
+                      onclick='openEditCompany(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)'>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+              <form method="POST"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="toggle_company">
                 <input type="hidden" name="company_id" value="<?= $c['id'] ?>">
-                <button type="submit" class="btn btn-ghost btn-xs"><?= $c['status'] === 'active' ? 'Deactivate' : 'Activate' ?></button>
+                <button type="submit" class="table-action-icon <?= $c['status'] === 'active' ? 'is-danger' : 'is-success' ?>"
+                        title="<?= $c['status'] === 'active' ? 'Deactivate company' : 'Activate company' ?>"
+                        aria-label="<?= $c['status'] === 'active' ? 'Deactivate company' : 'Activate company' ?>">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>
+                </button>
               </form>
             </div>
           </td>
