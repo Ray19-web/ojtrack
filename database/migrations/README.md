@@ -133,3 +133,47 @@ The preflight blocks instead of guessing if:
 - a journal has an invalid status or hours value.
 
 A successful apply verifies day/revision counts, status mapping, claimed minutes, proof links, and hashes the legacy journal rows before and after to prove the source rows were not changed.
+
+
+## Migration 004 — requirements
+
+Migration 004 requires migrations 001–003. It preserves both legacy requirement sources:
+
+- `requirement_templates` remains the current coordinator library.
+- `ojt_requirements` remains the current assignment/submission table.
+
+The normalized target uses:
+
+```text
+requirement_definitions
+└── requirement_definition_versions
+    └── requirement_assignments
+        └── requirement_submissions
+            └── requirement_submission_attachments
+```
+
+Historical duplicate assignments are kept as separate assignments. They are not merged.
+
+Legacy status mapping:
+
+- pending + submitted_at → open assignment + submitted submission
+- rejected + submitted_at → open assignment + returned submission
+- approved + submitted_at → closed assignment + approved submission
+- approved without submitted_at → waived assignment with no fabricated submission
+- pending without submitted_at → open assignment with no submission
+
+Existing requirement files are not moved or deleted. Their storage key, MIME type, size and SHA-256 hash are registered in `attachments` and linked to the corresponding normalized submission.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase4-requirements.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase4-requirements.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+The migration blocks rather than guessing if a source row lacks a normalized enrollment, a reviewer ID is invalid, an attachment is missing/unreadable, a file path is invalid, a file exists without a submitted timestamp, or a legacy template match is ambiguous.
