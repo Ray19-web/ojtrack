@@ -7,26 +7,37 @@ require_login(['student']);
 $user = current_user();
 $uid  = $user['id'];
 
-$student = query_one("SELECT s.*, u.name, u.email, co.company_name, cu.name AS supervisor_name
-    FROM students s
-    JOIN users u ON u.id = s.user_id
-    LEFT JOIN companies co ON co.id = s.company_id
-    LEFT JOIN users cu ON cu.id = co.user_id
-    WHERE s.user_id = ?", [$uid], 'i');
+$student = normalized_student_context_by_user((int)$uid);
+if (!$student) request_error(404, 'Student profile not found.');
+$student['supervisor_name'] = null;
+if (!empty($student['company_id'])) {
+    $supervisor = query_one(
+        "SELECT u.name FROM companies c JOIN users u ON u.id=c.user_id WHERE c.id=? LIMIT 1",
+        [(int)$student['company_id']],
+        'i'
+    );
+    $student['supervisor_name'] = $supervisor['name'] ?? null;
+}
 
 $pct = $student['required_hours'] > 0
     ? min(100, round(($student['rendered_hours'] / $student['required_hours']) * 100))
     : 0;
 
-$req_total    = query_one("SELECT COUNT(*) AS c FROM ojt_requirements WHERE student_id=?", [$student['id']], 'i')['c'];
-$req_approved = query_one("SELECT COUNT(*) AS c FROM ojt_requirements WHERE student_id=? AND status='approved'", [$student['id']], 'i')['c'];
-$req_pending  = $req_total - $req_approved;
+$requirement_rows = normalized_requirement_rows_for_student((int)$student['id']);
+$req_total = count($requirement_rows);
+$req_approved = count(array_filter($requirement_rows, fn($row) => ($row['status'] ?? '') === 'approved'));
+$req_pending = $req_total - $req_approved;
 
 $notifications = query("SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 5", [$uid], 'i');
 
-$recent_reqs = query("SELECT * FROM ojt_requirements WHERE student_id=? ORDER BY FIELD(status,'rejected','pending','approved') LIMIT 5", [$student['id']], 'i');
+$recent_reqs = $requirement_rows;
+usort($recent_reqs, function($a,$b) {
+    $rank=['rejected'=>0,'pending'=>1,'approved'=>2];
+    return ($rank[$a['status'] ?? 'pending'] ?? 1) <=> ($rank[$b['status'] ?? 'pending'] ?? 1);
+});
+$recent_reqs = array_slice($recent_reqs, 0, 5);
 
-$announcements = query("SELECT a.*, u.name AS author FROM announcements a JOIN users u ON u.id=a.created_by WHERE " . announcement_scope($user) . " ORDER BY a.is_pinned DESC, a.created_at DESC LIMIT 3");
+$announcements = array_slice(normalized_announcements_for_user((int)$uid), 0, 3);
 
 $page_title = 'Student Dashboard';
 require_once __DIR__ . '/../includes/header.php';
@@ -56,7 +67,7 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- Quick Time In Button -->
 <?php
 $today = date('Y-m-d');
-$today_attendance = query_one("SELECT * FROM attendance WHERE student_id=? AND date=?", [$student['id'], $today], 'is');
+$today_attendance = normalized_attendance_for_student_date((int)$student['id'], $today);
 $all_recorded = $today_attendance && $today_attendance['morning_in'] && $today_attendance['morning_out'] && $today_attendance['afternoon_in'] && $today_attendance['afternoon_out'];
 ?>
 <?php if (!$all_recorded): ?>
