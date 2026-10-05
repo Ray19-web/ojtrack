@@ -22,3 +22,24 @@ Each executable migration must:
 - never delete source data in the same migration that first copies it;
 - include a verification query/checklist;
 - be rehearsed against a restored staging copy before production.
+
+
+## Migration 001 — core identity, academic terms and placements
+
+The executable runner is `bin/migrate-normalized-phase1.php`. It is additive: it creates normalized tables and copies current relationships without deleting or changing legacy rows.
+
+Always run the preflight first, using the real academic term represented by the existing student records:
+
+```powershell
+php bin/migrate-normalized-phase1.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply it:
+
+```powershell
+php bin/migrate-normalized-phase1.php --academic-year=2026-2027 --semester=1st --apply
+```
+
+A successful apply returns `PASS` and records `001_core_identity_and_terms` in `schema_migrations`. Running the same command again returns `ALREADY_APPLIED` and does not duplicate records.
+
+If the preflight reports invalid/missing role users, programs, coordinators, companies or duplicate role profiles, fix those legacy records first. The runner refuses to migrate them silently.
