@@ -268,3 +268,37 @@ C:\xampp\php\php.exe bin\migrate-normalized-phase6-evaluations.php --academic-ye
 ```
 
 The migration blocks rather than guessing when a form snapshot/version is inconsistent, criteria cannot be resolved uniquely, a placement/evaluator cannot be mapped exactly, completed rows lack required scores/timestamps, pending rows contain completed data, or transitional assignments exist.
+
+
+## Migration 006 — evaluations
+
+Migration 006 requires migrations 001–005 and preserves both legacy evaluation systems: the fixed six-score `evaluations` table and the dynamic form builder using `evaluation_forms`, `eval_sections`, `eval_criteria`, `eval_rating_rules`, `eval_submissions`, and `eval_answers`.
+
+Normalized structure:
+
+```text
+evaluation_definitions
+└── evaluation_definition_versions
+    ├── evaluation_version_sections
+    │   └── evaluation_version_criteria
+    ├── evaluation_version_rating_rules
+    └── evaluation_requests
+        └── evaluation_submissions
+            └── evaluation_answers
+```
+
+Dynamic forms are migrated as immutable snapshots. Older JSON-only criteria are preserved under a synthetic `Criteria` section. Completed dynamic requests become submissions with exact section/criterion label snapshots; pending requests remain request-only records.
+
+Fixed evaluations are migrated under one archived historical six-criterion form. The transitional `evaluation_assignments` table is intentionally blocked if it contains rows because the current application does not use it and its serialized answers cannot be safely inferred.
+
+Run preflight:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase6-evaluations.php --academic-year=2026-2027 --semester=1st --dry-run
+```
+
+Only when the result is `READY`, apply:
+
+```powershell
+C:\xampp\php\php.exe bin\migrate-normalized-phase6-evaluations.php --academic-year=2026-2027 --semester=1st --apply
+```
