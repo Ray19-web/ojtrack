@@ -143,6 +143,7 @@ for attempt in {1..30}; do
 done
 python3 tests/integration.py
 python3 tests/uploads.py
+php tests/image-sanitizer.php
 python3 tests/migration.py
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --dry-run
 php -d mysqli.default_socket="$OJTRACK_TEST_SOCKET" bin/migrate-normalized-phase9-retire-legacy.php --academic-year=2026-2027 --semester=1st --apply
