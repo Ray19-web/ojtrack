@@ -10,26 +10,7 @@ $coord = query_one("SELECT * FROM coordinators WHERE user_id=?", [$user['id']], 
 $date   = $_GET['date'] ?? date('Y-m-d');
 $search = trim($_GET['q'] ?? '');
 
-$where = "s.coordinator_id=?";
-$params = [$coord['id']];
-$types  = 'i';
-if ($search) {
-    $where .= " AND (u.name LIKE ? OR s.student_id_no LIKE ? OR co.company_name LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'sss';
-}
-
-// All students under this coordinator with attendance for the chosen date
-$records = query("SELECT s.id, s.student_id_no, u.name, s.program, co.company_name,
-    a.time_in, a.time_out, a.hours_rendered, a.status AS att_status, a.remarks
-    FROM students s
-    JOIN users u ON u.id=s.user_id
-    LEFT JOIN companies co ON co.id=s.company_id
-    LEFT JOIN attendance a ON a.student_id=s.id AND a.date=?
-    WHERE $where ORDER BY u.name ASC",
-    array_merge([$date], $params), 's' . $types);
+$records = normalized_attendance_rows_for_coordinator_date((int)$coord['id'], $date, $search);
 
 $totals = [
     'present' => 0, 'absent' => 0, 'excused' => 0, 'logged' => 0, 'total' => count($records)
