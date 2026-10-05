@@ -493,7 +493,7 @@ try {
         $pinned=(int)$ann['is_pinned'];
         $creator=(int)$ann['created_by'];
         $stmt->bind_param(
-            'ssssisisss',
+            'ssssisiiss',
             $ann['title'],$ann['body'],$ann['tag'],$ann['target_role'],$creator,
             $ann['author_role'],$active,$pinned,$ann['expires_at'],$ann['created_at']
         );
