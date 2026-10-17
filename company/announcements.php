@@ -11,6 +11,28 @@ $company = query_one("SELECT * FROM companies WHERE user_id=?", [$uid], 'i');
 $success = '';
 $error   = '';
 
+// require_login() validates file contents and size before this handler runs.
+$save_announcement_upload = function() {
+    if (empty($_FILES['attachment']['name']) || ($_FILES['attachment']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return [null,null];
+    }
+    if (($_FILES['attachment']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new DomainException('Failed to upload the attachment. Please try again.');
+    }
+    $orig=$_FILES['attachment']['name'];
+    $ext=strtolower(pathinfo($orig,PATHINFO_EXTENSION));
+    $allowed=['pdf','doc','docx','jpg','jpeg','png','gif','webp','xls','xlsx','ppt','pptx'];
+    if (!in_array($ext,$allowed,true)) throw new DomainException('Invalid attachment type. Allowed: PDF, DOC, images, and common office files.');
+    if ((int)($_FILES['attachment']['size'] ?? 0)>10*1024*1024) throw new DomainException('Attachment is too large. Maximum size is 10MB.');
+    $dir=__DIR__.'/../uploads/announcements/';
+    if (!is_dir($dir)) mkdir($dir,0755,true);
+    $filename='ann_'.bin2hex(random_bytes(16)).'_'.bin2hex(random_bytes(4)).'.'.$ext;
+    if (!move_uploaded_file($_FILES['attachment']['tmp_name'],$dir.$filename)) {
+        throw new DomainException('Failed to upload the attachment. Please try again.');
+    }
+    return ['announcements/'.$filename,$orig];
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -29,9 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Invalid target audience.';
             } else {
                 $normalizedTarget = $target === 'both' ? 'all' : $target;
-                $postId = normalized_announcement_create(
-                    $uid,$title,$body,$tag,$normalizedTarget,$pinned,$expires
-                );
+                [$attachmentFile, $attachmentName] = $save_announcement_upload();
+                try {
+                    $postId = normalized_announcement_create(
+                        $uid,$title,$body,$tag,$normalizedTarget,$pinned,$expires,$attachmentFile,$attachmentName
+                    );
+                } catch (Throwable $exception) {
+                    // A failed database transaction must not leave an orphaned new upload.
+                    if ($attachmentFile !== null) @unlink(__DIR__ . '/../uploads/' . $attachmentFile);
+                    throw $exception;
+                }
                 foreach (normalized_announcement_recipient_rows($uid,$normalizedTarget) as $recipient) {
                     $link = $recipient['role']==='coordinator'
                         ? '/ojtrack/coordinator/announcements.php'
@@ -74,8 +103,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Announcements &amp; Advisories</div>
-    <div class="page-sub">University announcements and guidelines for company supervisors and industry partners</div>
+    <div class="page-title">Announcements</div>
+    <div class="page-sub">Campus and partner updates</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('composeModal')">+ Post Notice</button>
 </div>
@@ -83,12 +112,9 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
-<div class="card mb-4">
-  <div class="card-header">
-    <div class="card-title">Notices you posted</div>
-    <span class="text-sm text-muted"><?= count($my_notices) ?> items</span>
-  </div>
-  <div class="table-wrap">
+<details class="card mb-4 announcement-authored"<?= $my_notices ? ' open' : '' ?>>
+  <summary><span>Your notices <span class="badge badge-subtle"><?= count($my_notices) ?></span></span><span class="announcement-disclosure" aria-hidden="true">⌄</span></summary>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead><tr><th>Title</th><th>Audience</th><th>Tag</th><th>Date</th><th>Actions</th></tr></thead>
       <tbody>
@@ -97,7 +123,12 @@ require_once __DIR__ . '/../includes/header.php';
         <?php else: ?>
           <?php foreach ($my_notices as $n): ?>
           <tr>
-            <td><strong class="text-sm"><?= e($n['title']) ?></strong></td>
+            <td>
+              <strong class="text-sm"><?= e($n['title']) ?></strong>
+              <?php if (!empty($n['attachment_file'])): ?>
+                <div><a class="text-xs" href="/ojtrack/uploads/<?= e($n['attachment_file']) ?>" target="_blank" rel="noopener">Attachment: <?= e($n['attachment_name'] ?: 'View file') ?></a></div>
+              <?php endif; ?>
+            </td>
             <td><?= $n['target_role'] === 'student' ? 'Trainees' : ($n['target_role'] === 'coordinator' ? 'Coordinators' : ucfirst($n['target_role'])) ?></td>
             <td><span class="text-xs font-bold text-600"><?= e($n['tag'] ?: 'General') ?></span></td>
             <td class="td-mono text-xs"><?= format_date($n['created_at']) ?></td>
@@ -112,10 +143,10 @@ require_once __DIR__ . '/../includes/header.php';
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-4-4 5-1 4-4 1-3Z"/><path d="m4 20 5-5"/></svg>
                   </button>
                 </form>
-                <form method="POST" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
+                <form method="POST" data-confirm-title="Archive this notice?" data-confirm-label="Archive" data-confirm-message="Archive this notice?"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="ann_id" value="<?= $n['id'] ?>">
-                  <button type="submit" class="table-action-icon is-danger" title="Delete notice" aria-label="Delete notice">
+                  <button type="submit" class="table-action-icon is-danger" title="Archive notice" aria-label="Archive notice">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>
                   </button>
                 </form>
@@ -127,7 +158,7 @@ require_once __DIR__ . '/../includes/header.php';
       </tbody>
     </table>
   </div>
-</div>
+</details>
 
 <!-- Compose Notice Modal -->
 <div class="modal-overlay" id="composeModal">
@@ -139,7 +170,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <button type="button" class="announcement-modal-close" onclick="closeModal('composeModal')" aria-label="Close notice form">×</button>
     </div>
-    <form method="POST" class="announcement-form"><?= csrf_field() ?>
+    <form method="POST" enctype="multipart/form-data" class="announcement-form"><?= csrf_field() ?>
       <input type="hidden" name="action" value="post">
       <div class="form-group">
         <label class="form-label">Title <span class="text-danger">*</span></label>
@@ -182,6 +213,15 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="form-label">Message <span class="text-danger">*</span></label>
         <textarea name="body" class="form-control" rows="6" required></textarea>
       </div>
+      <div class="form-group">
+        <label class="form-label" for="company-notice-attachment">Attachment (optional)</label>
+        <div class="upload-area announcement-upload" role="button" tabindex="0" aria-label="Choose a notice attachment" aria-describedby="company-notice-attachment-help">
+          <input id="company-notice-attachment" type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.ppt,.pptx">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/></svg>
+          <div class="upload-title">Choose or drop a file</div>
+          <div class="upload-sub" id="company-notice-attachment-help">JPG, PNG, GIF, WEBP, PDF or Office file · Max 10 MB</div>
+        </div>
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('composeModal')">Cancel</button>
         <button type="submit" class="btn btn-primary">Publish Notice</button>
@@ -190,55 +230,14 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<div class="grid grid-sidebar-main gap-4">
-  <!-- Filter sidebar -->
-  <div>
-    <div class="card card-body mb-4">
-      <div class="section-title mb-3">Filter by Category</div>
-      <div class="space-y-1">
-        <a href="/ojtrack/company/announcements.php<?= $search ? '?q=' . urlencode($search) : '' ?>"
-           class="filter-tag-link <?= empty($tag_filter) ? 'active' : '' ?>">
-          <span>All Announcements</span>
-          <span class="badge badge-subtle"><?= count($announcements) ?></span>
-        </a>
-        <?php foreach ($all_tags as $t): ?>
-          <a href="/ojtrack/company/announcements.php?tag=<?= urlencode($t['tag']) ?><?= $search ? '&q=' . urlencode($search) : '' ?>"
-             class="filter-tag-link <?= $tag_filter === $t['tag'] ? 'active' : '' ?>">
-            <span><?= e($t['tag']) ?></span>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    </div>
-
-    <div class="card card-body">
-      <div class="section-title mb-2">Partner Guidelines</div>
-      <p class="text-xs text-muted leading-relaxed">
-        Stay updated with university OJT schedules, midterm/final evaluation deadlines, and policy reminders regarding intern supervision.
-      </p>
-    </div>
-  </div>
-
-  <!-- Main list -->
+<div class="announcements-layout">
+  <?php require __DIR__ . '/../includes/announcement-filters.php'; ?>
   <div class="space-y-4 announcement-feed">
-    <!-- Search Bar -->
-    <div class="card card-body py-3">
-      <form method="GET" class="flex-items-center gap-3 announcement-search-form">
-        <?php if ($tag_filter): ?><input type="hidden" name="tag" value="<?= e($tag_filter) ?>"><?php endif; ?>
-        <div class="search-wrap flex-1">
-          <input type="text" name="q" class="form-control search-input" placeholder="Search notices by keyword..." value="<?= e($search) ?>">
-        </div>
-        <button type="submit" class="btn btn-secondary">Search</button>
-        <?php if ($search || $tag_filter): ?>
-          <a href="/ojtrack/company/announcements.php" class="btn btn-ghost">Reset</a>
-        <?php endif; ?>
-      </form>
-    </div>
-
     <?php if (empty($announcements)): ?>
       <div class="card card-body text-center py-12">
         <div class="empty-state">
           <div class="font-bold text-base mb-1">No announcements found</div>
-          <p class="text-xs text-muted">There are no notices matching your current search or filter criteria.</p>
+          <p class="text-xs text-muted">No matching notices.</p>
         </div>
       </div>
     <?php else: ?>

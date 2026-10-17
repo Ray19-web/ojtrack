@@ -28,25 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$role_filter = $_GET['role'] ?? '';
-$search      = trim($_GET['q'] ?? '');
-
-$where  = "status='archived'";
-$params = [];
-$types  = '';
-
-if ($role_filter !== '' && in_array($role_filter, ['student', 'coordinator', 'company', 'admin'], true)) {
-    $where .= " AND role=?";
-    $params[] = $role_filter;
-    $types .= 's';
-}
-
-if ($search !== '') {
-    $where .= " AND (name LIKE ? OR email LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= 'ss';
-}
+require_once __DIR__.'/../config/record-filters.php';
+$filters=archived_account_filters($_GET);
+$search=$filters['search']; $role_filter=$filters['role'];
+$where=$filters['where']; $params=$filters['params']; $types=$filters['types'];
 
 $archived_users = query(
     "SELECT * FROM users WHERE $where ORDER BY role, name",
@@ -67,7 +52,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Archived Accounts</div>
-    <div class="page-sub">Accounts removed from active use. Records are preserved and can be restored at any time.</div>
+    <div class="page-sub">Records are preserved. Restore accounts here.</div>
   </div>
   <a href="/ojtrack/admin/users.php" class="btn btn-secondary">← Back to User Management</a>
 </div>
@@ -76,21 +61,20 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
 <div class="card">
-  <div class="card-header flex-between">
-    <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap">
-      <?php if ($role_filter): ?><input type="hidden" name="role" value="<?= e($role_filter) ?>"><?php endif; ?>
-      <div class="search-wrap" style="width:240px">
-        <input type="text" name="q" class="form-control search-input" placeholder="Search name or email..." value="<?= e($search) ?>">
-      </div>
-      <button type="submit" class="btn btn-secondary">Search</button>
-      <?php if ($role_filter || $search): ?>
-        <a href="/ojtrack/admin/archived-users.php" class="btn btn-ghost">Clear</a>
-      <?php endif; ?>
-    </form>
-    <div class="text-sm text-muted"><?= count($archived_users) ?> of <?= $total_archived ?> archived account(s)</div>
-  </div>
+  <?php
+  $record_filter_ui=[
+      'label'=>'Search accounts','placeholder'=>'Search name or email...','search'=>$search,
+      'fields'=>[
+          ['name'=>'role','label'=>'Role','value'=>$role_filter,'options'=>[''=>'All Roles','student'=>'Student','coordinator'=>'Coordinator','company'=>'Company','admin'=>'Admin']],
+          ['name'=>'created','label'=>'Created on','value'=>$filters['created']],
+      ],
+      'active'=>$search!=='' || $role_filter!=='' || $filters['created']!=='',
+      'clear'=>'/ojtrack/admin/archived-users.php','count'=>count($archived_users).' of '.$total_archived.' archived account(s)',
+  ];
+  require __DIR__.'/../includes/record-filters.php';
+  ?>
 
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -106,13 +90,12 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach ($archived_users as $u): ?>
         <tr>
           <td>
-            <div style="display:flex;gap:10px;align-items:center">
+            <div class="table-person">
               <div style="width:32px;height:32px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--primary)">
-                <?= strtoupper(substr($u['name'], 0, 2)) ?>
+                <?= user_avatar_content($u['avatar'] ?? null, $u['name']) ?>
               </div>
               <div>
                 <span class="font-bold text-sm"><?= e($u['name']) ?></span>
-                <span class="badge badge-archived" style="font-size:10px;margin-left:4px">Archived</span>
               </div>
             </div>
           </td>
@@ -122,7 +105,7 @@ require_once __DIR__ . '/../includes/header.php';
           <td><?= status_badge('archived') ?></td>
           <td>
             <div class="table-actions">
-              <form method="POST" onsubmit="return confirm('Restore this <?= e($u['role']) ?> account to active status?')"><?= csrf_field() ?>
+              <form method="POST" data-confirm-message="Restore this <?= e($u['role']) ?> account to active status?"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="restore_user">
                 <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
                 <button type="submit" class="table-action-icon is-success" title="Restore account" aria-label="Restore account">

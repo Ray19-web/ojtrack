@@ -36,10 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
                 $error = 'Invalid file format. Please upload PDF, JPG, PNG, DOC, or DOCX.';
             } else {
                 $new_filename = 'req_' . $sid . '_' . $req_id . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
-                if (store_private_upload($_FILES['document']['tmp_name'], 'requirements', $new_filename)) {
-                    $file_path = 'requirements/' . $new_filename;
-                } else {
-                    $error = 'Failed to save the uploaded file. Please try again.';
+                try {
+                    if (store_private_upload($_FILES['document']['tmp_name'], 'requirements', $new_filename)) {
+                        $file_path = 'requirements/' . $new_filename;
+                    } else {
+                        $error = 'Failed to save the uploaded file. Please try again.';
+                    }
+                } catch (DomainException $exception) {
+                    $error = $exception->getMessage();
                 }
             }
         }
@@ -79,8 +83,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">OJT Requirements Checklist</div>
-    <div class="page-sub">Submit and monitor the verification status of your mandatory OJT credentials</div>
+    <div class="page-title">Requirements</div>
+    <div class="page-sub">Upload documents and track approval</div>
   </div>
   <button class="btn btn-primary" onclick="openNewUpload()">+ Submit Document</button>
 </div>
@@ -95,7 +99,7 @@ require_once __DIR__ . '/../includes/header.php';
       <input class="form-control search-input" id="reqSearch" placeholder="Search document..." oninput="filterTable('reqSearch','reqTable')">
     </div>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table id="reqTable">
       <thead>
         <tr>

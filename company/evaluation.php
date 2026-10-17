@@ -33,7 +33,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Evaluations</div>
-    <div class="page-sub">Evaluate trainee performance across key competency dimensions</div>
+    <div class="page-sub">Rate trainee performance</div>
   </div>
   <?php if (!empty($students)): ?>
   <div style="display:flex;gap:8px">
@@ -72,7 +72,7 @@ if ($sub):
 
   <?php $stu_row = normalized_student_context((int)$sub['student_id']); ?>
   <div style="display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--bg);border-radius:var(--radius);margin-bottom:16px">
-    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0"><?= strtoupper(substr($stu_row['name'] ?? '',0,2)) ?></div>
+    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0"><?= user_avatar_content($stu_row['avatar'] ?? null, $stu_row['name'] ?? $sub['student_name']) ?></div>
     <div style="min-width:0">
       <div style="font-weight:700"><?= e($stu_row['name'] ?? $sub['student_name']) ?></div>
       <div class="text-xs text-muted"><?= e($stu_row['student_id_no'] ?? '') ?> · <?= e($stu_row['program'] ?? '') ?></div>
@@ -85,13 +85,15 @@ if ($sub):
     <div class="text-center mb-4">
       <div class="text-xs text-muted">Overall Score</div>
       <div style="font-family:var(--font-display);font-size:36px;font-weight:800;color:var(--primary)"><?= number_format($sub['overall_score'], 1) ?></div>
+      <?php $resultRule=normalized_eval_score_rule((float)$sub['overall_score'],$sub_rules,$sub['score_mode']); ?>
+      <?php if ($sub['score_mode']==='points' && $resultRule): ?><div class="text-sm"><strong><?= e($resultRule['description']) ?></strong></div><?php endif; ?>
       <?php if ($sub['overall_equivalent'] !== null): ?><div class="text-sm">Equivalent: <strong><?= e($sub['overall_equivalent']) ?></strong></div><?php endif; ?>
       <span class="badge badge-approved">Submitted</span>
     </div>
     <?php foreach ($answers as $a): ?>
       <div class="mb-3">
-        <div style="display:flex;justify-content:space-between"><span class="text-sm font-bold"><?= e($a['criterion_label']) ?></span><span class="font-mono font-bold"><?= $a['score'] ?>/100</span></div>
-        <div class="progress-track"><div class="progress-fill blue" data-pct="<?= $a['score'] ?>"></div></div>
+        <div style="display:flex;justify-content:space-between"><span class="text-sm font-bold"><?= e($a['criterion_label']) ?></span><span class="font-mono font-bold"><?= $a['score'] ?>/<?= $sub['score_mode']==='points' ? (int)$a['maximum_points'] : 100 ?></span></div>
+        <div class="progress-track"><div class="progress-fill blue" data-pct="<?= $sub['score_mode']==='points' ? round((float)$a['score'] / max(1,(float)$a['maximum_points']) * 100) : $a['score'] ?>"></div></div>
       </div>
     <?php endforeach; ?>
     <?php if ($sub['comments']): ?><div class="text-sm mt-3"><strong>Comments:</strong> <?= nl2br(e($sub['comments'])) ?></div><?php endif; ?>
@@ -102,19 +104,19 @@ if ($sub):
     <?php foreach ($sub_sections as $sec): $crits = normalized_eval_criteria((int)$sec['id']); ?>
     <div class="section-title mb-2" style="margin-top:8px"><?= e($sec['title']) ?></div>
     <div class="space-y-4 mb-4">
-      <?php foreach ($crits as $cr): ?>
+      <?php foreach ($crits as $cr): $scoreMax=$sub['score_mode']==='points'?(int)$cr['weight']:100; ?>
       <div style="background:var(--bg);padding:14px 16px;border-radius:var(--radius)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <label class="text-sm font-bold"><?= e($cr['label']) ?></label>
-          <span class="text-xs text-muted">0–100</span>
+          <span class="text-xs text-muted">0&ndash;<?= $scoreMax ?><?= $sub['score_mode']==='points' ? ' points' : '' ?></span>
         </div>
-        <input type="number" class="form-control" name="criterion_<?= $cr['id'] ?>" min="0" max="100" step="1" required aria-label="<?= e($cr['label']) ?> score" value="<?= e($_POST['criterion_' . $cr['id']] ?? '') ?>">
+        <input type="number" class="form-control" name="criterion_<?= $cr['id'] ?>" min="0" max="<?= $scoreMax ?>" step="1" required aria-label="<?= e($cr['label']) ?> score" value="<?= e($_POST['criterion_' . $cr['id']] ?? '') ?>">
       </div>
       <?php endforeach; ?>
     </div>
     <?php endforeach; ?>
     <?php if ($sub_rules): ?>
-    <div class="text-xs text-muted mb-3">Overall band lookup rounds the average to the nearest whole number. Rating guide: <?= implode(' · ', array_map(fn($r) => $r['score_min'] . '–' . $r['score_max'] . ' = ' . $r['equivalent'], $sub_rules)) ?></div>
+    <div class="text-xs text-muted mb-3"><?= $sub['score_mode']==='points' ? 'Add the awarded points for a total out of 100.' : 'Average rounded to the nearest whole number.' ?> Ratings: <?= e(implode(' · ', array_map(fn($r) => $r['score_min'] . '–' . $r['score_max'] . ' = ' . ($r['equivalent'] ?? $r['description']), $sub_rules))) ?></div>
     <?php endif; ?>
     <div class="form-group mb-4">
       <label class="form-label font-bold">Comments &amp; Feedback</label>
@@ -132,7 +134,7 @@ else:
 ?>
 <div class="card mb-4">
   <div class="card-header"><div class="card-title">Evaluation Forms from OJT Coordinator</div></div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead><tr><th>Form</th><th>Student</th><th>Status</th><th>Score</th><th>Action</th></tr></thead>
       <tbody>

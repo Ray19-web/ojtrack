@@ -31,7 +31,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading">
   <div class="page-title">Daily Time Record</div>
-  <div class="page-sub">Time-in and time-out are recorded by your OJT company. You can only view your official record.</div>
+  <div class="page-sub">Recorded by your company. View only.</div>
 </div>
 
 <div class="card card-body mb-4" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
@@ -47,7 +47,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card">
   <div class="card-header flex-between">
     <div class="card-title">DTR — Attendance Record</div>
-    <form method="GET" class="flex-items-center gap-2">
+    <form method="GET" class="filter-toolbar flex-items-center gap-2">
       <input type="month" name="month" value="<?= e($month_filter) ?>" class="form-control text-sm" style="width:160px" onchange="this.form.submit()">
       <?php if ($month_filter): ?>
         <a href="/ojtrack/student/attendance.php" class="btn btn-ghost btn-sm">Clear</a>
@@ -55,7 +55,7 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
   </div>
 
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table id="attTable">
       <thead>
         <tr>

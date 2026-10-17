@@ -1,5 +1,6 @@
 <?php
 if (!defined('OJTRACK')) die('Direct access not allowed.');
+require_once __DIR__ . '/../config/avatars.php';
 
 $user     = current_user();
 $role     = $user['role'];
@@ -13,8 +14,7 @@ if ($role === 'student' && student_onboarding_required($uid)) {
         redirect('student/onboarding.php');
     }
 }
-$initials = strtoupper(implode('', array_map(fn($w) => $w[0] ?? '', array_slice(explode(' ', trim($name)), 0, 2))));
-if (!$initials) $initials = 'U';
+$initials = user_avatar_initials($name);
 
 // Certificates badge (red number where certificates live)
 $cert_count = 0;
@@ -53,7 +53,7 @@ if ($uid > 0) {
         "SELECT COUNT(DISTINCT m.id) AS c
          FROM messages m
          JOIN thread_members tm ON tm.thread_id = m.thread_id AND tm.user_id = ?
-         WHERE m.sender_id != ?
+         WHERE tm.archived_at IS NULL AND m.sender_id != ?
            AND NOT EXISTS (SELECT 1 FROM message_reads mr WHERE mr.message_id = m.id AND mr.user_id = ?)",
         [$uid, $uid, $uid],
         'iii'
@@ -192,6 +192,9 @@ $nav_items = [
 $current_sections = $nav_items[$role] ?? [];
 $current_script = basename(dirname($_SERVER['PHP_SELF'])) . '/' . basename($_SERVER['PHP_SELF']);
 $current_file   = basename($_SERVER['PHP_SELF']);
+$nav_item_is_active = static fn(array $item): bool => $current_script === $item['page']
+    || (strpos($item['page'], '/') === false && $current_file === $item['page'])
+    || ($current_file === 'certificate.php' && ($item['icon'] ?? '') === 'certificate');
 
 $profile_links = [
     'student'     => '/ojtrack/student/profile.php',
@@ -208,7 +211,8 @@ if ($user_avatar === null && $uid > 0) {
     $user_avatar = $av_row['avatar'] ?? '';
     $_SESSION['avatar'] = $user_avatar;
 }
-$has_avatar = !empty($user_avatar);
+$user_avatar_url = user_avatar_url($user_avatar);
+$has_avatar = $user_avatar_url !== '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -217,7 +221,9 @@ $has_avatar = !empty($user_avatar);
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= e($page_title) ?> — OJTRACK</title>
-  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261005-profile-avatar-v6">
+  <link rel="stylesheet" href="/ojtrack/assets/css/style.css?v=20261010-shared-navigation-v11">
+  <link rel="stylesheet" href="/ojtrack/assets/css/responsive.css?v=20261012-record-filters-v21">
+  <link rel="stylesheet" href="/ojtrack/assets/css/confirmations.css?v=20261013">
   <script>
     (function () {
       try {
@@ -228,7 +234,7 @@ $has_avatar = !empty($user_avatar);
     })();
   </script>
 </head>
-<body class="role-<?= e($role) ?>">
+<body class="role-<?= e($role) ?> <?= e($page_class ?? '') ?>">
 
 <div class="layout">
 
@@ -239,11 +245,13 @@ $has_avatar = !empty($user_avatar);
 <aside class="sidebar" id="sidebar">
   <!-- Logo -->
   <div class="sidebar-logo">
+    <a class="sidebar-brand-link" href="/ojtrack/<?= e($role) ?>/dashboard.php" aria-label="OJTrack dashboard" title="Go to dashboard">
     <img src="/ojtrack/assets/images/logo.png" alt="OJTrack" class="sidebar-logo-img">
     <div class="sidebar-logo-text">
       <div class="brand"><strong>OJ</strong>TRACK</div>
       <div class="campus">USTP Jasaan</div>
     </div>
+    </a>
     <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebarCollapse()" aria-label="Collapse sidebar" title="Collapse menu">
       <svg class="collapse-icon-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
       <svg class="collapse-icon-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
@@ -252,19 +260,25 @@ $has_avatar = !empty($user_avatar);
   </div>
 
   <!-- Navigation -->
-  <nav class="sidebar-nav">
-    <?php foreach ($current_sections as $section): ?>
-      <div class="nav-section">
-        <div class="nav-section-header"><?= e($section['section']) ?></div>
-        <div class="nav-section-items">
+  <nav class="sidebar-nav" aria-label="Main navigation">
+    <?php foreach ($current_sections as $section_index => $section):
+      $section_id = 'nav-section-' . $role . '-' . $section_index;
+      $section_has_active = count(array_filter($section['items'], $nav_item_is_active)) > 0;
+    ?>
+      <div class="nav-section <?= $section_has_active ? 'contains-active' : '' ?>" data-section-key="<?= e($section['section']) ?>">
+        <button type="button" class="nav-section-header nav-section-toggle" aria-expanded="true" aria-controls="<?= e($section_id) ?>">
+          <span><?= e($section['section']) ?></span>
+          <svg class="nav-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+        </button>
+        <div class="nav-section-items" id="<?= e($section_id) ?>">
           <?php foreach ($section['items'] as $item):
-            $active = ($current_script === $item['page'] || (strpos($item['page'], '/') === false && $current_file === $item['page'])) ? 'active' : '';
+            $active = $nav_item_is_active($item) ? 'active' : '';
             $badge  = (int)($item['badge'] ?? 0);
             $icon_key = $item['icon'] ?? '';
             $icon_svg = $nav_icons[$icon_key] ?? '';
             $is_profile_item = str_ends_with($item['page'], '/profile.php');
           ?>
-          <a href="<?= $is_profile_item ? '#' : '/ojtrack/' . e($item['page']) ?>" class="nav-link <?= $active ?>" title="<?= e($item['label']) ?>" <?php if ($is_profile_item): ?>onclick="event.preventDefault();if(typeof openModal==='function')openModal('profileModal');"<?php endif; ?>>
+          <a href="<?= $is_profile_item ? '#' : '/ojtrack/' . e($item['page']) ?>" class="nav-link <?= $active ?>" title="<?= e($item['label']) ?>" <?= $active ? 'aria-current="page"' : '' ?> <?php if ($is_profile_item): ?>onclick="event.preventDefault();if(typeof openModal==='function')openModal('profileModal');"<?php endif; ?>>
             <?php if ($icon_svg): ?>
             <span class="nav-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><?= $icon_svg ?></svg>
@@ -289,7 +303,7 @@ $has_avatar = !empty($user_avatar);
   <!-- Top bar -->
   <header class="topbar">
     <div class="topbar-left">
-      <button class="topbar-menu-btn" onclick="toggleSidebar(true)" aria-label="Open menu">
+      <button type="button" class="topbar-menu-btn" onclick="toggleSidebar(true)" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
         <span class="topbar-menu-icon" aria-hidden="true">&#9776;</span>
       </button>
       <div class="topbar-titles">
@@ -342,7 +356,7 @@ $has_avatar = !empty($user_avatar);
       <div class="user-dropdown-wrap" id="userDropdownWrap">
         <button class="topbar-user-chip" id="userToggleBtn" onclick="toggleUserDropdown(event)" title="Account" aria-expanded="false">
           <?php if ($has_avatar): ?>
-            <img src="/ojtrack/uploads/<?= e($user_avatar) ?>" alt="" class="sidebar-avatar-img topbar-avatar">
+            <img src="<?= e($user_avatar_url) ?>" alt="" class="sidebar-avatar-img topbar-avatar">
           <?php else: ?>
             <span class="sidebar-avatar topbar-avatar"><?= e($initials) ?></span>
           <?php endif; ?>
@@ -353,7 +367,7 @@ $has_avatar = !empty($user_avatar);
         <div class="user-dropdown-menu" id="userDropdownMenu">
           <div class="user-dropdown-header">
             <?php if ($has_avatar): ?>
-              <img src="/ojtrack/uploads/<?= e($user_avatar) ?>" alt="" class="sidebar-avatar-img" style="width:40px;height:40px">
+              <img src="<?= e($user_avatar_url) ?>" alt="" class="sidebar-avatar-img" style="width:40px;height:40px">
             <?php else: ?>
               <div class="sidebar-avatar" style="width:40px;height:40px;font-size:14px"><?= e($initials) ?></div>
             <?php endif; ?>

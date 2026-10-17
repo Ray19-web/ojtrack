@@ -119,7 +119,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading">
   <div class="page-title">Certificate of Recognition</div>
-  <div class="page-sub">Generate printable certificates for your trainees using your editable company template</div>
+  <div class="page-sub">Print certificates with your company template</div>
 </div>
 
 <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
@@ -128,7 +128,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="grid" style="grid-template-columns:1fr">
   <div>
     <div class="card card-body mb-4 py-3">
-      <form method="GET" class="flex-items-center gap-3" style="flex-wrap:wrap">
+      <form method="GET" class="filter-toolbar flex-items-center gap-3" style="flex-wrap:wrap">
         <label class="form-label mb-0">Generate for:</label>
         <select name="student" class="form-control" style="width:280px" onchange="this.form.submit()">
           <?php foreach ($students as $s): ?>
@@ -139,12 +139,12 @@ require_once __DIR__ . '/../includes/header.php';
           <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">Reprint</button>
           <button type="button" class="btn btn-primary btn-sm" onclick="downloadCert()">⬇ Download Issued Certificate</button>
         <?php elseif ($selected && ($eligibility['eligible'] ?? false)): ?>
-          <button type="submit" form="issueCertificateForm" class="btn btn-primary btn-sm" onclick="return confirm('Issue the official certificate now? Its student, hours, company, template, issuer and issue date will be frozen for future reprints.')">Issue Official Certificate</button>
+          <button type="submit" form="issueCertificateForm" class="btn btn-primary btn-sm" data-confirm-message="Issue the official certificate now? Its student, hours, company, template, issuer and issue date will be frozen for future reprints.">Issue Official Certificate</button>
         <?php else: ?>
           <span class="text-xs text-muted">Preview only — <?= e(implode(' ', $eligibility['reasons'] ?? ['Not eligible for issuance yet.'])) ?></span>
         <?php endif; ?>
         <span style="flex:1"></span>
-        <button type="button" onclick="openModal('templateModal')" style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border:none;border-radius:10px;background:linear-gradient(135deg,#103b78,#1d4ed8);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(16,59,120,.25);transition:transform .15s ease, box-shadow .15s ease" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 18px rgba(16,59,120,.3)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 12px rgba(16,59,120,.25)'">✏️ Editable Template</button>
+        <button type="button" class="btn btn-primary" onclick="openModal('templateModal')">✏️ Editable Template</button>
       </form>
       <?php if (!$issuedCertificate && $selected && ($eligibility['eligible'] ?? false)): ?>
         <form method="POST" id="issueCertificateForm" style="display:none"><?= csrf_field() ?>
@@ -156,7 +156,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="templateModal">
   <div class="modal modal-lg" style="max-height:90vh;overflow-y:auto">
     <div class="modal-title">Editable Template</div>
-    <p class="modal-sub">Saved to your company account. Placeholders: {student_name}, {program}, {company_name}, {rendered_hours}, {coordinator_name}, {date}</p>
+    <p class="modal-sub">Company template. Fields: {student_name}, {program}, {company_name}, {rendered_hours}, {coordinator_name}, {date}</p>
     <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
       <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
         <input type="hidden" name="action" value="save_template">
@@ -221,7 +221,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div style="font-size:26px;font-weight:700;border-bottom:1px solid #999;display:inline-block;padding:0 24px 4px;margin-bottom:20px"><?= e($selected['name']) ?></div>
       <div style="font-size:14px;line-height:1.7;max-width:640px;margin:0 auto 36px"><?= nl2br(e($rendered_body)) ?></div>
       <?php if ($certificate_template['footer_text']): ?><div style="font-size:12px;color:#777;font-style:italic;margin-bottom:40px"><?= e($certificate_template['footer_text']) ?></div><?php endif; ?>
-      <div style="display:flex;justify-content:space-between;max-width:640px;margin:0 auto">
+      <div class="certificate-signatures" style="display:flex;justify-content:space-between;max-width:640px;margin:0 auto">
         <div style="text-align:center">
           <div style="border-top:1px solid #333;width:200px;margin-bottom:6px"></div>
           <div style="font-size:14px;font-weight:700"><?= e($certificate_template['signatory_name']) ?></div>

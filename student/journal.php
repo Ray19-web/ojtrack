@@ -46,10 +46,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Proof image must be a JPG, PNG, GIF, or WEBP file.';
             } else {
                 $filename = 'proof_' . $sid . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
-                if (store_private_upload($_FILES['proof_image']['tmp_name'], 'journal_proofs', $filename)) {
-                    $proof_image = 'journal_proofs/' . $filename;
-                } else {
-                    $error = 'Failed to upload proof image.';
+                try {
+                    if (store_private_upload($_FILES['proof_image']['tmp_name'], 'journal_proofs', $filename)) {
+                        $proof_image = 'journal_proofs/' . $filename;
+                    } else {
+                        $error = 'Failed to upload proof image.';
+                    }
+                } catch (DomainException $exception) {
+                    $error = $exception->getMessage();
                 }
             }
         }
@@ -175,7 +179,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="card card-body">
     <div class="section-header mb-4">
       <div class="section-title"><?= $edit_entry ? 'Edit Pending Journal Entry' : 'New Daily Journal Entry' ?></div>
-      <div class="section-sub">Document your day's work, acquired skills, and problem resolution</div>
+      <div class="section-sub">Record your daily work and learning.</div>
     </div>
 
     <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
@@ -197,17 +201,17 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Activities &amp; Tasks Performed <span class="text-danger">*</span></label>
-        <textarea name="activities" class="form-control" rows="5" placeholder="Detail the technical tasks, meetings, system modules worked on today..." required><?= e($edit_entry['activities'] ?? '') ?></textarea>
+        <textarea name="activities" class="form-control" rows="5" placeholder="Tasks completed today" required><?= e($edit_entry['activities'] ?? '') ?></textarea>
       </div>
 
       <div class="form-group">
         <label class="form-label">Learnings &amp; Skills Acquired <span class="text-danger">*</span></label>
-        <textarea name="learnings" class="form-control" rows="4" placeholder="What technologies, best practices, or concepts did you learn or improve?" required><?= e($edit_entry['learnings'] ?? '') ?></textarea>
+        <textarea name="learnings" class="form-control" rows="4" placeholder="What did you learn?" required><?= e($edit_entry['learnings'] ?? '') ?></textarea>
       </div>
 
       <div class="form-group">
         <label class="form-label">Challenges &amp; Solutions <span class="text-danger">*</span></label>
-        <textarea name="challenges" class="form-control" rows="4" placeholder="What difficulties did you encounter and how did you resolve them?" required><?= e($edit_entry['challenges'] ?? '') ?></textarea>
+        <textarea name="challenges" class="form-control" rows="4" placeholder="Challenges and how you resolved them" required><?= e($edit_entry['challenges'] ?? '') ?></textarea>
       </div>
 
       <div class="form-group">
@@ -216,7 +220,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if (!empty($edit_entry['proof_image'])): ?>
           <div class="text-xs text-muted mt-1">Current: <a href="/ojtrack/download.php?file=<?= rawurlencode($edit_entry['proof_image']) ?>" target="_blank">view proof</a> (upload new to replace)</div>
         <?php else: ?>
-          <div class="text-xs text-muted mt-1">Upload a screenshot or photo proving your activity (optional).</div>
+          <div class="text-xs text-muted mt-1">Activity photo or screenshot (optional).</div>
         <?php endif; ?>
       </div>
 
@@ -230,8 +234,8 @@ require_once __DIR__ . '/../includes/header.php';
 <?php else: ?>
   <div class="page-heading flex-between">
     <div>
-      <div class="page-title">Daily OJT Journal</div>
-      <div class="page-sub">Document your day-to-day training experiences, technical progress, and reflections</div>
+      <div class="page-title">Daily Journal</div>
+      <div class="page-sub">Activities, learning, and challenges</div>
     </div>
     <a href="/ojtrack/student/journal.php?view=form" class="btn btn-primary">+ Write Daily Entry</a>
   </div>

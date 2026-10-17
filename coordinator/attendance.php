@@ -22,16 +22,16 @@ foreach ($records as $r) {
     if ($r['time_in']) $totals['logged']++;
 }
 
-$page_title = 'Attendance Monitoring';
+$page_title = 'Attendance';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Attendance Monitoring</div>
-    <div class="page-sub">Track daily attendance, time-in/out logs, and hours rendered</div>
+    <div class="page-title">Attendance</div>
+    <div class="page-sub">Daily time records and hours</div>
   </div>
-  <form method="GET" style="display:flex;gap:8px;align-items:center">
+  <form class="filter-toolbar" method="GET" style="display:flex;gap:8px;align-items:center">
     <input type="date" name="date" value="<?= e($date) ?>" class="form-control" style="width:180px" onchange="this.form.submit()">
     <div class="search-wrap" style="width:200px">
       <input type="text" name="q" class="form-control search-input" placeholder="Search student/ID..." value="<?= e($search) ?>">
@@ -46,14 +46,14 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-title">Attendance Log · <?= date('l, F d, Y', strtotime($date)) ?></div>
     <span class="text-sm text-muted"><?= count($records) ?> records</span>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead><tr><th>Student</th><th>Student ID</th><th>Company</th><th>Time In</th><th>Time Out</th><th>Hours</th><th>Status</th><th>Remarks</th></tr></thead>
       <tbody>
         <?php foreach ($records as $r): ?>
-        <tr>
+        <tr class="row-clickable" data-row-link="/ojtrack/coordinator/students.php?id=<?= (int)$r['student_id'] ?>" title="Manage student">
           <td>
-            <a href="/ojtrack/coordinator/students.php?id=<?= $r['id'] ?>" style="font-weight:700;color:var(--primary);text-decoration:none">
+            <a href="/ojtrack/coordinator/students.php?id=<?= (int)$r['student_id'] ?>" style="font-weight:700;color:var(--primary);text-decoration:none">
               <?= e($r['name']) ?>
             </a>
           </td>

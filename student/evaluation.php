@@ -44,14 +44,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading">
   <div class="page-title">OJT Evaluation</div>
-  <div class="page-sub">View your company performance evaluation scores and feedback</div>
+  <div class="page-sub">Company scores and feedback</div>
 </div>
 
 <?php if ($issuedCertificate): ?>
 <div class="card card-body mb-4" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0">
   <div>
     <div class="font-bold text-base mb-1" style="color:#059669">Official Certificate Issued</div>
-    <div class="text-sm text-muted">Your permanent Certificate of Recognition is ready to view or download.</div>
+    <div class="text-sm text-muted">Your certificate is ready.</div>
   </div>
   <a href="/ojtrack/student/certificate.php" class="btn btn-primary">🎓 Download Certificate</a>
 </div>
@@ -59,9 +59,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="grid grid-2 gap-4">
   <?php if (!empty($assignments)): ?>
-  <div class="card card-body" style="grid-column:span 2">
+  <div class="card card-body col-span-2">
     <div class="section-title mb-3">Evaluation Forms from Coordinator</div>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
       <table>
         <thead><tr><th>Form</th><th>Company</th><th>Status</th><th>Score</th></tr></thead>
         <tbody>
@@ -70,7 +70,12 @@ require_once __DIR__ . '/../includes/header.php';
             <td><strong><?= e($a['form_title']) ?></strong></td>
             <td><?= e($a['company_name'] ?? '—') ?></td>
             <td><?= status_badge($a['status']) ?></td>
-            <td><?= $a['overall_score'] !== null ? number_format($a['overall_score'], 1) : '—' ?></td>
+            <td><?= $a['overall_score'] !== null ? number_format($a['overall_score'], 1) : '—' ?>
+              <?php if ($a['overall_score'] !== null && ($a['score_mode'] ?? '')==='points'):
+                $resultRule=normalized_eval_score_rule((float)$a['overall_score'],normalized_eval_rules((int)$a['form_id']),'points'); ?>
+                <div class="text-xs font-bold"><?= e($resultRule['description'] ?? '') ?></div>
+              <?php endif; ?>
+            </td>
           </tr>
           <?php if ($a['status'] === 'completed' && !empty($a['comments'])): ?>
           <tr>
@@ -86,8 +91,8 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
   <?php endif; ?>
   <?php if (empty($evaluations) && empty($assignments)): ?>
-    <div class="card card-body" style="grid-column:span 2">
-      <div class="empty-state"><p>No evaluations available yet. Your company supervisor will evaluate you at mid-term and upon completion.</p></div>
+    <div class="card card-body col-span-2">
+      <div class="empty-state"><p>No evaluations yet. Your supervisor submits your scores.</p></div>
     </div>
   <?php else: ?>
     <?php foreach ($evaluations as $ev): ?>

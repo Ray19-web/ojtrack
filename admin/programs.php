@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $search = trim($_GET['q'] ?? '');
-$status_filter = $_GET['status'] ?? '';
+$status_filter = $_GET['status'] ?? 'active';
 
 $where  = '1=1';
 $params = [];
@@ -110,7 +110,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Programs</div>
-    <div class="page-sub">Manage academic degree programs, program codes, and student enrollment mappings</div>
+    <div class="page-sub">Program codes and names</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('addProgramModal')">+ Add New Program</button>
 </div>
@@ -120,7 +120,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card">
   <div class="card-header flex-between">
-    <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap">
+    <form class="filter-toolbar" method="GET" style="display:flex;gap:8px;flex-wrap:wrap">
       <div class="search-wrap" style="width:280px">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
@@ -140,7 +140,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="text-sm text-muted"><?= count($programs) ?> programs listed</div>
   </div>
 
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -187,7 +187,14 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="submit" class="table-action-icon <?= $p['status'] === 'active' ? 'is-danger' : 'is-success' ?>"
                         title="<?= $p['status'] === 'active' ? 'Deactivate program' : 'Activate program' ?>"
                         aria-label="<?= $p['status'] === 'active' ? 'Deactivate program' : 'Activate program' ?>">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/>
+                    <?php if ($p['status'] === 'active'): ?>
+                      <path d="M8 12h8"/>
+                    <?php else: ?>
+                      <path d="m8 12 3 3 5-6"/>
+                    <?php endif; ?>
+                  </svg>
                 </button>
               </form>
             </div>
@@ -212,7 +219,7 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Program Code <span style="color:red">*</span></label>
-        <input type="text" name="code" class="form-control" placeholder="e.g. BSIT, BSCS, BSEd" style="text-transform:uppercase" required>
+        <input type="text" name="code" class="form-control" placeholder="e.g. BSIT" style="text-transform:uppercase" required>
         <div class="text-xs text-muted mt-1">Short acronym/code used in IDs and badges (e.g. BSIT).</div>
       </div>
 

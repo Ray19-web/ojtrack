@@ -108,7 +108,7 @@ function normalized_eval_assert_draft_owned(int $versionId,int $ownerUserId): ar
 
 function normalized_eval_create_form(int $ownerUserId,string $title,string $description,string $mode='percentage'): int
 {
-    if ($mode!=='percentage') throw new DomainException('Only percentage scoring is currently supported.');
+    if (!in_array($mode,['percentage','points'],true)) throw new DomainException('Select percentage or points scoring.');
     db()->begin_transaction();
     try {
         $definitionId=(int)insert(
@@ -120,9 +120,9 @@ function normalized_eval_create_form(int $ownerUserId,string $title,string $desc
         $versionId=(int)insert(
             "INSERT INTO evaluation_definition_versions
              (evaluation_definition_id,version_no,score_mode,rating_max,status,created_at)
-             VALUES(?,1,'percentage',100,'draft',NOW())",
-            [$definitionId],
-            'i'
+             VALUES(?,1,?,100,'draft',NOW())",
+            [$definitionId,$mode],
+            'is'
         );
         db()->commit();
         return $versionId;
@@ -277,7 +277,18 @@ function normalized_eval_archive_toggle(int $versionId,int $ownerUserId): string
 
 function normalized_eval_publish(int $versionId,int $ownerUserId): bool
 {
-    normalized_eval_assert_draft_owned($versionId,$ownerUserId);
+    $form=normalized_eval_assert_draft_owned($versionId,$ownerUserId);
+    if ($form['score_mode']==='points') {
+        $weights=query_one(
+            "SELECT SUM(c.weight) total,MIN(c.weight) smallest
+             FROM evaluation_version_criteria c JOIN evaluation_version_sections s
+             ON s.id=c.evaluation_version_section_id WHERE s.evaluation_definition_version_id=?",
+            [$versionId],'i'
+        );
+        if (abs((float)($weights['total'] ?? 0)-100)>0.001 || (float)($weights['smallest'] ?? 0)<=0) {
+            throw new DomainException('Point-based criteria must have positive maximum scores totaling 100 points.');
+        }
+    }
     $count=(int)(query_one(
         "SELECT COUNT(*) c
          FROM evaluation_version_criteria c
@@ -349,9 +360,10 @@ function normalized_eval_delete_section(int $versionId,int $ownerUserId,int $sec
     query("DELETE FROM evaluation_version_sections WHERE id=?",[$sectionId],'i');
 }
 
-function normalized_eval_add_criterion(int $versionId,int $ownerUserId,int $sectionId,string $label): int
+function normalized_eval_add_criterion(int $versionId,int $ownerUserId,int $sectionId,string $label,int $maximumPoints=1): int
 {
-    normalized_eval_assert_draft_owned($versionId,$ownerUserId);
+    $form=normalized_eval_assert_draft_owned($versionId,$ownerUserId);
+    if ($maximumPoints<1 || $maximumPoints>100) throw new DomainException('Maximum points must be between 1 and 100.');
     if (!normalized_eval_section_owned($sectionId,$versionId)) throw new DomainException('Section does not belong to this form.');
     $sort=(int)(query_one(
         "SELECT COALESCE(MAX(sort_order),0)+1 n FROM evaluation_version_criteria
@@ -363,9 +375,9 @@ function normalized_eval_add_criterion(int $versionId,int $ownerUserId,int $sect
     return (int)insert(
         "INSERT INTO evaluation_version_criteria
          (evaluation_version_section_id,criterion_code,label,weight,sort_order)
-         VALUES(?,?,?,1.000,?)",
-        [$sectionId,$code,$label,$sort],
-        'issi'
+         VALUES(?,?,?,?,?)",
+        [$sectionId,$code,$label,$form['score_mode']==='points'?$maximumPoints:1,$sort],
+        'issii'
     );
 }
 
@@ -377,10 +389,12 @@ function normalized_eval_delete_criterion(int $versionId,int $ownerUserId,int $c
 }
 
 function normalized_eval_add_rule(
-    int $versionId,int $ownerUserId,float $min,float $max,float $equivalent,string $description
+    int $versionId,int $ownerUserId,float $min,float $max,?float $equivalent,string $description
 ): int {
-    normalized_eval_assert_draft_owned($versionId,$ownerUserId);
-    if ($min<0 || $max>100 || $min>$max || $equivalent<0 || $equivalent>99.99) {
+    $form=normalized_eval_assert_draft_owned($versionId,$ownerUserId);
+    if ($min<0 || $max>100 || $min>$max ||
+        ($equivalent!==null && ($equivalent<0 || $equivalent>99.99)) ||
+        ($equivalent===null && $form['score_mode']!=='points')) {
         throw new DomainException('Use a valid score range from 0 to 100 and a valid equivalent.');
     }
     if (query_one(
@@ -430,8 +444,8 @@ function normalized_eval_reorder_criteria(int $versionId,int $ownerUserId,array 
 function normalized_eval_send_form(int $versionId,int $companyId,int $coordinatorId,int $requesterUserId): int
 {
     $form=normalized_eval_form_row($versionId,$requesterUserId);
-    if (!$form || $form['status']!=='active' || $form['score_mode']!=='percentage') {
-        throw new DomainException('Select a published percentage form.');
+    if (!$form || $form['status']!=='active' || !in_array($form['score_mode'],['percentage','points'],true)) {
+        throw new DomainException('Select a published percentage or points form.');
     }
     $companyUser=normalized_company_user($companyId);
     if (!$companyUser) throw new DomainException('The selected company has no active evaluator account.');
@@ -446,6 +460,7 @@ function normalized_eval_send_form(int $versionId,int $companyId,int $coordinato
          JOIN users u ON u.id=s.user_id
          WHERE oe.academic_term_id=? AND ec.coordinator_id=? AND p.company_id=?
            AND p.status IN ('active','on_hold','planned','completed')
+           AND s.is_archived=0 AND u.status!='archived'
          ORDER BY u.name",
         [$termId,$coordinatorId,$companyId],
         'iii'
@@ -508,7 +523,7 @@ function normalized_eval_requests_for_company(int $companyId,int $studentId=0): 
          JOIN students s ON s.id=oe.student_id
          JOIN users u ON u.id=s.user_id
          LEFT JOIN evaluation_submissions es ON es.evaluation_request_id=er.id
-         WHERE p.company_id=? $studentSql
+         WHERE p.company_id=? AND s.is_archived=0 AND u.status!='archived' $studentSql
          ORDER BY er.id DESC",
         $params,
         $types
@@ -521,7 +536,7 @@ function normalized_eval_answers_for_request(int $requestId): array
     return query(
         "SELECT ea.id,ea.section_title_snapshot section_title,
                 ea.criterion_label_snapshot criterion_label,ea.score,ea.equivalent,
-                evc.criterion_code
+                evc.criterion_code,evc.weight maximum_points
          FROM evaluation_submissions es
          JOIN evaluation_answers ea ON ea.evaluation_submission_id=es.id
          JOIN evaluation_version_criteria evc ON evc.id=ea.evaluation_criterion_id
@@ -530,6 +545,44 @@ function normalized_eval_answers_for_request(int $requestId): array
         [$requestId],
         'i'
     ) ?: [];
+}
+
+function normalized_eval_score_rule(float $score,array $rules,string $mode='percentage'): ?array
+{
+    $bandScore=$mode==='points' ? $score : (float)round($score);
+    foreach ($rules as $rule) {
+        if ($bandScore>=(float)$rule['score_min'] && $bandScore<=(float)$rule['score_max']) return $rule;
+    }
+    return null;
+}
+
+function normalized_eval_calculate_scores(array $criteria,array $scores,string $mode,array $rules=[]): array
+{
+    if (!$criteria || !in_array($mode,['percentage','points'],true)) throw new DomainException('Unsupported evaluation scoring.');
+    $answers=[]; $total=0; $maximum=0;
+    foreach ($criteria as $criterion) {
+        $limit=$mode==='points' ? (float)$criterion['weight'] : 100.0;
+        $raw=$scores['criterion_'.(int)$criterion['id']] ?? null;
+        if ($limit<=0 || !is_scalar($raw) || filter_var($raw,FILTER_VALIDATE_INT)===false || (int)$raw<0 || (int)$raw>$limit) {
+            throw new DomainException($mode==='points'
+                ? 'Answer every criterion with whole-number points within its displayed maximum.'
+                : 'Answer every criterion with a whole-number score from 0 to 100.');
+        }
+        $score=(int)$raw;
+        // Preserve existing percentage form behavior, including per-answer bands.
+        $answerRule=null;
+        $percent=$mode==='points' ? $score/$limit*100 : $score;
+        foreach ($rules as $rule) {
+            if ($percent>=(float)$rule['score_min'] && $percent<=(float)$rule['score_max']) { $answerRule=$rule; break; }
+        }
+        $answers[]=['criterion_id'=>(int)$criterion['id'],'section'=>$criterion['section_title'],
+            'label'=>$criterion['label'],'score'=>$score,'equivalent'=>$answerRule['equivalent'] ?? null];
+        $total+=$score; $maximum+=$limit;
+    }
+    if ($mode==='points' && abs($maximum-100)>0.001) throw new DomainException('This point-based form must total 100 points.');
+    $overall=$mode==='points' ? round($total,2) : round($total/count($criteria),2);
+    $rule=normalized_eval_score_rule($overall,$rules,$mode);
+    return ['answers'=>$answers,'overall'=>$overall,'equivalent'=>$rule['equivalent'] ?? null,'result'=>$rule['description'] ?? null];
 }
 
 function normalized_submit_evaluation(int $companyId,int $requestId,array $scores,string $comments,int $actorUserId): void
@@ -546,7 +599,8 @@ function normalized_submit_evaluation(int $companyId,int $requestId,array $score
              JOIN ojt_enrollments oe ON oe.id=p.ojt_enrollment_id
              JOIN students s ON s.id=oe.student_id
              JOIN company_users cu ON cu.id=er.evaluator_company_user_id
-             WHERE er.id=? AND p.company_id=? FOR UPDATE",
+             JOIN users u ON u.id=s.user_id
+             WHERE er.id=? AND p.company_id=? AND s.is_archived=0 AND u.status!='archived' FOR UPDATE",
             [$requestId,$companyId],
             'ii'
         );
@@ -560,7 +614,7 @@ function normalized_submit_evaluation(int $companyId,int $requestId,array $score
             return;
         }
         if ($request['status']!=='pending') throw new DomainException('This evaluation request is not open.');
-        if ($request['score_mode']!=='percentage') throw new DomainException('Ask your coordinator to send a supported percentage form.');
+        if (!in_array($request['score_mode'],['percentage','points'],true)) throw new DomainException('Ask your coordinator to send a supported evaluation form.');
 
         $criteria=query(
             "SELECT c.*,s.title section_title
@@ -574,40 +628,10 @@ function normalized_submit_evaluation(int $companyId,int $requestId,array $score
         if (!$criteria) throw new DomainException('This evaluation has no criteria. Contact your coordinator.');
         $rules=normalized_eval_rules((int)$request['evaluation_definition_version_id']);
 
-        $answers=[];
-        $total=0;
-        foreach ($criteria as $criterion) {
-            $raw=$scores['criterion_'.(int)$criterion['id']] ?? null;
-            if (!is_scalar($raw) || filter_var($raw,FILTER_VALIDATE_INT)===false || (int)$raw<0 || (int)$raw>100) {
-                throw new DomainException('Answer every criterion with a whole-number score from 0 to 100.');
-            }
-            $score=(int)$raw;
-            $equivalent=null;
-            foreach ($rules as $rule) {
-                if ($score>=(float)$rule['score_min'] && $score<=(float)$rule['score_max']) {
-                    $equivalent=$rule['equivalent'];
-                    break;
-                }
-            }
-            $answers[]=[
-                'criterion_id'=>(int)$criterion['id'],
-                'section'=>$criterion['section_title'],
-                'label'=>$criterion['label'],
-                'score'=>$score,
-                'equivalent'=>$equivalent,
-            ];
-            $total+=$score;
-        }
-
-        $overall=round($total/count($criteria),2);
-        $overallEquivalent=null;
-        $bandScore=(int)round($overall);
-        foreach ($rules as $rule) {
-            if ($bandScore>=(float)$rule['score_min'] && $bandScore<=(float)$rule['score_max']) {
-                $overallEquivalent=$rule['equivalent'];
-                break;
-            }
-        }
+        $calculated=normalized_eval_calculate_scores($criteria,$scores,$request['score_mode'],$rules);
+        $answers=$calculated['answers'];
+        $overall=$calculated['overall'];
+        $overallEquivalent=$calculated['equivalent'];
 
         $submissionId=(int)insert(
             "INSERT INTO evaluation_submissions
@@ -660,7 +684,7 @@ function normalized_eval_requests_for_student(int $studentId): array
     return query(
         "SELECT er.id,er.evaluation_definition_version_id form_id,er.evaluation_kind,
                 CASE er.status WHEN 'submitted' THEN 'completed' ELSE er.status END status,
-                ed.title form_title,ed.description,co.company_name,
+                ed.title form_title,ed.description,co.company_name,ev.score_mode,
                 cuu.name evaluator_name,es.overall_score,es.overall_equivalent,
                 es.comments,es.submitted_at evaluated_at
          FROM evaluation_requests er
@@ -683,7 +707,8 @@ function normalized_eval_completed_for_coordinator(int $coordinatorId,string $se
     $termId=normalized_active_term_id();
     $params=[$termId,$coordinatorId];
     $types='ii';
-    $where="oe.academic_term_id=? AND ec.coordinator_id=? AND ec.ended_at IS NULL AND er.status='submitted'";
+    $where="oe.academic_term_id=? AND ec.coordinator_id=? AND ec.ended_at IS NULL AND er.status='submitted'
+            AND s.is_archived=0 AND u.status!='archived'";
     if ($search!=='') {
         $where.=" AND (u.name LIKE ? OR s.student_id_no LIKE ? OR co.company_name LIKE ?)";
         $like="%$search%";
@@ -730,7 +755,7 @@ function normalized_eval_completed_for_coordinator(int $coordinatorId,string $se
 function normalized_eval_submissions_for_requester(int $requesterUserId): array
 {
     return query(
-        "SELECT er.id,er.evaluation_definition_version_id form_id,ev.version_no form_version,
+        "SELECT er.id,er.evaluation_definition_version_id form_id,ev.version_no form_version,ev.score_mode,
                 CASE er.status WHEN 'submitted' THEN 'completed' ELSE er.status END status,
                 ed.title form_title,u.name student_name,co.company_name,
                 es.overall_score,es.overall_equivalent,es.comments,es.submitted_at
@@ -743,7 +768,7 @@ function normalized_eval_submissions_for_requester(int $requesterUserId): array
          JOIN students s ON s.id=oe.student_id
          JOIN users u ON u.id=s.user_id
          LEFT JOIN evaluation_submissions es ON es.evaluation_request_id=er.id
-         WHERE er.requested_by=?
+         WHERE er.requested_by=? AND s.is_archived=0 AND u.status!='archived'
          ORDER BY er.id DESC",
         [$requesterUserId],
         'i'

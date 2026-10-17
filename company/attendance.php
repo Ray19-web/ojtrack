@@ -23,16 +23,16 @@ foreach ($records as $r) {
     $summary['total_hours'] += (float)$r['hours_rendered'];
 }
 
-$page_title = 'Attendance Records';
+$page_title = 'Attendance';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Attendance Records</div>
-    <div class="page-sub">View daily attendance logs, clock times, and rendered hours for your trainees</div>
+    <div class="page-title">Attendance</div>
+    <div class="page-sub">Trainee time records and hours</div>
   </div>
-  <form method="GET" style="display:flex;gap:8px">
+  <form class="filter-toolbar" method="GET" style="display:flex;gap:8px">
     <select name="student" class="form-control" style="width:200px" onchange="this.form.submit()">
       <option value="">All Trainees</option>
       <?php foreach ($students as $s): ?>
@@ -49,7 +49,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-title"><?= date('F Y', strtotime($month . '-01')) ?> Attendance Logs</div>
     <span class="text-sm text-muted"><?= count($records) ?> records found</span>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -65,7 +65,7 @@ require_once __DIR__ . '/../includes/header.php';
       </thead>
       <tbody>
         <?php foreach ($records as $r): ?>
-        <tr>
+        <tr class="row-clickable" data-row-link="/ojtrack/company/students.php?id=<?= (int)$r['student_id'] ?>" title="View trainee details">
           <?php if (!$student_id): ?>
           <td>
             <a href="/ojtrack/company/students.php?id=<?= $r['student_id'] ?>" style="font-weight:700;color:var(--primary);text-decoration:none">

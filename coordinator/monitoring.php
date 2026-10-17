@@ -47,7 +47,7 @@ if ($student_id) {
     $sel_student = normalized_student_context($student_id);
     $enrollment = $sel_student ? normalized_enrollment_for_student($student_id) : null;
     $assignment = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
-    if (!$sel_student || !$assignment || (int)$assignment['coordinator_id'] !== (int)$coord['id']) {
+    if (!$sel_student || !empty($sel_student['is_archived']) || ($sel_student['user_status'] ?? '') === 'archived' || !$assignment || (int)$assignment['coordinator_id'] !== (int)$coord['id']) {
         $sel_student = null;
         $journals = [];
     } else {
@@ -71,7 +71,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Daily Journals</div>
-    <div class="page-sub">Monitor student progress, journals, hours, and provide mentoring feedback</div>
+    <div class="page-sub">Review journals and progress</div>
   </div>
   <?php if ($student_id): ?>
     <a href="/ojtrack/coordinator/monitoring.php" class="btn btn-ghost btn-sm">← Back to All Students</a>
@@ -82,11 +82,11 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
 <?php if ($student_id && isset($sel_student)): ?>
-<div class="grid" style="grid-template-columns:300px 1fr;gap:20px">
+<div class="grid journal-detail-grid" style="gap:20px">
   <div>
     <div class="card card-body mb-4">
       <div class="text-center mb-4">
-        <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff"><?= strtoupper(substr($sel_student['name'],0,2)) ?></div>
+        <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff"><?= user_avatar_content($sel_student['avatar'] ?? null, $sel_student['name']) ?></div>
         <div class="font-bold text-base"><?= e($sel_student['name']) ?></div>
         <div class="text-xs text-muted"><?= e($sel_student['student_id_no'] ?? '') ?></div>
         <div class="text-xs text-muted mb-2"><?= e($sel_student['company_name'] ?? 'No Company Assigned') ?></div>
@@ -136,7 +136,7 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="hidden" name="journal_id" value="<?= $j['id'] ?>">
           <div class="form-group mb-2">
             <label class="form-label text-xs">Feedback / Mentor Notes (Optional)</label>
-            <textarea name="remarks" class="form-control" rows="2" placeholder="Leave remarks or guidance for student..."></textarea>
+            <textarea name="remarks" class="form-control" rows="2" placeholder="Feedback for the student"></textarea>
           </div>
           <div style="display:flex;gap:8px">
             <button type="submit" name="status" value="approved" class="btn btn-success btn-xs">Approve Entry</button>
@@ -184,7 +184,7 @@ function toggleEditRemarks(id) {
 
 <div class="card mb-4">
   <div class="card-header flex-between">
-    <form method="GET" style="display:flex;gap:8px">
+    <form class="filter-toolbar" method="GET" style="display:flex;gap:8px">
       <div class="search-wrap" style="width:260px">
         <input type="text" name="q" class="form-control search-input" placeholder="Search student or company..." value="<?= e($search) ?>">
       </div>
@@ -200,7 +200,7 @@ function toggleEditRemarks(id) {
   <div class="card card-body">
     <div class="flex-between mb-3">
       <div style="display:flex;gap:10px;align-items:center">
-        <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff"><?= strtoupper(substr($s['name'],0,2)) ?></div>
+        <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff"><?= user_avatar_content($s['avatar'] ?? null, $s['name']) ?></div>
         <div>
           <div class="font-bold text-sm"><?= e($s['name']) ?></div>
           <div class="text-xs text-muted"><?= e($s['company_name'] ?? 'No Company') ?></div>

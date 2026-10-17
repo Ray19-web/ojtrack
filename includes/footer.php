@@ -28,10 +28,10 @@
   ];
   $profile_title = $profile_titles[$role ?? 'admin'] ?? 'Profile';
   $profile_sub = [
-    'admin'       => 'Update your account details, profile picture, and password',
-    'student'     => 'Update your personal information, profile picture, and password',
-    'coordinator' => 'Update your account details, profile picture, and password',
-    'company'     => 'Update your company details, profile picture, and password',
+    'admin'       => 'Details, photo, and password',
+    'student'     => 'Details, photo, and password',
+    'coordinator' => 'Details, photo, and password',
+    'company'     => 'Company details, photo, and password',
   ];
   $profile_modal_sub = $profile_sub[$role ?? 'admin'] ?? 'Update your account details';
 
@@ -72,8 +72,8 @@
     <section class="profile-photo-card">
       <div class="profile-avatar-column">
         <div class="profile-avatar-preview" id="profileAvatarPreview">
-          <?php if (!empty($ap_avatar)): ?>
-            <img src="/ojtrack/uploads/<?= e($ap_avatar) ?>" alt="<?= e($profile_user['name'] ?? 'Profile') ?> profile photo" class="profile-avatar-preview-img">
+          <?php if (user_avatar_url($ap_avatar) !== ''): ?>
+            <img src="<?= e(user_avatar_url($ap_avatar)) ?>" alt="<?= e($profile_user['name'] ?? 'Profile') ?> profile photo" class="profile-avatar-preview-img">
           <?php else: ?>
             <div class="profile-avatar-preview-fallback"><?= e($initials) ?></div>
           <?php endif; ?>
@@ -83,7 +83,7 @@
 
       <div class="profile-photo-content">
         <div class="profile-photo-title">Profile picture</div>
-        <p class="profile-photo-help">Choose a clear square photo. You’ll see a preview here before anything is saved.</p>
+        <p class="profile-photo-help">Choose a square photo, then save.</p>
 
         <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" enctype="multipart/form-data" class="profile-avatar-form" id="profileAvatarForm">
           <?= csrf_field() ?>
@@ -110,7 +110,7 @@
       <div class="profile-section-heading">
         <div>
           <div class="profile-section-title">Account details</div>
-          <div class="profile-section-sub">Keep your profile information accurate and up to date.</div>
+
         </div>
       </div>
 
@@ -161,7 +161,7 @@
       </div>
       <?php endif; ?>
         <div class="profile-section-actions">
-          <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
     </section>
@@ -170,7 +170,7 @@
       <div class="profile-section-heading">
         <div>
           <div class="profile-section-title">Password & security</div>
-          <div class="profile-section-sub">Use your current password to set a new one.</div>
+          <div class="profile-section-sub">Current password required.</div>
         </div>
       </div>
       <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php"><?= csrf_field() ?>
@@ -216,7 +216,7 @@
       </div>
     </div>
 
-    <form method="post" action="/ojtrack/logout.php" class="logout-modal-actions">
+    <form method="post" action="/ojtrack/logout.php" class="logout-modal-actions" data-confirm-skip>
       <?= csrf_field() ?>
       <button type="button" class="btn btn-secondary logout-cancel-btn" onclick="closeModal('logoutModal')">Cancel</button>
       <button type="submit" class="btn btn-danger logout-confirm-btn">Sign Out</button>
@@ -232,6 +232,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <?php endif; ?>
 
-<script src="/ojtrack/assets/js/main.js?v=20261005-profile-avatar-v2"></script>
+<script src="/ojtrack/assets/js/confirmations.js?v=20261013"></script>
+<script src="/ojtrack/assets/js/main.js?v=20261013-confirmations"></script>
 </body>
 </html>

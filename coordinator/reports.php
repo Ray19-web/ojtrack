@@ -72,10 +72,10 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Reports &amp; Evaluations Review</div>
-    <div class="page-sub">Review student OJT narrative reports and company performance evaluations</div>
+    <div class="page-title">Reports &amp; Evaluations</div>
+    <div class="page-sub">Review reports and company evaluations</div>
   </div>
-  <form method="GET" style="display:flex;gap:8px">
+  <form class="filter-toolbar" method="GET" style="display:flex;gap:8px">
     <input type="hidden" name="tab" value="<?= e($tab) ?>">
     <div class="search-wrap" style="width:240px">
       <input type="text" name="q" class="form-control search-input" placeholder="Search student or report..." value="<?= e($search) ?>">
@@ -102,7 +102,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-title">Supervisor Evaluations</div>
     <span class="text-sm text-muted"><?= count($evaluations) ?> submitted</span>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -205,7 +205,7 @@ function viewEvaluation(ev) {
 <?php else: ?>
 
 <div class="card">
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -286,7 +286,7 @@ function viewEvaluation(ev) {
       <input type="hidden" name="action" id="repAction">
       <div class="form-group">
         <label class="form-label">Feedback / Remarks for Student</label>
-        <textarea name="remarks" id="repRemarks" class="form-control" rows="4" placeholder="Provide feedback or guidance for student..."></textarea>
+        <textarea name="remarks" id="repRemarks" class="form-control" rows="4" placeholder="Feedback for the student"></textarea>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('repModal')">Cancel</button>

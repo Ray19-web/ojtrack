@@ -8,6 +8,7 @@ $user  = current_user();
 $coord = query_one("SELECT * FROM coordinators WHERE user_id=?", [$user['id']], 'i');
 
 $success = ''; $error = '';
+$editDraft = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action  = $_POST['action'] ?? '';
@@ -26,6 +27,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_activity($user['id'], 'Requirements Added', count($lines) . ' normalized template(s)');
                 $success = count($lines) . ' requirement(s) added to your requirement library.';
             }
+        } elseif ($action === 'edit_template') {
+            $editDraft = [
+                'id'=>(int)($_POST['template_id'] ?? 0),
+                'version_id'=>(int)($_POST['version_id'] ?? 0),
+                'name'=>trim($_POST['name'] ?? ''),
+                'description'=>trim($_POST['description'] ?? ''),
+            ];
+            normalized_requirement_edit_template(
+                (int)$user['id'],$editDraft['id'],$editDraft['version_id'],
+                $editDraft['name'],$editDraft['description']
+            );
+            log_activity($user['id'],'Requirement Updated','Definition ID: '.$editDraft['id']);
+            $success='Requirement updated. New instructions apply to future assignments; existing submissions are preserved.';
+            $editDraft=null;
         } elseif ($action === 'delete_template') {
             $tid = (int)($_POST['template_id'] ?? 0);
             if (!normalized_requirement_archive_template((int)$user['id'], $tid)) {
@@ -129,12 +144,12 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Requirements Review</div>
-    <div class="page-sub">Review and verify student OJT document submissions</div>
+    <div class="page-sub">Review student documents</div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     <button class="btn btn-primary" onclick="openAddReqModal()">+ Add Requirement</button>
     <button class="btn btn-secondary" onclick="openModal('sendReqModal')">Send to Students</button>
-    <form method="GET" style="display:flex;gap:8px">
+    <form class="filter-toolbar" method="GET" style="display:flex;gap:8px">
       <input type="hidden" name="tab" value="<?= e($tab) ?>">
       <div class="search-wrap" style="width:240px">
         <input type="text" name="q" class="form-control search-input" placeholder="Search student or doc..." value="<?= e($search) ?>">
@@ -155,7 +170,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="card">
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -228,7 +243,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addReqModal">
   <div class="modal modal-lg">
     <div class="modal-title">Add Requirements</div>
-    <p class="modal-sub">Add one or more requirements to your requirement library (one per line). You can send these to any students later.</p>
+    <p class="modal-sub">Enter one requirement per line. Assign them to students later.</p>
     <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_templates">
       <div class="form-group">
@@ -237,7 +252,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       <div class="form-group">
         <label class="form-label">Description / Notes</label>
-        <textarea name="description" class="form-control" rows="2" placeholder="Optional instructions for students..."></textarea>
+        <textarea name="description" class="form-control" rows="2" placeholder="Instructions (optional)"></textarea>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('addReqModal')">Cancel</button>
@@ -260,11 +275,14 @@ require_once __DIR__ . '/../includes/header.php';
             <strong class="text-sm"><?= e($t['name']) ?></strong>
             <?php if ($t['description']): ?><div class="text-xs text-muted"><?= e($t['description']) ?></div><?php endif; ?>
           </div>
-          <form method="POST" onsubmit="return confirm('Remove this requirement from the library?')"><?= csrf_field() ?>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+          <button type="button" class="btn btn-secondary btn-xs" data-requirement="<?= e(json_encode($t)) ?>" onclick="openRequirementEditor(this)" aria-label="Edit <?= e($t['name']) ?>">Edit</button>
+          <form method="POST" data-confirm-message="Remove this requirement from the library?"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_template">
             <input type="hidden" name="template_id" value="<?= $t['id'] ?>">
             <button class="btn btn-danger btn-xs">Delete</button>
           </form>
+          </div>
         </div>
         <?php endforeach; ?>
       </div>
@@ -277,7 +295,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="sendReqModal">
   <div class="modal modal-lg">
     <div class="modal-title">Send Requirements to Students</div>
-    <p class="modal-sub">Select as many requirements and as many students as you want — the requirement will be assigned to each selected student. Students who already have a selected requirement are marked, and duplicates are skipped automatically.</p>
+    <p class="modal-sub">Each selected student receives the selected requirements. Existing assignments are skipped.</p>
     <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="send_requirements">
       <div class="form-group">
@@ -287,10 +305,13 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="text-xs text-muted">No requirements in library yet. Add some first.</p>
           <?php else: ?>
             <?php foreach ($templates as $t): ?>
-            <label style="display:flex;gap:8px;align-items:center;padding:4px 0">
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;padding:4px 0">
+            <label style="display:flex;gap:8px;align-items:center;min-width:0">
               <input type="checkbox" class="tpl-check" name="template_ids[]" value="<?= $t['id'] ?>" data-name="<?= e($t['name']) ?>">
               <span class="text-sm"><?= e($t['name']) ?></span>
             </label>
+            <button type="button" class="btn btn-secondary btn-xs" style="flex-shrink:0" data-requirement="<?= e(json_encode($t)) ?>" onclick="openRequirementEditor(this)" aria-label="Edit <?= e($t['name']) ?>">Edit</button>
+            </div>
             <?php endforeach; ?>
           <?php endif; ?>
         </div>
@@ -322,6 +343,32 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('sendReqModal')">Cancel</button>
         <button type="submit" class="btn btn-primary">Send to Selected Students</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit library requirement without changing earlier submission instructions. -->
+<div class="modal-overlay" id="editReqModal">
+  <div class="modal">
+    <div class="modal-title">Edit Requirement</div>
+    <p class="modal-sub">Names update wherever this requirement appears. Updated instructions apply when you send new assignments; existing assignments keep their original instructions.</p>
+    <?php if ($editDraft && $error): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
+    <form method="POST"><?= csrf_field() ?>
+      <input type="hidden" name="action" value="edit_template">
+      <input type="hidden" name="template_id" id="editReqId">
+      <input type="hidden" name="version_id" id="editReqVersion">
+      <div class="form-group">
+        <label class="form-label" for="editReqName">Requirement Name <span class="text-danger">*</span></label>
+        <input name="name" id="editReqName" class="form-control" maxlength="200" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="editReqDescription">Description / Instructions</label>
+        <textarea name="description" id="editReqDescription" class="form-control" rows="4"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeRequirementEditor()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
       </div>
     </form>
   </div>
@@ -360,7 +407,7 @@ require_once __DIR__ . '/../includes/header.php';
       <input type="hidden" name="action" id="revAction">
       <div class="form-group">
         <label class="form-label">Remarks / Feedback for Student</label>
-        <textarea name="remarks" id="revRemarks" class="form-control" rows="4" placeholder="Provide feedback or guidance for the student..."></textarea>
+        <textarea name="remarks" id="revRemarks" class="form-control" rows="4" placeholder="Feedback for the student"></textarea>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('reviewModal')">Cancel</button>
@@ -371,6 +418,29 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+let requirementEditorOrigin = null;
+function fillRequirementEditor(requirement) {
+    document.getElementById('editReqId').value = requirement.id;
+    document.getElementById('editReqVersion').value = requirement.version_id;
+    document.getElementById('editReqName').value = requirement.name;
+    document.getElementById('editReqDescription').value = requirement.description || '';
+}
+function openRequirementEditor(button) {
+    requirementEditorOrigin = button.closest('.modal-overlay')?.id || null;
+    fillRequirementEditor(JSON.parse(button.dataset.requirement));
+    if (requirementEditorOrigin) closeModal(requirementEditorOrigin);
+    openModal('editReqModal');
+}
+function closeRequirementEditor() {
+    closeModal('editReqModal');
+    if (requirementEditorOrigin) openModal(requirementEditorOrigin);
+}
+<?php if ($editDraft): ?>
+document.addEventListener('DOMContentLoaded', function () {
+    fillRequirementEditor(<?= json_encode($editDraft, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>);
+    openModal('editReqModal');
+});
+<?php endif; ?>
 // Disable students who already have all the selected requirements
 function refreshStudentAvailability() {
     var selected = [];

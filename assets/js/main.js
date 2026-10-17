@@ -39,6 +39,16 @@ function stopRowClick(e) {
   if (e) e.stopPropagation();
 }
 
+// Student record rows share their existing, role-authorized details destination.
+document.addEventListener('click', event => {
+  const row = event.target.closest('tr[data-row-link]');
+  if (!row || event.defaultPrevented || event.button !== 0) return;
+  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  if (event.target.closest('a, button, input, select, textarea, label, form, [contenteditable], [role="button"]')) return;
+  if (window.getSelection()?.toString()) return;
+  window.location.assign(row.dataset.rowLink);
+});
+
 // Close modal on overlay click
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('modal-overlay')) {
@@ -68,8 +78,7 @@ function toggleNotifDropdown(e) {
 
   const isOpen = menu.classList.contains('open');
   // Close user dropdown if open
-  const userMenu = document.getElementById('userDropdownMenu');
-  if (userMenu) userMenu.classList.remove('open');
+  closeUserDropdown();
 
   if (isOpen) {
     menu.classList.remove('open');
@@ -94,6 +103,7 @@ function toggleUserDropdown(e) {
   // Close notification dropdown if open
   const notifMenu = document.getElementById('notifDropdownMenu');
   if (notifMenu) notifMenu.classList.remove('open');
+  document.getElementById('notifToggleBtn')?.setAttribute('aria-expanded', 'false');
 
   if (isOpen) {
     menu.classList.remove('open');
@@ -110,6 +120,21 @@ function closeUserDropdown() {
   if (menu) menu.classList.remove('open');
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || document.querySelector('.modal-overlay.open, .sidebar.open')) return;
+  if (document.getElementById('userDropdownMenu')?.classList.contains('open')) {
+    closeUserDropdown();
+    document.getElementById('userToggleBtn')?.focus();
+  }
+  const notifications = document.getElementById('notifDropdownMenu');
+  if (notifications?.classList.contains('open')) {
+    notifications.classList.remove('open');
+    const button = document.getElementById('notifToggleBtn');
+    button?.setAttribute('aria-expanded', 'false');
+    button?.focus();
+  }
+});
 
 // Notification mutations use the same form encoding as the PHP API.
 async function updateNotificationRead(id, all = false) {
@@ -153,18 +178,49 @@ async function markNotificationSingle(id, el) {
 }
 
 // ── Sidebar Toggle for Mobile ───────────────────────────────
-function toggleSidebar(open) {
+function toggleSidebar(open, restoreFocus = true) {
   const sidebar = document.querySelector('.sidebar');
   const backdrop = document.getElementById('sidebarBackdrop');
+  const menuButton = document.querySelector('.topbar-menu-btn');
   if (!sidebar) return;
-  const shouldOpen = typeof open === 'boolean' ? open : !sidebar.classList.contains('open');
+  const mobile = !isDesktopSidebar();
+  const wasOpen = sidebar.classList.contains('open');
+  const shouldOpen = mobile && (typeof open === 'boolean' ? open : !wasOpen);
   sidebar.classList.toggle('open', shouldOpen);
+  sidebar.inert = mobile && !shouldOpen;
+  document.querySelector('.main-content')?.toggleAttribute('inert', shouldOpen);
+  menuButton?.setAttribute('aria-expanded', String(shouldOpen));
   if (backdrop) {
     backdrop.classList.toggle('open', shouldOpen);
     backdrop.classList.toggle('show', shouldOpen);
   }
   document.body.classList.toggle('sidebar-open', shouldOpen);
+  if (shouldOpen) {
+    (sidebar.querySelector('.sidebar-close-btn') || sidebar.querySelector('a'))?.focus();
+  } else if (wasOpen && restoreFocus && mobile) {
+    menuButton?.focus();
+  }
 }
+
+document.addEventListener('keydown', event => {
+  const sidebar = document.querySelector('.sidebar.open');
+  if (!sidebar || document.querySelector('.modal-overlay.open')) return;
+  if (event.key === 'Escape') { event.preventDefault(); toggleSidebar(false); }
+  if (event.key !== 'Tab') return;
+  const items = [...sidebar.querySelectorAll('a[href], button:not([disabled])')].filter(node => node.getClientRects().length);
+  const first = items[0], last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!document.querySelector('.sidebar')) return;
+  toggleSidebar(false, false);
+  window.matchMedia('(min-width: 769px)').addEventListener('change', () => toggleSidebar(false, false));
+  document.querySelector('.sidebar-nav')?.addEventListener('click', event => {
+    if (event.target.closest('a') && !isDesktopSidebar()) toggleSidebar(false, false);
+  });
+});
 
 // ── Desktop Sidebar Collapse (icons only) ───────────────────
 const SIDEBAR_COLLAPSE_KEY = 'ojtrack_sidebar_collapsed';
@@ -216,17 +272,6 @@ function initSidebarCollapse() {
 
   applySidebarCollapsed(saved);
 
-  // Clicking the logo while collapsed expands the menu
-  const logo = document.querySelector('.sidebar-logo');
-  if (logo && !logo.dataset.collapseBound) {
-    logo.dataset.collapseBound = '1';
-    logo.addEventListener('click', function (e) {
-      if (!document.documentElement.classList.contains('sidebar-collapsed')) return;
-      if (e.target.closest('a, button')) return;
-      toggleSidebarCollapse(false);
-    });
-  }
-
   // Ensure floating expand button exists
   if (!document.getElementById('sidebarExpandFab')) {
     const fab = document.createElement('button');
@@ -253,6 +298,35 @@ function initSidebarCollapse() {
 }
 
 document.addEventListener('DOMContentLoaded', initSidebarCollapse);
+
+// Each role keeps its own expanded navigation groups. The current page is
+// revealed on every load; icon-only desktop navigation always exposes all links.
+document.addEventListener('DOMContentLoaded', function () {
+  const nav = document.querySelector('.sidebar-nav');
+  if (!nav) return;
+  const role = [...document.body.classList].find(name => name.startsWith('role-')) || 'default';
+  const storageKey = 'ojtrack_nav_sections_' + role;
+  let saved = {};
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) saved = stored;
+  } catch (_) {}
+  for (const section of nav.querySelectorAll('.nav-section')) {
+    const button = section.querySelector('.nav-section-toggle');
+    if (!button) continue;
+    function setExpanded(expanded) {
+      section.classList.toggle('is-collapsed', !expanded);
+      button.setAttribute('aria-expanded', String(expanded));
+    }
+    setExpanded(section.classList.contains('contains-active') || saved[section.dataset.sectionKey] === true);
+    button.addEventListener('click', function () {
+      const expanded = button.getAttribute('aria-expanded') !== 'true';
+      setExpanded(expanded);
+      saved[section.dataset.sectionKey] = expanded;
+      try { localStorage.setItem(storageKey, JSON.stringify(saved)); } catch (_) {}
+    });
+  }
+});
 
 // Global click handler to close dropdowns and mobile sidebar
 document.addEventListener('click', function(e) {
@@ -338,19 +412,21 @@ function updateUploadLabel(area, filename) {
 
 // ── Confirm dialog ───────────────────────────────────────────
 function confirmAction(message, formId) {
-  if (confirm(message)) {
-    document.getElementById(formId).submit();
-  }
+  const form = document.getElementById(formId);
+  if (!form) return;
+  form.dataset.confirmMessage = message;
+  form.requestSubmit();
 }
 
 // ── Chat ────────────────────────────────────────────────────
-function sendChatMessage() {
+async function sendChatMessage() {
   const textarea = document.getElementById('chat-input');
   const msg = textarea ? textarea.value.trim() : '';
   if (!msg) return;
 
   const threadId = document.getElementById('active-thread-id')?.value;
   if (!threadId) return;
+  if (!await confirmOJTrack({title: 'Send this message?', message: 'Send this message to the current conversation?', confirmLabel: 'Send'})) return;
 
   fetch('/ojtrack/api/messages.php', {
     method: 'POST',

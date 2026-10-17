@@ -6,6 +6,10 @@ require_login(['admin']);
 
 $user = current_user();
 $success = ''; $error = '';
+if (isset($_SESSION['company_created'])) {
+    $success = $_SESSION['company_created'];
+    unset($_SESSION['company_created']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -16,24 +20,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     if ($action === 'add_company') {
-        $cname   = trim($_POST['company_name'] ?? '');
-        $loc     = trim($_POST['location'] ?? '');
-        $sup     = trim($_POST['supervisor_name'] ?? '');
-        $email   = trim($_POST['email'] ?? '');
-        $phone   = trim($_POST['contact_number'] ?? '');
-        $pass    = trim($_POST['password'] ?? '');
+        $field = static fn($key) => is_string($_POST[$key] ?? null) ? trim($_POST[$key]) : '';
+        $cname = $field('company_name'); $loc = $field('location');
+        $sup = $field('supervisor_name'); $email = $field('email'); $phone = $field('contact_number');
+        $pass = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
 
-        if (!$cname || !$email || strlen($pass) < 12 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Company name, a valid email and a password of at least 12 characters are required.';
+        if ($cname === '' || mb_strlen($cname) > 100) {
+            $error = 'Enter a company name of up to 100 characters.';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 150) {
+            $error = 'Enter a valid account email address.';
+        } elseif (strlen($pass) < 12 || strlen($pass) > 72 || str_contains($pass, "\0")) {
+            $error = 'Initial password must be between 12 and 72 characters.';
+        } elseif (mb_strlen($loc) > 200 || mb_strlen($sup) > 100 || mb_strlen($phone) > 20) {
+            $error = 'Location, contact person or phone number exceeds the allowed length.';
         } elseif (query_one("SELECT id FROM users WHERE email=?", [$email], 's')) {
             $error = 'Email is already registered in the system.';
         } else {
-            $uid = insert("INSERT INTO users (name, email, role, password, status) VALUES (?,?,'company',?,'active')",
-                [$cname, $email, password_hash($pass, PASSWORD_DEFAULT)], 'sss');
-            insert("INSERT INTO companies (user_id, company_name, supervisor_name, location, contact_number, status) VALUES (?,?,?,?,?,'active')",
-                [$uid, $cname, $sup, $loc, $phone], 'issss');
-            log_activity($user['id'], 'Company Added', $cname);
-            $success = "Company $cname registered successfully.";
+            db()->begin_transaction();
+            try {
+                $uid = insert("INSERT INTO users (name, email, role, password, status) VALUES (?,?,'company',?,'active')",
+                    [$cname, $email, password_hash($pass, PASSWORD_DEFAULT)], 'sss');
+                insert("INSERT INTO companies (user_id, company_name, supervisor_name, location, contact_number, status) VALUES (?,?,?,?,?,'active')",
+                    [$uid, $cname, $sup, $loc, $phone], 'issss');
+                log_activity($user['id'], 'Company Added', $cname);
+                db()->commit();
+            } catch (Throwable $exception) {
+                db()->rollback();
+                $error = $exception instanceof mysqli_sql_exception && (int)$exception->getCode() === 1062
+                    ? 'Email is already registered in the system.'
+                    : 'Unable to register the company. Please try again.';
+                error_log('OJTrack company registration failed (code ' . $exception->getCode() . ').');
+            }
+            if ($error === '') {
+                $_SESSION['company_created'] = "Company $cname registered successfully.";
+                http_response_code(303);
+                redirect('admin/companies.php');
+            }
         }
     } elseif ($action === 'edit_company') {
         $cid   = (int)$_POST['company_id'];
@@ -86,7 +108,7 @@ if ($status) {
     $types .= 's';
 }
 
-$companies = query("SELECT co.*, u.email, u.status AS user_status,
+$companies = query("SELECT co.*, u.email, u.avatar, u.status AS user_status,
     (SELECT COUNT(*) FROM students s JOIN users su ON su.id=s.user_id
      WHERE s.company_id=co.id AND s.is_archived=0 AND su.status!='archived') AS trainee_count,
     (SELECT COUNT(*) FROM students s JOIN users su ON su.id=s.user_id
@@ -94,14 +116,16 @@ $companies = query("SELECT co.*, u.email, u.status AS user_status,
     FROM companies co LEFT JOIN users u ON u.id=co.user_id WHERE $where ORDER BY co.company_name",
     $params, $types);
 
-$page_title = 'Company Registry';
+$add_company_failed = $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_company' && $error !== '';
+$add_values = $add_company_failed ? array_intersect_key(array_filter($_POST, 'is_scalar'), array_flip(['company_name','location','supervisor_name','email','contact_number'])) : [];
+$page_title = 'Companies';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Company Registry</div>
-    <div class="page-sub">Manage accredited OJT partner industry hosts and supervisors</div>
+    <div class="page-title">Companies</div>
+    <div class="page-sub">Partner companies and supervisors</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('addCompanyModal')">+ Register Partner Company</button>
 </div>
@@ -111,7 +135,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card">
   <div class="card-header flex-between">
-    <form method="GET" style="display:flex;gap:8px">
+    <form class="filter-toolbar" method="GET" style="display:flex;gap:8px">
       <div class="search-wrap" style="width:260px">
         <input type="text" name="q" class="form-control search-input" placeholder="Search company or location..." value="<?= e($search) ?>">
       </div>
@@ -125,7 +149,7 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
     <div class="text-sm text-muted"><?= count($companies) ?> partner companies</div>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -144,8 +168,8 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach ($companies as $c): ?>
         <tr class="row-clickable" onclick='openEditCompany(<?= htmlspecialchars(json_encode($c, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)' title="Click to view &amp; edit">
           <td>
-            <div style="display:flex;gap:10px;align-items:center">
-              <div style="width:36px;height:36px;border-radius:var(--radius);background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--primary);flex-shrink:0"><?= strtoupper(substr($c['company_name'],0,2)) ?></div>
+            <div class="table-person">
+              <div style="width:36px;height:36px;border-radius:var(--radius);background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--primary);flex-shrink:0"><?= user_avatar_content($c['avatar'] ?? null, $c['company_name']) ?></div>
               <span class="font-bold text-sm"><?= e($c['company_name']) ?></span>
             </div>
           </td>
@@ -169,7 +193,14 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="submit" class="table-action-icon <?= $c['status'] === 'active' ? 'is-danger' : 'is-success' ?>"
                         title="<?= $c['status'] === 'active' ? 'Deactivate company' : 'Activate company' ?>"
                         aria-label="<?= $c['status'] === 'active' ? 'Deactivate company' : 'Activate company' ?>">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/>
+                    <?php if ($c['status'] === 'active'): ?>
+                      <path d="M8 12h8"/>
+                    <?php else: ?>
+                      <path d="m8 12 3 3 5-6"/>
+                    <?php endif; ?>
+                  </svg>
                 </button>
               </form>
             </div>
@@ -186,21 +217,22 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="addCompanyModal">
   <div class="modal modal-lg">
     <div class="modal-title">Register Partner Company</div>
+    <?php if ($add_company_failed): ?><div class="alert alert-error" role="alert"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
     <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_company">
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Company / Organization Name <span style="color:red">*</span></label><input type="text" name="company_name" class="form-control" placeholder="e.g. Innovatech Solutions" required></div>
-        <div class="form-group"><label class="form-label">Workplace Location</label><input type="text" name="location" class="form-control" placeholder="e.g. Cagayan de Oro City"></div>
+        <div class="form-group"><label class="form-label" for="newCompanyName">Company / Organization Name <span style="color:red">*</span></label><input type="text" name="company_name" id="newCompanyName" maxlength="100" value="<?= e($add_values['company_name'] ?? '') ?>" class="form-control" placeholder="e.g. Innovatech Solutions" required></div>
+        <div class="form-group"><label class="form-label" for="newCompanyLocation">Workplace Location</label><input type="text" name="location" id="newCompanyLocation" maxlength="200" value="<?= e($add_values['location'] ?? '') ?>" class="form-control" placeholder="e.g. Cagayan de Oro City"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Supervisor / Contact Person</label><input type="text" name="supervisor_name" class="form-control" placeholder="e.g. Engr. Roberto Diaz"></div>
-        <div class="form-group"><label class="form-label">Contact Number</label><input type="text" name="contact_number" class="form-control" placeholder="0917-123-4567"></div>
+        <div class="form-group"><label class="form-label" for="newCompanySupervisor">Supervisor / Contact Person</label><input type="text" name="supervisor_name" id="newCompanySupervisor" maxlength="100" value="<?= e($add_values['supervisor_name'] ?? '') ?>" class="form-control" placeholder="e.g. Engr. Roberto Diaz"></div>
+        <div class="form-group"><label class="form-label" for="newCompanyPhone">Contact Number</label><input type="text" name="contact_number" id="newCompanyPhone" maxlength="20" value="<?= e($add_values['contact_number'] ?? '') ?>" class="form-control" placeholder="0917-123-4567"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Account Email Address <span style="color:red">*</span></label><input type="email" name="email" class="form-control" placeholder="company@domain.com" required></div>
-        <div class="form-group"><label class="form-label">Initial Password</label><input type="password" name="password" class="form-control" value="" required></div>
+        <div class="form-group"><label class="form-label" for="newCompanyEmail">Account Email Address <span style="color:red">*</span></label><input type="email" name="email" id="newCompanyEmail" maxlength="150" value="<?= e($add_values['email'] ?? '') ?>" class="form-control" placeholder="company@domain.com" required></div>
+        <div class="form-group"><label class="form-label" for="newCompanyPassword">Initial Password <span style="color:red">*</span></label><input type="password" id="newCompanyPassword" name="password" class="form-control" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="companyPasswordHelp" required><div id="companyPasswordHelp" class="text-xs text-muted mt-1">Use 12–72 characters.</div></div>
       </div>
-      <div class="alert alert-info"><div class="alert-body"><small>An account will be created automatically for this partner company to log in, view trainees, and submit performance evaluations.</small></div></div>
+      <div class="alert alert-info"><div class="alert-body"><small>Creates a company login for trainee management and evaluations.</small></div></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('addCompanyModal')">Cancel</button>
         <button type="submit" class="btn btn-primary">Register Company</button>
@@ -248,6 +280,9 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+<?php if ($add_company_failed): ?>
+document.addEventListener('DOMContentLoaded', function () { openModal('addCompanyModal'); });
+<?php endif; ?>
 function openEditCompany(c) {
   document.getElementById('editCompId').value = c.id;
   document.getElementById('editCompName').value = c.company_name;

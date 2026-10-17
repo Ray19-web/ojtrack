@@ -58,6 +58,8 @@
   --radius-lg:  16px;
   --radius-xl:  20px;
   --radius-full: 9999px;
+  --button-radius: 10px;
+  --button-height: 44px;
 
   --shadow-sm:  0 1px 2px rgba(16, 59, 120, 0.04);
   --shadow:     0 1px 3px rgba(16, 59, 120, 0.05), 0 6px 18px rgba(16, 59, 120, 0.06);
@@ -376,7 +378,6 @@ html.sidebar-collapsed .sidebar-collapse-btn {
 
 html.sidebar-collapsed .sidebar-logo {
   position: relative;
-  cursor: pointer;
 }
 
 html.sidebar-collapsed .nav-section-header {
@@ -398,44 +399,20 @@ html.sidebar-collapsed .nav-link {
   position: relative;
 }
 
+/* Keep icon-only link names accessible without extending the scroll area.
+   The link title supplies the native hover tooltip. */
 html.sidebar-collapsed .nav-label {
   position: absolute;
-  left: calc(100% + 12px);
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
-  background: #0a2a56;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 7px 11px;
-  border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(16, 59, 120, 0.28);
-  border: 1px solid rgba(227, 227, 227, 0.12);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity .15s ease, visibility .15s ease;
-  z-index: 120;
-}
-
-html.sidebar-collapsed .nav-label::before {
-  content: '';
-  position: absolute;
-  left: -5px;
-  top: 50%;
-  transform: translateY(-50%) rotate(45deg);
-  width: 8px;
-  height: 8px;
-  background: #0a2a56;
-  border-left: 1px solid rgba(227, 227, 227, 0.12);
-  border-bottom: 1px solid rgba(227, 227, 227, 0.12);
-}
-
-html.sidebar-collapsed .nav-link:hover .nav-label,
-html.sidebar-collapsed .nav-link:focus-visible .nav-label {
-  opacity: 1;
-  visibility: visible;
 }
 
 html.sidebar-collapsed .nav-icon {
@@ -502,7 +479,6 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
     --sidebar-w: 0px;
   }
   html.sidebar-collapsed .sidebar-logo-text,
-  html.sidebar-collapsed .nav-section-header,
   html.sidebar-collapsed .nav-label {
     display: initial;
     position: static;
@@ -514,6 +490,17 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
     border: none;
     padding: 0;
     color: inherit;
+  }
+  html.sidebar-collapsed .nav-label {
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
   }
   html.sidebar-collapsed .nav-label::before { display: none; }
   html.sidebar-collapsed .nav-link {
@@ -531,6 +518,8 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
 
 .sidebar-nav {
   flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
   padding: 14px 10px 20px;
   overflow-y: auto;
 }
@@ -913,21 +902,24 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 9px 16px;
-  border-radius: var(--radius);
-  font-size: 13px;
+  min-height: var(--button-height);
+  padding: 10px 18px;
+  border-radius: var(--button-radius);
+  font-size: 14px;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  border: none;
+  border: 1px solid transparent;
   transition: background .15s, color .15s, box-shadow .15s, border-color .15s;
   text-decoration: none;
   white-space: nowrap;
-  line-height: 1.25;
+  line-height: 1.4;
 }
 
 .btn:hover { text-decoration: none; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.btn:disabled:hover { filter: none; transform: none; }
+.btn > svg { width: 18px; height: 18px; flex-shrink: 0; }
 
 .btn-primary { background: var(--primary); color: white; }
 .btn-primary:hover { background: var(--primary-dark); color: white; }
@@ -942,7 +934,7 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
   color: #0a2a56;
 }
 
-.btn-secondary { background: white; color: var(--text-700); border: 1px solid var(--border); }
+.btn-secondary { background: white; color: var(--primary); border: 1px solid var(--border); }
 .btn-secondary:hover { background: var(--bg); }
 
 .btn-success { background: #059669; color: white; }
@@ -951,15 +943,28 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
 .btn-danger { background: #dc2626; color: white; }
 .btn-danger:hover { background: #b91c1c; }
 
-.btn-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
+.btn-warning { background: var(--warning-bg); color: #92400e; border: 1px solid var(--warning-border); }
 .btn-warning:hover { background: #fef3c7; }
 
 .btn-ghost { background: transparent; color: var(--text-600); }
 .btn-ghost:hover { background: var(--bg); }
 
-.btn-sm { padding: 6px 12px; font-size: 12px; }
-.btn-xs { padding: 4px 10px; font-size: 11px; border-radius: var(--radius-sm); }
-.btn-lg { padding: 12px 24px; font-size: 15px; }
+.btn-sm { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+.btn-xs { min-height: 36px; padding: 7px 12px; font-size: 12px; }
+.btn-lg { min-height: 48px; padding: 12px 24px; font-size: 15px; }
+
+/* Main action groups use the regular size even when older markup says btn-sm. */
+.page-heading .btn,
+.card-header .btn,
+.filter-toolbar .btn,
+.modal-footer .btn,
+.profile-modal .btn,
+.logout-modal-actions .btn {
+  min-height: var(--button-height);
+  padding: 10px 18px;
+  font-size: 14px;
+  line-height: 1.4;
+}
 
 /* ── Tables ─────────────────────────────────────────────── */
 .table-wrap {
@@ -1341,7 +1346,11 @@ select.form-control { cursor: pointer; }
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 12px;
+}
+
+.profile-section-actions .btn {
+  min-width: 160px;
 }
 
 @media (max-width: 640px) {
@@ -1459,7 +1468,7 @@ select.form-control { cursor: pointer; }
 
 .logout-modal-actions .btn {
   min-width: 104px;
-  min-height: 40px;
+  min-height: var(--button-height);
   justify-content: center;
   border-radius: 10px;
   font-weight: 600;
@@ -1470,11 +1479,11 @@ select.form-control { cursor: pointer; }
 }
 
 .logout-modal .logout-confirm-btn {
-  box-shadow: 0 6px 16px rgba(220, 38, 38, .16);
+  box-shadow: none;
 }
 
 .logout-modal .logout-confirm-btn:hover {
-  box-shadow: 0 8px 20px rgba(185, 28, 28, .20);
+  box-shadow: none;
 }
 
 .user-dropdown-menu button.user-dropdown-item {
@@ -2045,8 +2054,8 @@ body.sidebar-open {
 .chat-input textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 
 .btn-send {
-  width: 40px; height: 40px;
-  border-radius: var(--radius);
+  width: 44px; height: 44px;
+  border-radius: var(--button-radius);
   background: var(--primary);
   color: white;
   border: none;
@@ -3054,24 +3063,24 @@ body.role-admin .layout {
   background: transparent;
 }
 
-/* Sidebar */
-body.role-admin .sidebar {
+/* Shared sidebar appearance for every account role. */
+.sidebar {
   background: linear-gradient(175deg, #144889 0%, #103b78 38%, #0c2f63 72%, #092548 100%);
   border-right: 1px solid rgba(227, 227, 227, 0.10);
   box-shadow: 6px 0 28px rgba(16, 59, 120, 0.20);
 }
 
-body.role-admin .sidebar::-webkit-scrollbar-thumb {
+.sidebar::-webkit-scrollbar-thumb {
   background: rgba(227, 227, 227, 0.25);
 }
 
-body.role-admin .sidebar-logo {
+.sidebar-logo {
   padding: 22px 16px 18px;
   border-bottom: 1px solid rgba(227, 227, 227, 0.10);
   position: relative;
 }
 
-body.role-admin .sidebar-logo::after {
+.sidebar-logo::after {
   content: '';
   position: absolute;
   left: 16px;
@@ -3082,48 +3091,54 @@ body.role-admin .sidebar-logo::after {
   background: linear-gradient(90deg, #F5A623 0%, rgba(245, 166, 35, 0.15) 70%, transparent 100%);
 }
 
-body.role-admin .sidebar-logo-text .brand {
+.sidebar-logo-text .brand {
   letter-spacing: 0.06em;
   font-weight: 800;
 }
 
-body.role-admin .sidebar-logo-text .campus {
+.sidebar-logo-text .campus {
   color: rgba(245, 166, 35, 0.90);
   font-weight: 600;
   letter-spacing: 0.03em;
 }
 
-body.role-admin .nav-section-header {
+.nav-section-header {
   color: rgba(245, 166, 35, 0.58);
   letter-spacing: 0.10em;
 }
 
-body.role-admin .nav-link {
+.nav-link {
+  min-height: 44px;
   border-radius: 10px;
   color: rgba(227, 227, 227, 0.82);
   margin-bottom: 2px;
 }
 
-body.role-admin .nav-link:hover {
+.nav-link:hover {
   background: rgba(255, 255, 255, 0.09);
   color: #fff;
 }
 
-body.role-admin .nav-link.active {
+.nav-link.active {
   background: linear-gradient(90deg, rgba(245, 166, 35, 0.24) 0%, rgba(245, 166, 35, 0.06) 100%);
   color: #fff;
   font-weight: 700;
   box-shadow: inset 3px 0 0 #F5A623;
 }
 
-body.role-admin .nav-link.active .nav-icon {
+.nav-link.active .nav-icon {
   color: #F5A623;
   opacity: 1;
 }
 
-body.role-admin .nav-badge {
+.nav-badge {
   background: #F5A623;
   color: #103b78;
+}
+
+.sidebar .nav-link:focus-visible {
+  outline: 2px solid #F5A623;
+  outline-offset: -2px;
 }
 
 body.role-admin .main-content {
@@ -3339,47 +3354,6 @@ body.role-admin .stat-icon.violet {
   color: #103b78;
 }
 
-/* Buttons */
-body.role-admin .btn-primary {
-  background: #103b78;
-  box-shadow: 0 6px 16px rgba(16, 59, 120, 0.24);
-}
-
-body.role-admin .btn-primary:hover {
-  background: #0a2a56;
-  box-shadow: 0 8px 20px rgba(16, 59, 120, 0.30);
-  color: #fff;
-}
-
-body.role-admin .btn-accent {
-  background: #F5A623;
-  color: #103b78;
-  font-weight: 700;
-  box-shadow: 0 6px 14px rgba(245, 166, 35, 0.28);
-}
-
-body.role-admin .btn-accent:hover {
-  background: #d48e12;
-  color: #0a2a56;
-}
-
-body.role-admin .btn-secondary {
-  border-color: #e3e3e3;
-  color: #103b78;
-  background: #fff;
-}
-
-body.role-admin .btn-secondary:hover {
-  background: rgba(16, 59, 120, 0.05);
-  border-color: #c8d2e2;
-  color: #103b78;
-}
-
-body.role-admin .btn-ghost:hover {
-  background: rgba(16, 59, 120, 0.05);
-  color: #103b78;
-}
-
 /* Tables */
 body.role-admin thead tr {
   background: linear-gradient(180deg, #f7f8fa 0%, #f1f3f6 100%);
@@ -3544,8 +3518,8 @@ body.role-admin .upload-area svg {
   color: #103b78;
 }
 
-/* Admin hero banner */
-body.role-admin .admin-hero {
+/* Shared dashboard welcome banner */
+.dashboard-hero {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -3562,7 +3536,7 @@ body.role-admin .admin-hero {
   overflow: hidden;
 }
 
-body.role-admin .admin-hero::before {
+.dashboard-hero::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -3571,7 +3545,7 @@ body.role-admin .admin-hero::before {
   pointer-events: none;
 }
 
-body.role-admin .admin-hero::after {
+.dashboard-hero::after {
   content: '';
   position: absolute;
   width: 320px;
@@ -3583,13 +3557,13 @@ body.role-admin .admin-hero::after {
   pointer-events: none;
 }
 
-body.role-admin .admin-hero-copy {
+.dashboard-hero-copy {
   position: relative;
   z-index: 1;
   min-width: 0;
 }
 
-body.role-admin .admin-hero-kicker {
+.dashboard-hero-kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3601,7 +3575,7 @@ body.role-admin .admin-hero-kicker {
   margin-bottom: 10px;
 }
 
-body.role-admin .admin-hero-dot {
+.dashboard-hero-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -3615,7 +3589,7 @@ body.role-admin .admin-hero-dot {
   50% { box-shadow: 0 0 0 7px rgba(245, 166, 35, 0.08); }
 }
 
-body.role-admin .admin-hero-title {
+.dashboard-hero-title {
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 800;
@@ -3624,13 +3598,13 @@ body.role-admin .admin-hero-title {
   margin: 0 0 6px;
 }
 
-body.role-admin .admin-hero-sub {
+.dashboard-hero-sub {
   font-size: 13px;
   color: rgba(227, 227, 227, 0.88);
   margin: 0;
 }
 
-body.role-admin .admin-hero-actions {
+.dashboard-hero-actions {
   position: relative;
   z-index: 1;
   display: flex;
@@ -3639,32 +3613,28 @@ body.role-admin .admin-hero-actions {
   justify-content: flex-end;
 }
 
-body.role-admin .admin-hero .btn-accent {
+.dashboard-hero .btn-accent {
   background: #F5A623;
   color: #103b78;
-  border: none;
-  box-shadow: 0 8px 18px rgba(245, 166, 35, 0.30);
+  border: 1px solid transparent;
+  box-shadow: none;
 }
 
-body.role-admin .admin-hero .btn-accent:hover {
-  background: #ffb53a;
+.dashboard-hero .btn-accent:hover {
+  background: var(--accent-dark);
   color: #0a2a56;
 }
 
-body.role-admin .btn-ghost-light {
+.dashboard-hero .btn-ghost-light {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   border: 1px solid rgba(227, 227, 227, 0.28);
 }
 
-body.role-admin .btn-ghost-light:hover {
+.dashboard-hero .btn-ghost-light:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
   text-decoration: none;
-}
-
-body.role-admin .admin-hero .btn-ghost-light:hover {
-  background: rgba(255, 255, 255, 0.15);
 }
 
 /* Empty states */
@@ -3673,15 +3643,15 @@ body.role-admin .empty-state {
 }
 
 @media (max-width: 900px) {
-  body.role-admin .admin-hero {
+  .dashboard-hero {
     flex-direction: column;
     align-items: flex-start;
     padding: 22px 20px;
   }
-  body.role-admin .admin-hero-title {
+  .dashboard-hero-title {
     font-size: 22px;
   }
-  body.role-admin .admin-hero-actions {
+  .dashboard-hero-actions {
     justify-content: flex-start;
     width: 100%;
   }
@@ -3980,41 +3950,6 @@ body.role-admin .coordinator-stat-copy span {
   white-space: nowrap;
 }
 
-body.role-admin .coordinator-assignment {
-  margin: 0 20px 16px;
-  padding: 12px;
-  border: 1px dashed #cbd8e8;
-  border-radius: var(--radius);
-  background: #fbfdff;
-}
-
-body.role-admin .coordinator-assignment-label {
-  margin-bottom: 7px;
-  color: var(--text-500);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-}
-
-body.role-admin .coordinator-assignment-form {
-  display: flex;
-  gap: 7px;
-  min-width: 0;
-}
-
-body.role-admin .coordinator-assignment-form .form-control {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  font-size: 11px;
-  padding: 7px 10px;
-}
-
-body.role-admin .coordinator-assignment-form .btn {
-  flex-shrink: 0;
-}
-
 body.role-admin .coordinator-card-footer {
   margin-top: auto;
   padding: 13px 20px 18px;
@@ -4130,13 +4065,7 @@ body.role-admin .coordinator-empty {
     white-space: normal;
   }
 
-  body.role-admin .coordinator-assignment-form {
-    flex-direction: column;
-  }
 
-  body.role-admin .coordinator-assignment-form .btn {
-    width: 100%;
-  }
 }
 /* ── End Admin: Coordinator cards ───────────────────────── */\n\n/* Shared keyboard focus: retains the existing brand colors. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid var(--primary, #1764bb); outline-offset: 3px; }
@@ -4165,7 +4094,7 @@ body.role-admin .coordinator-empty {
 .announcement-form textarea.form-control{min-height:142px;padding:12px 14px;line-height:1.6}
 .announcement-form .form-row{gap:14px}
 .announcement-modal .modal-footer{margin:23px -26px 0;padding:16px 26px 18px;border-top:1px solid #edf0f4;background:#fafbfc}
-.announcement-modal .modal-footer .btn{min-height:40px;padding-left:18px;padding-right:18px}
+.announcement-modal .modal-footer .btn{min-height:var(--button-height);padding-left:18px;padding-right:18px}
 .announcement-upload{position:relative;min-height:132px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:22px;border:1.5px dashed #c9d5e5;border-radius:12px;background:#fafcff;outline:none;cursor:pointer;transition:.15s ease}
 body .announcement-modal .announcement-upload:hover,body .announcement-modal .announcement-upload.is-dragging{border-color:var(--primary);background:#f5f8fc}
 .announcement-upload:focus-visible{border-color:var(--primary);box-shadow:0 0 0 3px rgba(16,59,120,.10)}
@@ -4225,14 +4154,14 @@ body .announcement-modal .announcement-upload svg{width:24px;height:24px;margin:
   margin:0;
 }
 .table-action-icon{
-  width:32px;
-  height:32px;
-  min-width:32px;
+  width:36px;
+  height:36px;
+  min-width:36px;
   padding:0;
   display:inline-grid;
   place-items:center;
   border:1px solid #dce3eb;
-  border-radius:8px;
+  border-radius:var(--button-radius);
   background:#fff;
   color:var(--text-600);
   cursor:pointer;

@@ -272,13 +272,14 @@ CREATE TABLE `thread_members` (
   `id` int(11) NOT NULL,
   `thread_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
-  `joined_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `joined_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `archived_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
   `name` varchar(100) NOT NULL,
-  `email` varchar(100) NOT NULL,
+  `email` varchar(150) DEFAULT NULL,
   `password` varchar(255) NOT NULL,
   `role` enum('student','coordinator','company','admin') NOT NULL,
   `status` enum('active','inactive','archived') DEFAULT 'active',
@@ -393,6 +394,7 @@ ALTER TABLE `students`
 ALTER TABLE `thread_members`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `unique_member` (`thread_id`,`user_id`),
+  ADD KEY `idx_thread_members_archive` (`user_id`,`archived_at`),
   ADD KEY `user_id` (`user_id`);
 
 ALTER TABLE `users`

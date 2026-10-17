@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/avatars.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/communications.php';
 require_once __DIR__ . '/uploads.php';

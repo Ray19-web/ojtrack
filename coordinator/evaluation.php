@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $title=trim($_POST['title'] ?? '');
             $desc=trim($_POST['description'] ?? '');
             $mode=$_POST['score_mode'] ?? 'percentage';
-            if ($mode!=='percentage') request_error(422,'Only percentage scoring is currently supported.');
+            if (!in_array($mode,['percentage','points'],true)) request_error(422,'Select percentage or points scoring.');
             if ($title==='') {
                 $error='Title is required.';
             } elseif ($id>0) {
@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                 case 'add_criterion':
                     $label=trim($_POST['criterion_label'] ?? '');
-                    if ($label!=='') normalized_eval_add_criterion($form_id,$uid,(int)$_POST['section_id'],$label);
+                    if ($label!=='') normalized_eval_add_criterion($form_id,$uid,(int)$_POST['section_id'],$label,(int)($_POST['maximum_points'] ?? 1));
                     break;
                 case 'delete_criterion':
                     normalized_eval_delete_criterion($form_id,$uid,(int)$_POST['criterion_id']);
@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $form_id,$uid,
                         (float)($_POST['score_min'] ?? 0),
                         (float)($_POST['score_max'] ?? 0),
-                        (float)($_POST['equivalent'] ?? 0),
+                        isset($_POST['equivalent']) && $_POST['equivalent']!=='' ? (float)$_POST['equivalent'] : null,
                         trim($_POST['description'] ?? '')
                     );
                     break;
@@ -178,7 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Evaluation Forms</div>
-    <div class="page-sub">Build, manage, and distribute evaluation forms to companies</div>
+    <div class="page-sub">Create forms and send to companies</div>
   </div>
   <div style="display:flex;gap:8px">
     <button class="btn btn-secondary" onclick="openModal('manageSubsModal')">Submissions</button>
@@ -224,7 +224,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="form-group">
         <label class="form-label">Scoring Mode</label>
         <select name="score_mode" class="form-control">
-          <option value="percentage" <?= $build['score_mode']==='percentage'?'selected':'' ?>>Percentage (0–100)</option>
+          <option value="<?= e($build['score_mode']) ?>" selected><?= $build['score_mode']==='points' ? 'Points (total 100)' : 'Percentage (0–100)' ?></option>
 
         </select>
       </div>
@@ -243,7 +243,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="flex-between mb-2" style="align-items:center">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="drag-handle" style="cursor:grab;color:var(--text-400)">⠿</span>
-            <form method="POST" style="display:flex;gap:6px"><?= csrf_field() ?>
+            <form method="POST" class="evaluation-builder-form" style="display:flex;gap:6px"><?= csrf_field() ?>
               <input type="hidden" name="action" value="rename_section">
               <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
               <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -251,7 +251,7 @@ require_once __DIR__ . '/../includes/header.php';
               <button class="btn btn-ghost btn-sm">Rename</button>
             </form>
           </div>
-          <form method="POST" onsubmit="return confirm('Delete this section and its criteria?')"><?= csrf_field() ?>
+          <form method="POST" data-confirm-message="Delete this section and its criteria?"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_section">
             <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
             <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
@@ -264,38 +264,42 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="eval-criterion" draggable="true" data-id="<?= $cr['id'] ?>" style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px dashed var(--border-light)">
             <span class="drag-handle" style="cursor:grab;color:var(--text-400)">⠿</span>
             <span class="text-sm" style="flex:1"><?= e($cr['label']) ?></span>
-            <form method="POST" onsubmit="return confirm('Delete this criterion?')"><?= csrf_field() ?>
+            <?php if ($build['score_mode']==='points'): ?><span class="text-xs text-muted"><?= (int)$cr['weight'] ?> points max</span><?php endif; ?>
+            <form method="POST" data-confirm-message="Delete this criterion?"><?= csrf_field() ?>
               <input type="hidden" name="action" value="delete_criterion">
               <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
               <input type="hidden" name="criterion_id" value="<?= $cr['id'] ?>">
-              <button class="btn btn-ghost btn-sm" style="padding:2px 6px">✕</button>
+              <button class="btn btn-ghost btn-sm" aria-label="Remove criterion" title="Remove criterion">✕</button>
             </form>
           </div>
           <?php endforeach; ?>
         </div>
 
-        <form method="POST" style="display:flex;gap:6px;margin-top:8px;padding-left:26px"><?= csrf_field() ?>
+        <form method="POST" class="evaluation-builder-form" style="display:flex;gap:6px;margin-top:8px;padding-left:26px"><?= csrf_field() ?>
           <input type="hidden" name="action" value="add_criterion">
           <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
           <input type="hidden" name="section_id" value="<?= $s['id'] ?>">
           <input type="text" name="criterion_label" class="form-control" style="width:300px" placeholder="+ Add Criterion" required>
+          <?php if ($build['score_mode']==='points'): ?>
+          <input type="number" name="maximum_points" class="form-control" min="1" max="100" step="1" placeholder="Max points" aria-label="Maximum points" required style="width:120px">
+          <?php endif; ?>
           <button class="btn btn-ghost btn-sm">Add</button>
         </form>
       </div>
       <?php endforeach; ?>
     </div>
 
-    <form method="POST" style="display:flex;gap:6px"><?= csrf_field() ?>
+    <form method="POST" class="evaluation-builder-form" style="display:flex;gap:6px"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_section">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
-      <input type="text" name="section_title" class="form-control" style="width:300px" placeholder="+ Add Section (e.g. Attendance and Punctuality)" required>
+      <input type="text" name="section_title" class="form-control" style="width:300px" placeholder="Section title" required>
       <button class="btn btn-ghost btn-sm">Add Section</button>
     </form>
   </div>
 
   <div class="card card-body mb-4">
     <div class="section-title mb-3">Scoring / Equivalent Rating Rules</div>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
       <table>
         <thead><tr><th>Score Range</th><th>Equivalent</th><th>Description</th><th></th></tr></thead>
         <tbody>
@@ -304,11 +308,11 @@ require_once __DIR__ . '/../includes/header.php';
             <?php foreach ($rules as $r): ?>
             <tr>
               <td><?= (int)$r['score_min'] ?>–<?= (int)$r['score_max'] ?></td>
-              <td><strong><?= e($r['equivalent']) ?></strong></td>
+              <td><strong><?= $r['equivalent'] !== null ? e($r['equivalent']) : e($r['description']) ?></strong></td>
               <td class="text-sm text-muted"><?= e($r['description']) ?></td>
               <td>
                 <div class="table-actions">
-                  <form method="POST" onsubmit="return confirm('Delete this rule?')"><?= csrf_field() ?>
+                  <form method="POST" data-confirm-message="Delete this rule?"><?= csrf_field() ?>
                     <input type="hidden" name="action" value="delete_rule">
                     <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
                     <input type="hidden" name="rule_id" value="<?= $r['id'] ?>">
@@ -324,12 +328,16 @@ require_once __DIR__ . '/../includes/header.php';
         </tbody>
       </table>
     </div>
-    <form method="POST" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><?= csrf_field() ?>
+    <form method="POST" class="evaluation-builder-form" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_rule">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <input type="number" name="score_min" class="form-control" style="width:90px" placeholder="Min" required>
       <input type="number" name="score_max" class="form-control" style="width:90px" placeholder="Max" required>
+      <?php if ($build['score_mode']==='points'): ?>
+      <input type="hidden" name="equivalent" value="">
+      <?php else: ?>
       <input type="number" step="0.01" name="equivalent" class="form-control" style="width:110px" placeholder="Equiv. (1.25)" required>
+      <?php endif; ?>
       <input type="text" name="description" class="form-control" style="width:220px" placeholder="Description (optional)">
       <button class="btn btn-ghost btn-sm">+ Add Rating Rule</button>
     </form>
@@ -337,7 +345,7 @@ require_once __DIR__ . '/../includes/header.php';
 
   <div style="display:flex;gap:8px">
     <button class="btn btn-secondary" onclick="openModal('previewModal')">Preview Form</button>
-    <form method="POST" style="display:inline" onsubmit="return confirm('Publish this form and set it Active?')"><?= csrf_field() ?>
+    <form method="POST" style="display:inline" data-confirm-message="Publish this form and set it Active?"><?= csrf_field() ?>
       <input type="hidden" name="action" value="publish_form">
       <input type="hidden" name="form_id" value="<?= $build['id'] ?>">
       <button class="btn btn-primary">Publish Form</button>
@@ -353,7 +361,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="section-title mb-2" style="margin-top:12px"><?= e($s['title']) ?></div>
       <?php foreach ($crits as $cr): ?>
       <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between"><span class="text-sm"><?= e($cr['label']) ?></span><span class="font-mono text-sm text-muted">0–<?= $build['score_mode']==='rating'?'5':'100' ?></span></div>
+        <div style="display:flex;justify-content:space-between"><span class="text-sm"><?= e($cr['label']) ?></span><span class="font-mono text-sm text-muted">0–<?= $build['score_mode']==='points' ? (int)$cr['weight'] : ($build['score_mode']==='rating'?'5':'100') ?></span></div>
         <input type="range" class="score-slider" style="width:100%" disabled>
       </div>
       <?php endforeach; ?>
@@ -361,7 +369,7 @@ require_once __DIR__ . '/../includes/header.php';
       <?php if ($rules): ?>
       <div class="section-title mb-2" style="margin-top:12px">Rating Guide</div>
       <?php foreach ($rules as $r): ?>
-      <div class="text-sm text-muted"><?= (int)$r['score_min'] ?>–<?= (int)$r['score_max'] ?> → <strong><?= e($r['equivalent']) ?></strong> <?= e($r['description']) ?></div>
+      <div class="text-sm text-muted"><?= (int)$r['score_min'] ?>–<?= (int)$r['score_max'] ?> → <strong><?= $r['equivalent'] !== null ? e($r['equivalent']) : e($r['description']) ?></strong> <?= e($r['description']) ?></div>
       <?php endforeach; ?>
       <?php endif; ?>
       <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('previewModal')">Close</button></div>
@@ -377,9 +385,10 @@ require_once __DIR__ . '/../includes/header.php';
       container.querySelectorAll(itemSel).forEach(item => {
         item.addEventListener('dragstart', e => { dragged = item; e.dataTransfer.effectAllowed = 'move'; });
         item.addEventListener('dragover', e => { e.preventDefault(); return false; });
-        item.addEventListener('drop', e => {
+        item.addEventListener('drop', async e => {
           e.preventDefault();
           if (dragged && dragged !== item && dragged.parentNode === item.parentNode) {
+            if (!await confirmOJTrack({title: 'Change evaluation order?', message: 'Save the new order of these evaluation items?', confirmLabel: 'Save Order'})) return;
             item.parentNode.insertBefore(dragged, item.nextSibling === dragged ? item : item.nextSibling);
             const ids = [...container.querySelectorAll(itemSel)].map(el => el.dataset.id);
             const fd = new FormData();
@@ -398,7 +407,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php else: ?>
   <!-- Forms list -->
-  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+  <div class="grid evaluation-form-grid" style="gap:16px">
     <?php if (empty($forms)): ?>
       <div class="card card-body"><div class="empty-state"><p>No evaluation forms yet. Create your first form to get started.</p></div></div>
     <?php else: ?>
@@ -417,12 +426,12 @@ require_once __DIR__ . '/../includes/header.php';
             <a href="?build=<?= $f['id'] ?>" class="btn btn-secondary btn-sm">Edit</a>
           <?php endif; ?>
           <form method="POST" style="display:inline"><?= csrf_field() ?><input type="hidden" name="action" value="duplicate_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>"><button class="btn btn-ghost btn-sm">Duplicate</button></form>
-          <form method="POST" style="display:inline" onsubmit="return confirm('<?= $f['status']==='archived'?'Restore this form?':'Archive this form? This stops new assignments; existing requests remain available.' ?>')"><?= csrf_field() ?>
+          <form method="POST" style="display:inline" data-confirm-message="<?= $f['status']==='archived'?'Restore this form?':'Archive this form? This stops new assignments; existing requests remain available.' ?>"><?= csrf_field() ?>
             <input type="hidden" name="action" value="archive_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>">
             <button class="btn btn-ghost btn-sm"><?= $f['status']==='archived'?'Restore':'Archive' ?></button>
           </form>
           <?php if ($f['sub_count'] == 0): ?>
-          <form method="POST" style="display:inline" onsubmit="return confirm('Permanently delete this form?')"><?= csrf_field() ?>
+          <form method="POST" style="display:inline" data-confirm-message="Permanently delete this form?"><?= csrf_field() ?>
             <input type="hidden" name="action" value="delete_form"><input type="hidden" name="form_id" value="<?= $f['id'] ?>">
             <button class="btn btn-danger btn-sm">Delete</button>
           </form>
@@ -453,7 +462,7 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="form-label">Scoring Mode</label>
         <select name="score_mode" class="form-control">
           <option value="percentage">Percentage (0–100)</option>
-          <option value="raw">Raw Score</option>
+          <option value="points">Points (total 100)</option>
         </select>
       </div>
       <div class="modal-footer">
@@ -497,7 +506,7 @@ require_once __DIR__ . '/../includes/header.php';
             <option value="<?= $rc['id'] ?>"><?= e($rc['company_name']) ?></option>
           <?php endforeach; ?>
         </select>
-        <div class="text-xs text-muted mt-1">The form will be sent for every student you supervise who is applied/assigned to the selected company.</div>
+        <div class="text-xs text-muted mt-1">Sends the form for your students assigned to this company.</div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('sendFormModal')">Cancel</button>
@@ -511,7 +520,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="modal-overlay" id="manageSubsModal">
   <div class="modal modal-lg">
     <div class="modal-title">Form Submissions</div>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
       <table>
         <thead><tr><th>Form</th><th>Student</th><th>Company</th><th>Status</th><th>Score</th></tr></thead>
         <tbody>
@@ -524,7 +533,12 @@ require_once __DIR__ . '/../includes/header.php';
               <td><?= e($s['student_name']) ?></td>
               <td><?= e($s['company_name'] ?? '—') ?></td>
               <td><?= status_badge($s['status']) ?></td>
-              <td><?= $s['overall_score'] !== null ? number_format($s['overall_score'], 1) : '—' ?></td>
+              <td><?= $s['overall_score'] !== null ? number_format($s['overall_score'], 1) : '—' ?>
+                <?php if ($s['overall_score'] !== null && ($s['score_mode'] ?? '')==='points'):
+                  $resultRule=normalized_eval_score_rule((float)$s['overall_score'],normalized_eval_rules((int)$s['form_id']),'points'); ?>
+                  <div class="text-xs font-bold"><?= e($resultRule['description'] ?? '') ?></div>
+                <?php endif; ?>
+              </td>
             </tr>
             <?php endforeach; ?>
           <?php endif; ?>

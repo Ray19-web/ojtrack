@@ -36,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  LEFT JOIN students s ON s.user_id = u.id
                  LEFT JOIN coordinators c ON c.user_id = u.id
                  LEFT JOIN companies co ON co.user_id = u.id
-                 WHERE (u.email = ? OR s.student_id_no = ?)
+                 WHERE ((u.role <> 'student' AND u.email = ?)
+                     OR (u.role = 'student' AND s.student_id_no = ? AND s.is_archived = 0))
                  AND u.status = 'active'",
                 [$email, $email],
                 'ss'
@@ -124,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Main CSS -->
     <link
         rel="stylesheet"
-        href="/ojtrack/assets/css/style.css"
+        href="/ojtrack/assets/css/style.css?v=20261010-shared-buttons-v8"
     >
 
     <style>
@@ -318,9 +319,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             width: auto;
 
+            max-width: 100%;
+
+            display: block;
+
+            flex-shrink: 0;
+
             object-fit: contain;
 
-            object-position: left center;
+            object-position: center;
         }
 
 
@@ -702,45 +709,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ========================================================= */
 
         .login-submit {
-
             width: 100%;
-
-            height: 47px;
-
-            border: 0;
-
-            border-radius: 9px;
-
-            background: #103b78ff;
-
-            color: #F5A623;
-            letter-spacing: 10px;
-
-            font-family: 'Inter', sans-serif;
-
-            font-size: 16px;
-
-            font-weight: 1000;
-
+            min-height: 44px;
+            padding: 10px 18px;
+            border: 1px solid transparent;
+            border-radius: var(--button-radius);
+            background: var(--primary);
+            color: #fff;
+            letter-spacing: normal;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.4;
             cursor: pointer;
-
             display: flex;
-
             align-items: center;
-
             justify-content: center;
-
-            gap: 9px;
-
-            box-shadow:
-                0 4px 9px rgba(16, 59, 120, 0.22);
-
-            transition:
-                transform 0.2s ease,
-                background 0.2s ease,
-                box-shadow 0.2s ease;
+            gap: 6px;
+            box-shadow: none;
+            transition: background .15s;
         }
-
 
         .login-submit span {
 
@@ -752,16 +740,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
 
-        .login-submit:hover {
-
-            background: #0b3269;
-
-            transform: translateY(-1px);
-
-            box-shadow:
-                0 7px 17px rgba(16, 59, 120, 0.28);
-        }
-
+        .login-submit:hover { background: var(--primary-dark); }
 
         .login-submit:active {
 
@@ -1291,6 +1270,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             body {
 
                 padding: 15px;
+
+                align-items: flex-start;
             }
 
 
@@ -1307,8 +1288,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .hero-panel {
 
                 min-height: 330px;
-
-                order: -1;
 
                 justify-content: flex-start;
 
@@ -1358,6 +1337,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         @media (max-width: 480px) {
 
+            .input-wrap input { font-size: 16px; }
+
             body {
 
                 padding: 10px;
@@ -1386,13 +1367,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             .brand-row {
 
-                margin-bottom: 36px;
+                margin-bottom: 28px;
             }
 
 
             .brand-logo {
 
-                height: 39px;
+                width: min(100%, 260px);
+
+                height: auto;
             }
 
 
@@ -1558,7 +1541,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </h1>
 
             <p>
-                Enter your account details to access your portal
+                Sign in to your account
             </p>
 
         </div>
@@ -1613,7 +1596,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="login-form-group">
 
                 <label for="email">
-                    Username or Student ID
+                    Email or Student ID
                 </label>
 
 
@@ -1623,7 +1606,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         type="text"
                         id="email"
                         name="email"
-                        placeholder="e.g. 2021301234 or email"
+                        placeholder="Students: student ID; others: email"
                         autocomplete="username"
                         required
                         autofocus
@@ -1838,7 +1821,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <span class="info-dot"></span>
 
                     <span>
-                        Track your OJT progress and internship hours
+                        Track OJT hours
                     </span>
 
                 </div>
@@ -1849,7 +1832,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <span class="info-dot"></span>
 
                     <span>
-                        Monitor your internship milestones
+                        Monitor progress
                     </span>
 
                 </div>
@@ -1860,7 +1843,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <span class="info-dot"></span>
 
                     <span>
-                        Access your USTP OJT portal securely
+                        Access your OJT portal
                     </span>
 
                 </div>

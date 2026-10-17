@@ -77,8 +77,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Trainee Management</div>
-    <div class="page-sub">Monitor student attendance, submitted reports, and perform performance evaluations</div>
+    <div class="page-title">My Trainees</div>
+    <div class="page-sub">Attendance and evaluations</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('bulkTimeModal')">⏱ Time In / Time Out</button>
 </div>
@@ -86,13 +86,13 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if (!empty($bulk_success)): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($bulk_success) ?></p></div></div><?php endif; ?>
 <?php if (!empty($bulk_error)): ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($bulk_error) ?></p></div></div><?php endif; ?>
 
-<div class="grid" style="grid-template-columns:280px 1fr;gap:20px">
+<div class="grid trainee-detail-grid" style="gap:20px">
   <div class="card" style="align-self:flex-start">
     <div class="card-header flex-between">
       <div class="card-title">Trainees (<?= count($students) ?>)</div>
     </div>
     <div style="padding:10px 12px;border-bottom:1px solid var(--border-light)">
-      <form method="GET">
+      <form class="filter-toolbar" method="GET">
         <div class="search-wrap" style="width:100%">
           <input type="text" name="q" class="form-control search-input" placeholder="Search trainees..." value="<?= e($search) ?>" style="font-size:12px;height:34px">
         </div>
@@ -101,7 +101,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div>
       <?php foreach ($students as $s): ?>
       <a href="?id=<?= $s['id'] ?>" style="display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light);text-decoration:none;background:<?= $s['id']==$sel_id?'var(--primary-light)':'transparent' ?>;transition:background .15s">
-        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0"><?= strtoupper(substr($s['name'],0,2)) ?></div>
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0"><?= user_avatar_content($s['avatar'] ?? null, $s['name']) ?></div>
         <div style="min-width:0;flex:1">
           <div style="font-weight:700;font-size:13px;color:var(--text-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= e($s['name']) ?></div>
           <div class="text-xs text-muted"><?= e($s['student_id_no'] ?? '') ?></div>
@@ -118,7 +118,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card card-body">
       <div class="flex-between mb-4">
         <div style="display:flex;gap:14px;align-items:center">
-          <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff"><?= strtoupper(substr($selected['name'],0,2)) ?></div>
+          <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--primary),#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff"><?= user_avatar_content($selected['avatar'] ?? null, $selected['name']) ?></div>
           <div>
             <div style="font-weight:800;font-size:18px;color:var(--text-800)"><?= e($selected['name']) ?></div>
             <div class="text-sm text-muted"><?= e($selected['email']) ?> · ID: <?= e($selected['student_id_no'] ?? '—') ?></div>
@@ -154,7 +154,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card-title">Recent Attendance Logs</div>
         <a href="/ojtrack/company/attendance.php?student=<?= $selected['id'] ?>" class="btn btn-secondary btn-sm">View Full Attendance</a>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
         <table>
           <thead><tr><th>Date</th><th>Time In</th><th>Time Out</th><th>Rendered</th><th>Status</th><th>Remarks</th></tr></thead>
           <tbody>
@@ -178,7 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="card-header flex-between">
         <div class="card-title">Submitted Reports</div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
         <table>
           <thead><tr><th>Report Title</th><th>Type</th><th>Submitted</th><th>Status</th><th>Document</th></tr></thead>
           <tbody>
@@ -224,7 +224,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="form-group">
         <label class="form-label">Session (auto-detected — read only)</label>
         <input type="text" class="form-control" value="Auto-detected: <?= date('A') === 'AM' ? 'Morning' : 'Afternoon' ?> session, based on each trainee's existing records" readonly style="background:var(--bg);color:var(--text-500)">
-        <div class="text-xs text-muted mt-1">AM → Morning, PM → Afternoon. First punch = Time In, second punch = Time Out (per trainee, per half-day).</div>
+        <div class="text-xs text-muted mt-1">For each trainee: first punch is Time In; second is Time Out. AM and PM are separate.</div>
       </div>
       <div class="form-group">
         <label class="form-label">Trainees</label>

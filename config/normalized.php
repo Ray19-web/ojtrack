@@ -123,6 +123,7 @@ function normalized_current_placement_for_enrollment(int $enrollmentId, ?int $co
          FROM placements p
          JOIN companies co ON co.id=p.company_id
          WHERE p.ojt_enrollment_id=? $companySql
+           AND p.status IN ('active','on_hold','planned','completed')
          ORDER BY FIELD(p.status,'active','on_hold','planned','completed','transferred','terminated'),p.id DESC
          LIMIT 1",
         $params,
@@ -246,7 +247,7 @@ function normalized_students_for_coordinator(int $coordinatorId, string $search=
     }
 
     $rows=query(
-        "SELECT s.*,u.name,u.email,p.id program_id,p.code program,p.name program_name,NULL department,
+        "SELECT s.*,u.name,u.email,u.avatar,p.id program_id,p.code program,p.name program_name,NULL department,
                 oe.id _enrollment_id,oe.year_level,oe.required_hours,oe.status ojt_status,oe.status_notes,
                 oe.onboarding_completed_at,
                 pl.id _placement_id,pl.company_id,pl.starts_on ojt_start_date,pl.ends_on ojt_end_date,
@@ -262,7 +263,7 @@ function normalized_students_for_coordinator(int $coordinatorId, string $search=
          JOIN enrollment_coordinators ec ON ec.ojt_enrollment_id=oe.id
          LEFT JOIN placements pl ON pl.id=(
             SELECT p2.id FROM placements p2
-            WHERE p2.ojt_enrollment_id=oe.id
+            WHERE p2.ojt_enrollment_id=oe.id AND p2.status IN ('active','on_hold','planned','completed')
             ORDER BY FIELD(p2.status,'active','on_hold','planned','completed','transferred','terminated'),p2.id DESC
             LIMIT 1
          )
@@ -292,7 +293,7 @@ function normalized_students_for_company(int $companyId, string $search=''): arr
     }
 
     $rows=query(
-        "SELECT s.*,u.name,u.email,p.id program_id,p.code program,p.name program_name,
+        "SELECT s.*,u.name,u.email,u.avatar,p.id program_id,p.code program,p.name program_name,
                 oe.id _enrollment_id,oe.year_level,oe.required_hours,oe.status ojt_status,oe.status_notes,
                 pl.id _placement_id,pl.company_id,pl.starts_on ojt_start_date,pl.ends_on ojt_end_date,
                 COALESCE((SELECT SUM(ad.credited_minutes)/60
@@ -344,6 +345,19 @@ function normalized_update_training_assignment(
 
     db()->begin_transaction();
     try {
+        $profile=query_one(
+            "SELECT s.id FROM students s JOIN users u ON u.id=s.user_id
+             WHERE s.id=? AND s.is_archived=0 AND u.status!='archived' FOR UPDATE",
+            [$studentId],'i'
+        );
+        if (!$profile) throw new DomainException('Student is unavailable or archived.');
+        $program=query_one("SELECT id,code FROM programs WHERE id=?",[$programId],'i');
+        if (!$program) throw new DomainException('Select a valid academic program.');
+        if ($companyId && !query_one(
+            "SELECT c.id FROM companies c JOIN users u ON u.id=c.user_id
+             WHERE c.id=? AND c.status='active' AND u.status='active'",
+            [$companyId],'i'
+        )) throw new DomainException('Select an active partner company.');
         $enrollment=query_one(
             "SELECT * FROM ojt_enrollments WHERE student_id=? AND academic_term_id=? FOR UPDATE",
             [$studentId,(int)$term['id']],
@@ -405,7 +419,9 @@ function normalized_update_training_assignment(
         $placementStatus=normalized_status_to_placement($status);
 
         if ($currentPlacement && $currentCompanyId!==$companyId) {
-            $oldStatus=$currentPlacement['status']==='completed' ? 'completed' : ($companyId ? 'transferred' : 'terminated');
+            $oldStatus=$companyId
+                ? ($currentPlacement['status']==='completed' ? 'completed' : 'transferred')
+                : 'terminated';
             query(
                 "UPDATE placements
                  SET status=?,ends_on=COALESCE(ends_on,?)
@@ -461,6 +477,14 @@ function normalized_update_training_assignment(
             }
         }
 
+        // Legacy management screens and normalized dashboards must agree atomically.
+        query(
+            "UPDATE students SET coordinator_id=?,company_id=?,program_id=?,program=?,department=?,
+                 ojt_status=?,required_hours=?,ojt_start_date=?,ojt_end_date=?,status_notes=? WHERE id=?",
+            [$coordinatorId,$companyId,$programId,$program['code'],$program['code'],$status,
+             $requiredHours,$startDate,$endDate,$statusNotes,$studentId],
+            'iiisssisssi'
+        );
         db()->commit();
         return true;
     } catch (Throwable $error) {

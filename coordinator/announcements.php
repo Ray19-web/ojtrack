@@ -99,7 +99,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-heading flex-between">
   <div>
     <div class="page-title">Announcements</div>
-    <div class="page-sub">Notify only students under your department (<?= e($coord['department'] ?? 'your program') ?>) · <?= $dept_student_count ?> recipients</div>
+    <div class="page-sub">Students in your program (<?= e($coord['department'] ?? 'your program') ?>) · <?= $dept_student_count ?> recipients</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('composeModal')">+ Post Notice</button>
 </div>
@@ -112,7 +112,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-title">Notices you posted</div>
     <span class="text-sm text-muted"><?= count($announcements) ?> items</span>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -171,7 +171,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 4 6 6-3 1-4 4-1 5-4-4 5-1 4-4 1-3Z"/><path d="m4 20 5-5"/></svg>
                   </button>
                 </form>
-                <form method="POST" onsubmit="return confirm('Delete this notice?')"><?= csrf_field() ?>
+                <form method="POST" data-confirm-message="Delete this notice?"><?= csrf_field() ?>
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="ann_id" value="<?= $a['id'] ?>">
                   <button type="submit" class="table-action-icon is-danger" title="Delete notice" aria-label="Delete notice">
@@ -236,7 +236,7 @@ require_once __DIR__ . '/../includes/header.php';
 
       <div class="form-group">
         <label class="form-label">Message <span class="text-danger">*</span></label>
-        <textarea name="body" class="form-control" rows="6" placeholder="Write the notice for your department students..." required></textarea>
+        <textarea name="body" class="form-control" rows="6" placeholder="Your announcement" required></textarea>
       </div>
 
       <div class="form-group">

@@ -59,10 +59,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
                 $error='Invalid format. Please submit PDF or Word document (.doc, .docx).';
             } else {
                 $new_filename='report_'.$sid.'_'.$rep_id.'_'.bin2hex(random_bytes(16)).'.'.$ext;
-                if (store_private_upload($_FILES['report_file']['tmp_name'],'reports',$new_filename)) {
-                    $file_path='reports/'.$new_filename;
-                } else {
-                    $error='Failed to upload report file. Please try again.';
+                try {
+                    if (store_private_upload($_FILES['report_file']['tmp_name'],'reports',$new_filename)) {
+                        $file_path='reports/'.$new_filename;
+                    } else {
+                        $error='Failed to upload report file. Please try again.';
+                    }
+                } catch (DomainException $exception) {
+                    $error = $exception->getMessage();
                 }
             }
         }
@@ -93,6 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submi
 }
 
 $reports = normalized_report_rows_for_student($sid);
+$submittableReports = array_values(array_filter($reports, fn($report) => $report['status'] !== 'approved'));
+$reportUploadLimitMb = (int)(upload_policy('report_file')[1] / 1048576);
+$requiredHours = max(0, (int)($student['required_hours'] ?? 0));
 
 $page_title = 'OJT Reports';
 require_once __DIR__ . '/../includes/header.php';
@@ -100,17 +107,17 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">OJT Narrative Reports</div>
-    <div class="page-sub">Submit and monitor your milestone reports for academic clearance</div>
+    <div class="page-title">Reports</div>
+    <div class="page-sub">Submit reports and track review</div>
   </div>
-  <button class="btn btn-primary" onclick="openNewReport()">+ Submit Report</button>
+  <button type="button" class="btn btn-primary" onclick="openNewReport()" <?= !$submittableReports ? 'disabled' : '' ?> title="<?= !$submittableReports ? 'No assigned reports are available to submit.' : 'Submit an assigned report' ?>">+ Submit Report</button>
 </div>
 
 <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
 <div class="card mb-5">
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -171,7 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
           </tr>
         <?php endforeach; ?>
         <?php if (empty($reports)): ?>
-          <tr><td colspan="8" class="text-center text-muted py-6">No reports assigned.</td></tr>
+          <tr><td colspan="8" class="text-center text-muted py-6">No narrative reports assigned yet.<br><span class="text-xs">Your coordinator must assign a report before you can upload it. Monthly reports use the compilation section below.</span></td></tr>
         <?php endif; ?>
       </tbody>
     </table>
@@ -193,11 +200,11 @@ if ($can_compile) {
 ?>
 <div class="card card-body mb-4">
   <div class="section-title mb-3">Monthly OJT Report (Journal + DTR Compilation)</div>
-  <p class="text-xs text-muted mb-3">Submit your monthly report once the month is complete. It compiles that month's DTR records and journal entries.</p>
-  <form method="GET" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+  <p class="text-xs text-muted mb-3">Submit after month-end. Includes that month's time records and journals.</p>
+  <form class="filter-toolbar" method="GET" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
     <div class="form-group" style="margin-bottom:0">
-      <label class="form-label">Month</label>
-      <input type="month" name="cm" class="form-control" value="<?= e($compile_month) ?>" max="<?= date('Y-m', strtotime('first day of last month')) ?>">
+      <label class="form-label" for="compilationMonth">Month</label>
+      <input type="month" id="compilationMonth" name="cm" class="form-control" value="<?= e($compile_month) ?>" max="<?= date('Y-m', strtotime('first day of last month')) ?>" required>
     </div>
     <button type="submit" class="btn btn-secondary btn-sm">Preview Compilation</button>
   </form>
@@ -222,12 +229,12 @@ if ($can_compile) {
 
 <div class="card card-body">
   <div class="section-title mb-3">Narrative Report Guidelines</div>
-  <div class="space-y-2 text-sm text-600 leading-relaxed">
-    <p>â€¢ All reports must be accompanied by the signed endorsement of your company supervisor and department chair.</p>
-    <p>â€¢ The <strong>Acceptance Report</strong> confirms your company placement and planned training scope.</p>
-    <p>â€¢ The <strong>Mid-Term Report</strong> summarizes hours completed, technologies utilized, and tasks undertaken up to 240 hours.</p>
-    <p>â€¢ The <strong>Final Narrative Report</strong> is the comprehensive compilation of your 486-hour training portfolio, including learnings, reflections, and supervisor evaluation summary.</p>
-  </div>
+  <ul class="space-y-2 text-sm text-600 leading-relaxed" style="margin:0;padding-left:20px;line-height:1.7">
+    <li>Follow your coordinator's instructions for report content, required endorsements, and deadlines.</li>
+    <li>The <strong>Acceptance Report</strong> describes your company placement and planned training scope, when assigned.</li>
+    <li>The <strong>Mid-Term Report</strong> summarizes completed hours, work activities, and learning at the milestone specified by your coordinator.</li>
+    <li>The <strong>Final Narrative Report</strong> summarizes your training activities, learning, and reflections. Your assigned training requirement is <strong><?= $requiredHours > 0 ? number_format($requiredHours) . ' hours' : 'set by your coordinator' ?></strong>. Include supporting documents requested by your coordinator.</li>
+  </ul>
 </div>
 
 <!-- Submit Report Modal -->
@@ -242,12 +249,10 @@ if ($can_compile) {
 
       <div class="form-group" id="repSelectGroup">
         <label class="form-label">Report <span class="text-danger">*</span></label>
-        <select name="report_type" id="repTypeSelect" class="form-control" onchange="document.getElementById('repId').value = this.value">
+        <select name="report_type" id="repTypeSelect" class="form-control" onchange="document.getElementById('repId').value = this.value" required>
           <option value="">— Select report —</option>
-          <?php foreach ($reports as $r): ?>
-            <?php if ($r['status'] !== 'approved'): ?>
+          <?php foreach ($submittableReports as $r): ?>
               <option value="<?= $r['id'] ?>"><?= e($r['report_name']) ?> (<?= ucfirst($r['status']) ?>)</option>
-            <?php endif; ?>
           <?php endforeach; ?>
         </select>
       </div>
@@ -257,13 +262,13 @@ if ($can_compile) {
         <div class="upload-area">
           <input type="file" name="report_file" accept=".pdf,.doc,.docx" style="display:none" required>
           <div class="upload-title">Click to browse or drop file here</div>
-          <div class="upload-sub">PDF, DOC, DOCX Â· Max 20MB</div>
+          <div class="upload-sub">PDF, DOC, DOCX &middot; Max <?= $reportUploadLimitMb ?> MB</div>
         </div>
       </div>
 
       <div class="form-group">
         <label class="form-label">Student Notes (Optional)</label>
-        <textarea name="notes" class="form-control" rows="3" placeholder="Provide any comments or context for your coordinator..."></textarea>
+        <textarea name="notes" class="form-control" rows="3" placeholder="Notes for your coordinator (optional)"></textarea>
       </div>
 
       <div class="modal-footer">

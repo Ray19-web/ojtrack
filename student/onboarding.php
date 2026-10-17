@@ -13,8 +13,22 @@ if (!$student) {
 }
 
 $student_id = (int)$student['id'];
-$success = '';
-$error = '';
+$feedback = $_SESSION['onboarding_feedback'] ?? [];
+unset($_SESSION['onboarding_feedback']);
+$success = is_array($feedback) ? (string)($feedback['success'] ?? '') : '';
+$error = is_array($feedback) ? (string)($feedback['error'] ?? '') : '';
+
+// A completed setup must not process an old form from another tab or browser history.
+$requirements = normalized_requirement_rows_for_student($student_id);
+$all_approved = count($requirements) > 0 && count(array_filter($requirements, fn($r) => $r['status'] !== 'approved')) === 0;
+$setup_complete = $all_approved && student_onboarding_complete($student_id);
+if ($setup_complete) {
+    $success = $error = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        http_response_code(303);
+        redirect('student/onboarding.php');
+    }
+}
 
 $submit_onboarding_file = function(int $reqId, array $file) use ($student_id, $uid) {
     $req = normalized_requirement_get($reqId, $student_id);
@@ -123,6 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'uploa
     }
 }
 
+// Post/Redirect/Get prevents browser refresh from sending the same documents twice.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $_SESSION['onboarding_feedback'] = ['success' => $success, 'error' => $error];
+    http_response_code(303);
+    redirect('student/onboarding.php');
+}
+
 $requirements = normalized_requirement_rows_for_student($student_id);
 usort($requirements, function($a,$b) {
     $rank = ['rejected'=>0,'pending'=>1,'approved'=>2];
@@ -137,7 +158,7 @@ $total = count($requirements);
 $submitted = count(
     array_filter(
         $requirements,
-        fn($r) => !empty($r['submitted_at']) && $r['status'] !== 'rejected'
+        fn($r) => $r['status'] === 'approved' || (!empty($r['submitted_at']) && $r['status'] !== 'rejected')
     )
 );
 
@@ -164,11 +185,10 @@ $pending_review = count(
     )
 );
 
-$ready = $total > 0 && $approved === $total;
+$ready = $setup_complete;
 
 if ($ready) {
 
-    student_onboarding_complete($student_id);
 
     $student['onboarding_completed_at'] =
         date('Y-m-d H:i:s');
@@ -229,13 +249,16 @@ $current_step =
 
     <link
         rel="stylesheet"
-        href="/ojtrack/assets/css/style.css?v=20261002a"
+        href="/ojtrack/assets/css/style.css?v=20261010-shared-buttons-v8"
     >
 
+    <link rel="stylesheet" href="/ojtrack/assets/css/confirmations.css?v=20261013">
     <style>
+.user-avatar-photo { display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit; }
 
         body.ojt-onboarding {
             min-height: 100vh;
+            overflow-wrap: anywhere;
             margin: 0;
 
             background:
@@ -456,12 +479,14 @@ $current_step =
 
         .account-summary {
             display: grid;
-            grid-template-columns: 1.5fr 1fr 1fr;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
             gap: 12px;
             margin-bottom: 24px;
         }
 
         .summary-item {
+            min-width: 0;
+            overflow-wrap: anywhere;
             border: 1px solid #e7edf4;
             border-radius: 14px;
             padding: 14px 16px;
@@ -633,6 +658,8 @@ $current_step =
 
         .upload-form {
             display: flex;
+            flex-wrap: wrap;
+            max-width: 100%;
             align-items: center;
             gap: 7px;
         }
@@ -642,6 +669,8 @@ $current_step =
         }
 
         .file-label {
+            max-width: 100%;
+            overflow-wrap: anywhere;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -901,6 +930,8 @@ $current_step =
 
             .req-actions {
                 justify-content: flex-start;
+                min-width: 0;
+                max-width: 100%;
             }
 
             .onboarding-title {
@@ -922,6 +953,33 @@ $current_step =
             }
         }
 
+        @media (max-width: 480px) {
+            .onboarding-brand { flex-wrap: wrap; }
+            .stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 10px; }
+            .step:not(:last-child)::after { display: none; }
+            .requirement { padding: 14px; overflow-wrap: anywhere; }
+            .upload-form { width: 100%; }
+            .file-label { min-width: 0; flex: 1 1 100%; }
+            .ojt-onboarding .form-control { font-size: 16px; min-width: 0; }
+        }
+
+        /* Shared action sizing for the standalone student activation screen. */
+        .upload-btn, .btn-dashboard, .onboarding-brand .signout {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: var(--button-height);
+            padding: 10px 18px;
+            border: 1px solid transparent;
+            border-radius: var(--button-radius);
+            font: 600 14px/1.4 var(--font-body);
+            text-decoration: none;
+        }
+        .upload-btn, .btn-dashboard { background: var(--primary); color: #fff; }
+        .upload-btn:hover, .btn-dashboard:hover { background: var(--primary-dark); color: #fff; }
+        .onboarding-brand .signout { border-color: var(--border); background: #fff; color: var(--danger); }
+        .onboarding-brand .signout:hover { background: var(--danger-bg); color: var(--danger); text-decoration: none; }
     </style>
 
 </head>
@@ -947,12 +1005,10 @@ $current_step =
         </div>
 
         <!-- SIGN OUT -->
-        <a
-            class="signout"
-            href="/ojtrack/logout.php"
-        >
-            Sign out
-        </a>
+        <form method="POST" action="/ojtrack/logout.php" style="margin:0 0 0 auto">
+            <?= csrf_field() ?>
+            <button type="submit" class="signout">Sign out</button>
+        </form>
 
     </div>
 
@@ -966,7 +1022,7 @@ $current_step =
         <div class="onboarding-head">
 
             <h1 class="onboarding-title">
-                Complete your OJT setup
+                OJT Setup
             </h1>
 
         </div>
@@ -1099,7 +1155,7 @@ $current_step =
                     </div>
 
                     <div class="summary-value">
-                        <?= e($student['name']) ?>
+                        <span class="avatar avatar-md" style="vertical-align:middle;margin-right:8px;overflow:hidden"><?= user_avatar_content($student['avatar'] ?? null, $student['name']) ?></span><?= e($student['name']) ?>
                     </div>
 
                 </div>
@@ -1171,21 +1227,20 @@ $current_step =
                     </div>
 
                     <h2>
-                        Your OJT account is ready
+                        Setup complete
                     </h2>
 
                     <p>
                         All <?= $total ?>
                         required document<?= $total === 1 ? '' : 's' ?>
-                        have been approved by your coordinator.
-                        You can now proceed to the main dashboard.
+                        approved. You can now open your dashboard.
                     </p>
 
                     <a
                         class="btn-dashboard"
                         href="/ojtrack/student/dashboard.php"
                     >
-                        Continue to Main Dashboard →
+                        Go to Dashboard →
                     </a>
 
                 </div>
@@ -1205,7 +1260,7 @@ $current_step =
 
                     <br>
 
-                   Your account is ready, but no OJT requirements have been assigned yet. Please wait for your coordinator to assign them.
+                   No requirements assigned yet. Your coordinator will assign them.
 
                 </div>
 
@@ -1221,6 +1276,7 @@ $current_step =
                         display:flex;
                         justify-content:space-between;
                         gap:16px;
+                        flex-wrap:wrap;
                         align-items:end;
                         margin-bottom:14px
                     "
@@ -1250,6 +1306,7 @@ $current_step =
                 <form
                     method="POST"
                     enctype="multipart/form-data"
+                    id="onboarding-documents-form"
                 ><?= csrf_field() ?>
 
                     <input
@@ -1360,8 +1417,7 @@ $current_step =
                                 <?php if ($status === 'rejected'): ?>
 
                                     <div class="req-rejected-note">
-                                        ✗ Your coordinator returned this document.
-                                        Please attach a new file and resubmit.
+                                        Returned. Upload a new file and resubmit.
                                     </div>
 
                                 <?php endif; ?>
@@ -1461,8 +1517,10 @@ $current_step =
                         <button
                             class="upload-btn"
                             type="submit"
+                            id="onboarding-submit"
+                            disabled
                         >
-                            Submit All
+                            Submit Documents
                         </button>
 
                     </div>
@@ -1477,5 +1535,25 @@ $current_step =
 
 </div>
 
+<script>
+(function () {
+    const form = document.getElementById('onboarding-documents-form');
+    const submit = document.getElementById('onboarding-submit');
+    if (!form || !submit) return;
+    const hasFiles = () => Array.from(form.querySelectorAll('input[type="file"]')).some(input => input.files.length > 0);
+    form.addEventListener('change', () => { submit.disabled = !hasFiles(); });
+    form.addEventListener('submit', event => {
+        if (!hasFiles()) { event.preventDefault(); return; }
+        submit.disabled = true;
+        submit.textContent = 'Submitting…';
+    });
+    window.addEventListener('pageshow', () => {
+        submit.disabled = !hasFiles();
+        submit.textContent = 'Submit Documents';
+    });
+    submit.disabled = !hasFiles();
+})();
+</script>
+<script src="/ojtrack/assets/js/confirmations.js?v=20261013"></script>
 </body>
 </html>

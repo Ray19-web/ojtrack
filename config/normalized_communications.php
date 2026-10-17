@@ -323,21 +323,13 @@ function normalized_announcements_authored(int $userId): array
     ) ?: [];
 }
 
-function normalized_announcements_admin(string $search=''): array
+function normalized_announcements_admin(string $search='', array $filters=[]): array
 {
-    $where='1=1';
-    $params=[];
-    $types='';
-    if ($search!=='') {
-        $where.=" AND (ap.title LIKE ? OR ap.body LIKE ? OR ap.tag LIKE ? OR u.name LIKE ?)";
-        $like="%$search%";
-        array_push($params,$like,$like,$like,$like);
-        $types='ssss';
-    }
+    require_once __DIR__.'/record-filters.php';
+    $filter=announcement_management_filters(array_replace($filters,['q'=>$search]));
     return query(
-        normalized_announcement_select_sql()." WHERE $where ORDER BY ap.is_pinned DESC,ap.created_at DESC",
-        $params,
-        $types
+        normalized_announcement_select_sql()." WHERE {$filter['where']} ORDER BY ap.is_pinned DESC,ap.created_at DESC",
+        $filter['params'],$filter['types']
     ) ?: [];
 }
 

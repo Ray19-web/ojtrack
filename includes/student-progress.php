@@ -22,5 +22,5 @@ $progress_items = [
       <div class="progress-track"><div class="progress-fill blue" data-pct="<?= $value ?>"></div></div>
     </div>
   <?php endforeach; ?>
-  <p class="text-xs text-muted">Progress reflects current assigned records. Final completion is confirmed by your coordinator.</p>
+  <p class="text-xs text-muted">Based on assigned records. Your coordinator confirms completion.</p>
 </section>

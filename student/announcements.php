@@ -20,60 +20,19 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Announcements &amp; Advisories</div>
-    <div class="page-sub">Official notices and updates from your OJT Coordinator and Administration</div>
+    <div class="page-title">Announcements</div>
+    <div class="page-sub">Coordinator and campus updates</div>
   </div>
 </div>
 
-<div class="grid grid-sidebar-main gap-4">
-  <!-- Filters Sidebar -->
-  <div>
-    <div class="card card-body mb-4">
-      <div class="section-title mb-3">Filter by Category</div>
-      <div class="space-y-1">
-        <a href="/ojtrack/student/announcements.php<?= $search ? '?q=' . urlencode($search) : '' ?>"
-           class="filter-tag-link <?= empty($tag_filter) ? 'active' : '' ?>">
-          <span>All Announcements</span>
-          <span class="badge badge-subtle"><?= count($announcements) ?></span>
-        </a>
-        <?php foreach ($all_tags as $t): ?>
-          <a href="/ojtrack/student/announcements.php?tag=<?= urlencode($t['tag']) ?><?= $search ? '&q=' . urlencode($search) : '' ?>"
-             class="filter-tag-link <?= $tag_filter === $t['tag'] ? 'active' : '' ?>">
-            <span><?= e($t['tag']) ?></span>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    </div>
-
-    <div class="card card-body">
-      <div class="section-title mb-2">Notice Guidelines</div>
-      <p class="text-xs text-muted leading-relaxed">
-        Important announcements will be marked as <strong class="text-primary">PINNED</strong>. Check regularly for updates regarding submission deadlines, office hours, and clearance requirements.
-      </p>
-    </div>
-  </div>
-
-  <!-- Main Announcements List -->
+<div class="announcements-layout">
+  <?php require __DIR__ . '/../includes/announcement-filters.php'; ?>
   <div class="space-y-4 announcement-feed">
-    <!-- Search Bar -->
-    <div class="card card-body py-3">
-      <form method="GET" class="flex-items-center gap-3 announcement-search-form">
-        <?php if ($tag_filter): ?><input type="hidden" name="tag" value="<?= e($tag_filter) ?>"><?php endif; ?>
-        <div class="search-wrap flex-1">
-          <input type="text" name="q" class="form-control search-input" placeholder="Search notices by keyword..." value="<?= e($search) ?>">
-        </div>
-        <button type="submit" class="btn btn-secondary">Search</button>
-        <?php if ($search || $tag_filter): ?>
-          <a href="/ojtrack/student/announcements.php" class="btn btn-ghost">Reset</a>
-        <?php endif; ?>
-      </form>
-    </div>
-
     <?php if (empty($announcements)): ?>
       <div class="card card-body text-center py-12">
         <div class="empty-state">
           <div class="font-bold text-base mb-1">No announcements found</div>
-          <p class="text-xs text-muted">There are no notices matching your current search or filter criteria.</p>
+          <p class="text-xs text-muted">No matching notices.</p>
         </div>
       </div>
     <?php else: ?>

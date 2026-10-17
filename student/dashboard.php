@@ -43,12 +43,7 @@ $page_title = 'Student Dashboard';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="page-heading flex-between">
-  <div>
-    <div class="page-title">My OJT Overview</div>
-    <div class="page-sub">Welcome back, <?= e($student['name']) ?></div>
-  </div>
-</div>
+<?php require __DIR__ . '/../includes/dashboard-hero.php'; ?>
 
 <!-- OJT Banner -->
 <div class="ojt-banner">
@@ -58,7 +53,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="ojt-banner-sub"><?= e($student['company_name'] ?? 'No company assigned yet') ?></div>
   </div>
   <div class="ojt-banner-right">
-    
+
     <div class="ojt-banner-progress" data-pct="<?= $pct ?>"><div class="fill"></div></div>
     <div style="font-size:11px;opacity:.7;margin-top:4px"><?= $pct ?>% complete</div>
   </div>
@@ -82,7 +77,7 @@ $all_recorded = $today_attendance && $today_attendance['morning_in'] && $today_a
 <?php endif; ?>
 
 <!-- Stat cards -->
-<div class="stat-grid stat-grid-4 mb-5">
+<div class="stat-grid stat-grid-4 dashboard-stats mb-5">
   <div class="stat-card">
     <div class="stat-icon blue">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
@@ -107,7 +102,7 @@ $all_recorded = $today_attendance && $today_attendance['morning_in'] && $today_a
     </div>
     <div>
       <div class="stat-label"><span class="stat-value"><?= $pct ?>%</span>OJT Progress</div>
-      <div class="stat-sub">On track</div>
+
     </div>
   </div>
   <div class="stat-card">
@@ -130,7 +125,7 @@ $all_recorded = $today_attendance && $today_attendance['morning_in'] && $today_a
       </div>
       <a href="/ojtrack/student/requirements.php" class="btn btn-ghost btn-sm">View All →</a>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
       <table>
         <thead><tr><th>Document</th><th>Submitted</th><th>Status</th></tr></thead>
         <tbody>

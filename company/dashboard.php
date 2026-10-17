@@ -32,12 +32,9 @@ $page_title = 'Company Dashboard';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="page-heading">
-  <div class="page-title">Company Dashboard</div>
-  <div class="page-sub">Welcome, <?= e($company['company_name']) ?> · <?= date('F d, Y') ?></div>
-</div>
+<?php require __DIR__ . '/../includes/dashboard-hero.php'; ?>
 
-<div class="stat-grid stat-grid-4 mb-5">
+<div class="stat-grid stat-grid-4 dashboard-stats mb-5">
   <div class="stat-card">
     <div class="stat-icon blue">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M23 21v-2a4 4 0 00-3-3.87"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -83,7 +80,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card-title">Today's Attendance</div>
         <span class="text-sm text-muted"><?= date('F d, Y') ?></span>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
         <table>
           <thead><tr><th>Student</th><th>Time In</th><th>Time Out</th><th>Hours</th><th>Status</th></tr></thead>
           <tbody>
@@ -91,8 +88,8 @@ require_once __DIR__ . '/../includes/header.php';
               <tr><td colspan="5" class="text-center text-muted">No attendance logged today.</td></tr>
             <?php else: ?>
               <?php foreach ($today_att as $a): ?>
-              <tr>
-                <td class="font-bold"><?= e($a['name']) ?></td>
+              <tr class="row-clickable" data-row-link="/ojtrack/company/students.php?id=<?= (int)$a['student_id'] ?>" title="View trainee details">
+                <td class="font-bold"><a href="/ojtrack/company/students.php?id=<?= (int)$a['student_id'] ?>"><?= e($a['name']) ?></a></td>
                 <td class="td-mono"><?= $a['time_in'] ? date('h:i A', strtotime($a['time_in'])) : '—' ?></td>
                 <td class="td-mono"><?= $a['time_out'] ? date('h:i A', strtotime($a['time_out'])) : '—' ?></td>
                 <td class="font-mono font-bold"><?= $a['hours_rendered'] ? number_format($a['hours_rendered'],2) . 'h' : '—' ?></td>

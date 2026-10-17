@@ -11,6 +11,14 @@ function storage_path_within($path, $root) {
 }
 function private_storage_root($required = true) {
     $setting = getenv('OJTRACK_PRIVATE_UPLOAD_DIR');
+    // Environment settings take precedence; XAMPP can use an untracked local config.
+    if ($setting === false && is_file(__DIR__ . '/storage.local.php')) {
+        $local = require __DIR__ . '/storage.local.php';
+        $setting = is_array($local) ? ($local['private_upload_dir'] ?? false) : false;
+    }
+    if ($setting !== false && !is_string($setting)) {
+        throw new RuntimeException('The private storage setting must be an absolute directory path.');
+    }
     if ($setting === false || trim($setting) === '') {
         if (!$required) return null;
         throw new RuntimeException('Configure OJTRACK_PRIVATE_UPLOAD_DIR before accepting private documents.');
@@ -76,7 +84,7 @@ function store_private_upload($temporary, $category, $filename) {
         if (!@chmod($destination, 0600)) { @unlink($destination); return false; }
         return true;
     } catch (RuntimeException $error) {
-        error_log('OJTrack private upload storage unavailable.');
-        request_error(503, 'Document storage is unavailable. Ask your administrator to check the private upload directory.');
+        error_log('OJTrack private upload storage unavailable: ' . $error->getMessage());
+        throw new DomainException('Document storage is temporarily unavailable. Please try again later or contact your coordinator.', 0, $error);
     }
 }

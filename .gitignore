@@ -8,3 +8,11 @@ uploads/**/*
 # Local Python test artifacts
 __pycache__/
 *.pyc
+
+# Machine-specific private document location
+/config/storage.local.php
+
+# Local screenshots, test sessions, and personal roster imports
+/scratch/
+/database/student-roster.json
+/database/coordinator-roster.json

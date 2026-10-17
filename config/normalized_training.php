@@ -103,7 +103,7 @@ function normalized_attendance_rows_for_company(int $companyId,int $studentId=0,
 {
     $termId=normalized_active_term_id();
     if ($termId<=0) return [];
-    $where="oe.academic_term_id=? AND p.company_id=?";
+    $where="oe.academic_term_id=? AND p.company_id=? AND s.is_archived=0 AND u.status!='archived'";
     $params=[$termId,$companyId];
     $types='ii';
     if ($studentId>0) {
@@ -163,6 +163,11 @@ function normalized_attendance_rows_for_coordinator_date(int $coordinatorId,stri
 
 function normalized_attendance_punch(int $studentId,int $companyId,string $date,string $time,int $actorUserId): string
 {
+    if (!query_one(
+        "SELECT s.id FROM students s JOIN users u ON u.id=s.user_id
+         WHERE s.id=? AND s.is_archived=0 AND u.status!='archived' LIMIT 1",
+        [$studentId], 'i'
+    )) throw new DomainException('Archived trainees cannot record attendance.');
     $placement=normalized_current_placement_for_student($studentId,$companyId);
     if (!$placement || !in_array($placement['status'],['active','on_hold','planned'],true)) {
         throw new DomainException('This trainee does not have an active placement with your company.');
@@ -423,7 +428,7 @@ function normalized_journal_review(int $journalDayId,int $coordinatorId,int $rev
          JOIN enrollment_coordinators ec ON ec.ojt_enrollment_id=oe.id AND ec.ended_at IS NULL
          JOIN students s ON s.id=oe.student_id
          JOIN users u ON u.id=s.user_id
-         WHERE jd.id=? AND ec.coordinator_id=? LIMIT 1",
+         WHERE jd.id=? AND ec.coordinator_id=? AND s.is_archived=0 AND u.status!='archived' LIMIT 1",
         [$journalDayId,$coordinatorId],
         'ii'
     );
@@ -591,7 +596,7 @@ function normalized_requirement_review(
          JOIN enrollment_coordinators ec ON ec.ojt_enrollment_id=oe.id AND ec.ended_at IS NULL
          JOIN students s ON s.id=oe.student_id
          JOIN users u ON u.id=s.user_id
-         WHERE ra.id=? AND ec.coordinator_id=? LIMIT 1",
+         WHERE ra.id=? AND ec.coordinator_id=? AND s.is_archived=0 AND u.status!='archived' LIMIT 1",
         [$assignmentId,$coordinatorId],
         'ii'
     );
@@ -663,6 +668,51 @@ function normalized_requirement_add_template(int $userId,string $name,string $de
     }
 }
 
+function normalized_requirement_edit_template(
+    int $userId,int $definitionId,int $expectedVersion,string $name,string $description=''
+): int {
+    $name=trim($name);
+    $description=trim($description);
+    if ($name==='') throw new DomainException('Enter a requirement name.');
+    if (!preg_match('//u',$name) || preg_match_all('/./us',$name)>200) {
+        throw new DomainException('Requirement names must contain at most 200 characters.');
+    }
+    if (strlen($description)>60000) throw new DomainException('Requirement instructions are too long.');
+    db()->begin_transaction();
+    try {
+        $definition=query_one(
+            "SELECT id,title FROM requirement_definitions
+             WHERE id=? AND created_by=? AND status='active' FOR UPDATE",
+            [$definitionId,$userId],'ii'
+        );
+        if (!$definition) throw new DomainException('Requirement not found in your active library.');
+        $version=query_one(
+            "SELECT id,version_no,description FROM requirement_definition_versions
+             WHERE requirement_definition_id=? ORDER BY version_no DESC,id DESC LIMIT 1 FOR UPDATE",
+            [$definitionId],'i'
+        );
+        if (!$version || (int)$version['id']!==$expectedVersion) {
+            throw new DomainException('This requirement changed. Refresh the page and edit the latest version.');
+        }
+        if ($definition['title']===$name && ($version['description'] ?? '')===$description) {
+            db()->commit();
+            return (int)$version['id'];
+        }
+        query("UPDATE requirement_definitions SET title=? WHERE id=?",[$name,$definitionId],'si');
+        $versionId=(int)insert(
+            "INSERT INTO requirement_definition_versions
+             (requirement_definition_id,version_no,description,status,published_at,created_at)
+             VALUES(?,?,?,'published',NOW(),NOW())",
+            [$definitionId,(int)$version['version_no']+1,$description],'iis'
+        );
+        db()->commit();
+        return $versionId;
+    } catch (Throwable $error) {
+        db()->rollback();
+        throw $error;
+    }
+}
+
 function normalized_requirement_archive_template(int $userId,int $definitionId): bool
 {
     $owned=query_one(
@@ -684,6 +734,12 @@ function normalized_requirement_archive_template(int $userId,int $definitionId):
 function normalized_requirement_assign(
     int $definitionId,int $studentId,int $coordinatorId,int $assignedBy,?string $deadline
 ): string {
+    // Archived accounts retain their history but cannot receive new assignments.
+    if (!query_one(
+        "SELECT s.id FROM students s JOIN users u ON u.id=s.user_id
+         WHERE s.id=? AND s.is_archived=0 AND u.status!='archived' LIMIT 1",
+        [$studentId], 'i'
+    )) return 'invalid';
     $enrollment=normalized_enrollment_for_student($studentId);
     if (!$enrollment) return 'invalid';
     if (!query_one(
@@ -730,7 +786,8 @@ function normalized_requirement_rows_for_coordinator(int $coordinatorId,string $
     if ($termId<=0) return [];
     $params=[$termId,$coordinatorId];
     $types='ii';
-    $where="oe.academic_term_id=? AND ec.coordinator_id=? AND ec.ended_at IS NULL";
+    $where="oe.academic_term_id=? AND ec.coordinator_id=? AND ec.ended_at IS NULL
+            AND s.is_archived=0 AND u.status!='archived'";
     if ($search!=='') {
         $where.=" AND (u.name LIKE ? OR s.student_id_no LIKE ? OR rd.title LIKE ?)";
         $like="%$search%";
@@ -1049,7 +1106,7 @@ function normalized_report_review(
          JOIN enrollment_coordinators ec ON ec.ojt_enrollment_id=oe.id AND ec.ended_at IS NULL
          JOIN students s ON s.id=oe.student_id
          JOIN users u ON u.id=s.user_id
-         WHERE ra.id=? AND ec.coordinator_id=? LIMIT 1",
+         WHERE ra.id=? AND ec.coordinator_id=? AND s.is_archived=0 AND u.status!='archived' LIMIT 1",
         [$assignmentId,$coordinatorId],
         'ii'
     );
@@ -1082,7 +1139,8 @@ function normalized_report_rows_for_coordinator(int $coordinatorId,string $statu
     if ($termId<=0) return [];
     $params=[$termId,$coordinatorId];
     $types='ii';
-    $where="oe.academic_term_id=? AND ec.coordinator_id=? AND ec.ended_at IS NULL";
+    $where="oe.academic_term_id=? AND ec.coordinator_id=? AND ec.ended_at IS NULL
+            AND s.is_archived=0 AND u.status!='archived'";
     if ($search!=='') {
         $where.=" AND (u.name LIKE ? OR s.student_id_no LIKE ? OR rt.title LIKE ?)";
         $like="%$search%";

@@ -396,3 +396,15 @@ C:\xampp\php\php.exe bin\rollback-normalized-phase9-retirement.php --apply
 ```
 
 Rollback restores the old table names only. It does not undo normalized writes or reverse the Phase 8 application cutover.
+
+## Migration 012 — conversation archiving
+
+`bin/migrate-conversation-archiving.php` adds nullable `thread_members.archived_at` and an index by user/archive state. Existing memberships remain in Inbox. No messages, threads or memberships are removed. Archive and restore change only the current member's state; new messages reopen the conversation for its members.
+
+Run `php tests/conversation-archiving.php` to rehearse the exact ALTER statement and archive/restore behavior against connection-scoped temporary tables, without changing application records. Then run the migration with `--dry-run` and `--apply`. The runner verifies row counts, records `012_conversation_archiving` in `schema_migrations`, and safely supports repeated execution. Check Inbox/Archived counts, member isolation, restore and the arrival of a new message after applying.
+
+Rollback: deploy the previous application code before dropping `idx_thread_members_archive` and `archived_at`; this removes only the per-user archive preferences. Preserve the column if those preferences may be needed later.
+
+## Migration 013 - point-based evaluation forms
+
+013_evaluation_points.sql adds the points scoring mode without changing existing forms. Run php bin/import-bsit-ojt-evaluation.php --dry-run to review the supplied BSIT sheet, then --apply to add the mode and import the active form into Sir Jmvy's library. Repeated imports do not duplicate it. The import sends no evaluation requests and includes no handwritten trainee results. Category maxima total 100; existing percentage forms keep their original arithmetic mean. The source overlaps at 91 percent; the imported rule treats 91 as PASSED and lower scores as NEEDS IMPROVEMENT. Three categories with unsplit source totals use shared category scores.

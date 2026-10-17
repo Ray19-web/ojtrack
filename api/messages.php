@@ -13,6 +13,18 @@ $uid  = (int)$user['id'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'send';
 
+    if (in_array($action, ['archive', 'restore'], true)) {
+        $thread_id = filter_var($_POST['thread_id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        if (!$thread_id) request_error(422, 'A valid conversation is required.', true);
+        if (!set_conversation_archived($uid, $thread_id, $action === 'archive')) {
+            request_error(403, 'You are not a member of this conversation.', true);
+        }
+        log_activity($uid, $action === 'archive' ? 'Conversation Archived' : 'Conversation Restored', "Thread: $thread_id");
+        echo json_encode(['ok'=>true, 'archived'=>$action === 'archive']);
+        exit;
+    }
+    if (!in_array($action, ['send', 'create_thread'], true)) request_error(422, 'Invalid message action.', true);
+
     if ($action === 'create_thread') {
         $name        = trim($_POST['name'] ?? '');
         $thread_type = in_array($_POST['thread_type'] ?? '', ['group', 'direct']) ? $_POST['thread_type'] : 'group';
@@ -91,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
 
     if ($msg_id) {
+        reopen_conversation_for_new_message($thread_id);
         // Mark own message as read
         insert("INSERT IGNORE INTO message_reads (message_id, user_id) VALUES (?, ?)", [$msg_id, $uid], 'ii');
         log_activity($uid, 'Message Sent', "Thread: $thread_id");

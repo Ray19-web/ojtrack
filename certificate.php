@@ -45,43 +45,23 @@ if ($user['role']==='student') {
 $certificate=$student ? normalized_certificate_for_student((int)$student['id']) : null;
 
 if (!$certificate) {
+    require_once __DIR__.'/config/record-filters.php';
+    $filters=issued_certificate_filters($_GET);
     $available=[];
-    if ($user['role']==='student') {
-        $available=[];
+    $scope='1=0'; $scope_params=[]; $scope_types='';
+    if ($user['role']==='admin') {
+        $scope='1=1';
     } elseif ($user['role']==='company') {
         $company=query_one("SELECT id FROM companies WHERE user_id=? LIMIT 1",[(int)$user['id']],'i');
-        if ($company) {
-            $available=query(
-                "SELECT DISTINCT s.id,u.name,c.certificate_no,c.issued_at
-                 FROM certificates c
-                 JOIN placements pl ON pl.id=c.placement_id
-                 JOIN ojt_enrollments oe ON oe.id=pl.ojt_enrollment_id
-                 JOIN students s ON s.id=oe.student_id
-                 JOIN users u ON u.id=s.user_id
-                 WHERE pl.company_id=?
-                 ORDER BY c.issued_at DESC",
-                [(int)$company['id']],
-                'i'
-            ) ?: [];
-        }
+        if ($company) { $scope='pl.company_id=?'; $scope_params[]=(int)$company['id']; $scope_types='i'; }
     } elseif ($user['role']==='coordinator') {
         $coord=query_one("SELECT id FROM coordinators WHERE user_id=? LIMIT 1",[(int)$user['id']],'i');
         if ($coord) {
-            $available=query(
-                "SELECT DISTINCT s.id,u.name,c.certificate_no,c.issued_at
-                 FROM certificates c
-                 JOIN placements pl ON pl.id=c.placement_id
-                 JOIN ojt_enrollments oe ON oe.id=pl.ojt_enrollment_id
-                 JOIN enrollment_coordinators ec ON ec.ojt_enrollment_id=oe.id AND ec.ended_at IS NULL
-                 JOIN students s ON s.id=oe.student_id
-                 JOIN users u ON u.id=s.user_id
-                 WHERE ec.coordinator_id=?
-                 ORDER BY c.issued_at DESC",
-                [(int)$coord['id']],
-                'i'
-            ) ?: [];
+            $scope='EXISTS (SELECT 1 FROM enrollment_coordinators ec WHERE ec.ojt_enrollment_id=oe.id AND ec.ended_at IS NULL AND ec.coordinator_id=?)';
+            $scope_params[]=(int)$coord['id']; $scope_types='i';
         }
-    } else {
+    }
+    if ($user['role']!=='student') {
         $available=query(
             "SELECT DISTINCT s.id,u.name,c.certificate_no,c.issued_at
              FROM certificates c
@@ -89,8 +69,9 @@ if (!$certificate) {
              JOIN ojt_enrollments oe ON oe.id=pl.ojt_enrollment_id
              JOIN students s ON s.id=oe.student_id
              JOIN users u ON u.id=s.user_id
-             ORDER BY c.issued_at DESC
-             LIMIT 100"
+             WHERE ($scope) AND ({$filters['where']})
+             ORDER BY c.issued_at DESC",
+            array_merge($scope_params,$filters['params']),$scope_types.$filters['types']
         ) ?: [];
     }
 
@@ -102,6 +83,18 @@ if (!$certificate) {
       <div class="page-sub">Official certificate records are permanent after issuance.</div>
     </div>
     <div class="card">
+      <?php if ($user['role']!=='student'):
+      $record_filter_ui=[
+          'label'=>'Search certificates','placeholder'=>'Search student, ID, certificate...','search'=>$filters['search'],
+          'fields'=>[
+              ['name'=>'from','label'=>'Issued from','value'=>$filters['from']],
+              ['name'=>'to','label'=>'Issued through','value'=>$filters['to']],
+          ],
+          'active'=>$filters['search']!=='' || $filters['from']!=='' || $filters['to']!=='',
+          'clear'=>'/ojtrack/certificate.php','count'=>count($available).' certificate(s) found','error'=>$filters['error'],
+      ];
+      require __DIR__.'/includes/record-filters.php';
+      endif; ?>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Student</th><th>Certificate No.</th><th>Issued</th><th>Action</th></tr></thead>
@@ -110,7 +103,7 @@ if (!$certificate) {
             <tr><td colspan="4" class="text-center text-muted py-6">
               <?= $user['role']==='student'
                   ? 'Your official certificate has not been issued yet. Completion alone does not create an issuance record.'
-                  : 'No issued certificates are available in your scope yet.' ?>
+                  : ($record_filter_ui['active'] ? 'No certificates match these filters.' : 'No issued certificates are available in your scope yet.') ?>
             </td></tr>
           <?php else: ?>
             <?php foreach ($available as $row): ?>
@@ -191,7 +184,7 @@ function downloadCert() {
   <?php if (!empty($template['footer_text'])): ?>
     <div style="font-size:12px;color:#777;font-style:italic;margin-bottom:40px"><?= e($template['footer_text']) ?></div>
   <?php endif; ?>
-  <div style="display:flex;justify-content:space-between;max-width:640px;margin:0 auto">
+  <div class="certificate-signatures" style="display:flex;justify-content:space-between;max-width:640px;margin:0 auto">
     <div style="text-align:center">
       <div style="border-top:1px solid #333;width:200px;margin-bottom:6px"></div>
       <div style="font-size:14px;font-weight:700"><?= e($template['signatory_name'] ?? '') ?></div>

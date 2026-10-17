@@ -16,7 +16,7 @@ CREATE TABLE schema_migrations (
 CREATE TABLE users (
   id INT NOT NULL AUTO_INCREMENT,
   name VARCHAR(100) NOT NULL,
-  email VARCHAR(150) NOT NULL,
+  email VARCHAR(150) DEFAULT NULL,
   password VARCHAR(255) NOT NULL,
   role ENUM('student','coordinator','company','admin') NOT NULL,
   status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
@@ -369,7 +369,7 @@ CREATE TABLE evaluation_definition_versions (
   id INT NOT NULL AUTO_INCREMENT,
   evaluation_definition_id INT NOT NULL,
   version_no INT NOT NULL,
-  score_mode ENUM('percentage','rating') NOT NULL DEFAULT 'percentage',
+  score_mode ENUM('percentage','rating','points') NOT NULL DEFAULT 'percentage',
   rating_max INT NOT NULL DEFAULT 100,
   status ENUM('draft','published','retired') NOT NULL DEFAULT 'draft',
   published_at TIMESTAMP NULL DEFAULT NULL,
@@ -543,8 +543,10 @@ CREATE TABLE thread_members (
   user_id INT NOT NULL,
   joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   left_at TIMESTAMP NULL DEFAULT NULL,
+  archived_at DATETIME NULL DEFAULT NULL,
   PRIMARY KEY (thread_id, user_id),
   KEY idx_thread_members_user (user_id, left_at),
+  KEY idx_thread_members_archive (user_id, archived_at),
   CONSTRAINT fk_thread_members_thread FOREIGN KEY (thread_id) REFERENCES message_threads(id) ON DELETE CASCADE,
   CONSTRAINT fk_thread_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

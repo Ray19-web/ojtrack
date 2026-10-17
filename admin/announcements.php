@@ -91,8 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$search=trim($_GET['q'] ?? '');
-$announcements=normalized_announcements_admin($search);
+require_once __DIR__.'/../config/record-filters.php';
+$filters=announcement_management_filters($_GET);
+$search=$filters['search'];
+$announcements=normalized_announcements_admin($search,$_GET);
+$tag_options=[''=>'All Categories'];
+foreach (query("SELECT DISTINCT COALESCE(NULLIF(tag,''),'General') AS tag FROM announcement_posts ORDER BY tag") ?: [] as $tag_row) $tag_options[$tag_row['tag']]=$tag_row['tag'];
+if ($filters['tag']!=='' && !isset($tag_options[$filters['tag']])) $tag_options[$filters['tag']]=$filters['tag'];
 $total_count=(int)(query_one("SELECT COUNT(*) c FROM announcement_posts")['c'] ?? 0);
 $pinned_count=(int)(query_one("SELECT COUNT(*) c FROM announcement_posts WHERE is_pinned=1")['c'] ?? 0);
 $all_count=(int)(query_one("SELECT COUNT(*) c FROM announcement_posts WHERE target_role='all'")['c'] ?? 0);
@@ -104,8 +109,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-heading flex-between">
   <div>
-    <div class="page-title">Announcements Management</div>
-    <div class="page-sub">Manage system-wide broadcasts and official campus advisories</div>
+    <div class="page-title">Announcements</div>
+    <div class="page-sub">Campus notices and updates</div>
   </div>
   <button class="btn btn-primary" onclick="openModal('composeModal')">+ Post Announcement</button>
 </div>
@@ -114,19 +119,19 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
 <div class="card announcement-management-card">
-  <div class="card-header flex-between">
-    <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <div class="search-wrap" style="width:280px">
-        <input type="text" name="q" class="form-control search-input" placeholder="Search title, body, tag, author..." value="<?= e($search) ?>">
-      </div>
-      <button type="submit" class="btn btn-secondary">Search</button>
-      <?php if ($search !== ''): ?>
-        <a href="/ojtrack/admin/announcements.php" class="btn btn-ghost">Clear</a>
-      <?php endif; ?>
-    </form>
-    <span class="text-sm text-muted"><?= count($announcements) ?> notice(s)</span>
-  </div>
-  <div class="table-wrap">
+  <?php
+  $record_filter_ui=[
+      'label'=>'Search announcements','placeholder'=>'Search title, message, author...','search'=>$search,
+      'fields'=>[
+          ['name'=>'tag','label'=>'Category','value'=>$filters['tag'],'options'=>$tag_options],
+          ['name'=>'audience','label'=>'Audience','value'=>$filters['audience'],'options'=>[''=>'Any Audience','all'=>'All Roles','student'=>'Student','coordinator'=>'Coordinator','company'=>'Company','admin'=>'Admin']],
+      ],
+      'active'=>$search!=='' || $filters['tag']!=='' || $filters['audience']!=='',
+      'clear'=>'/ojtrack/admin/announcements.php','count'=>count($announcements).' notice(s) found',
+  ];
+  require __DIR__.'/../includes/record-filters.php';
+  ?>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
     <table>
       <thead>
         <tr>
@@ -219,7 +224,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="announcement-modal-header">
       <div>
         <div class="modal-title">Post New Announcement</div>
-        <p class="modal-sub">Create an official announcement for students, coordinators, or company partners</p>
+        <p class="modal-sub">Choose an audience and write your notice.</p>
       </div>
       <button type="button" class="announcement-modal-close" onclick="closeModal('composeModal')" aria-label="Close announcement form">×</button>
     </div>
