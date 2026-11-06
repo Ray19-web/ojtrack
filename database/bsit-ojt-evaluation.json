@@ -1,0 +1,36 @@
+{
+  "title": "USTP OJT Evaluation Sheet (BSIT)",
+  "document_code": "FM-USTP-ReO-014",
+  "description": "Based on the supplied USTP OJT Evaluation Sheet, FM-USTP-ReO-014, Rev. 00, effective date printed as 10.01.21. Award points up to each displayed maximum, total 100. PASSED: 91-100; NEEDS IMPROVEMENT: below 91. The source overlaps at 91; this form treats 91 as PASSED. Attendance, cleanliness, and grooming each use a shared category score because the source does not allocate separate points to their two checks. Supervisor feedback belongs in Comments & Feedback. Trainee, company, and training details come from the assigned student record. No handwritten scores or personal details from the sample are included.",
+  "sections": [
+    {"title": "Communication Skills (15 points)", "criteria": [
+      {"label": "Ability to convey ideas and opinions orally", "points": 5},
+      {"label": "Ability to follow instructions", "points": 5},
+      {"label": "Ability to write reports", "points": 5}
+    ]},
+    {"title": "Manipulative Skills (45 points)", "criteria": [
+      {"label": "Knowledgeable in his/her job/task", "points": 5},
+      {"label": "Works with thoroughness and accuracy", "points": 5},
+      {"label": "Works at desirable speed", "points": 10},
+      {"label": "Resourcefulness", "points": 10},
+      {"label": "Makes innovations", "points": 5},
+      {"label": "Initiates contingency measures", "points": 5},
+      {"label": "Observes safety", "points": 5}
+    ]},
+    {"title": "Managerial Skills (20 points)", "criteria": [
+      {"label": "Leads and deals with workers", "points": 5},
+      {"label": "Has self-confidence in decision-making", "points": 5},
+      {"label": "Projects positive attitude", "points": 5},
+      {"label": "Develops rapport", "points": 5}
+    ]},
+    {"title": "Attendance (10 points)", "criteria": [
+      {"label": "Regular and punctual in attending work as scheduled; proper observance of break periods", "points": 10}
+    ]},
+    {"title": "Cleanliness and Appearance (5 points)", "criteria": [
+      {"label": "Maintains cleanliness and orderliness of the working area; systematically organizes tasks", "points": 5}
+    ]},
+    {"title": "Grooming and Appearance (5 points)", "criteria": [
+      {"label": "Wears appropriate attire; uses safety gear", "points": 5}
+    ]}
+  ]
+}

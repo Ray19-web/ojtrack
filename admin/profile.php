@@ -1,0 +1,78 @@
+<?php
+define('OJTRACK', true);
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/auth.php';
+require_login(['admin']);
+require_once __DIR__ . '/../config/profile.php';
+
+$user = current_user();
+$redirect = $_POST['redirect'] ?? ($_SERVER['HTTP_REFERER'] ?? '/ojtrack/admin/dashboard.php');
+
+$redirect = safe_app_redirect($redirect, '/ojtrack/admin/dashboard.php');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    // Page removed — open modal via dashboard instead
+    header('Location: /ojtrack/admin/dashboard.php?profile=1');
+    exit;
+}
+
+$action = $_POST['action'] ?? '';
+$flash_ok = '';
+$flash_err = '';
+
+if ($action === 'update_profile') {
+    try {
+        $updated = ojtrack_update_own_profile($user, $_POST);
+        $_SESSION['name'] = $updated['name'];
+        if ($user['role'] === 'company') $_SESSION['sub'] = $updated['company_name'];
+        log_activity((int)$user['id'], 'Profile Updated', '');
+        $flash_ok = 'Profile details updated successfully.';
+    } catch (DomainException $exception) {
+        $flash_err = $exception->getMessage();
+    } catch (Throwable $exception) {
+        error_log('OJTrack profile update failed: '.$exception->getMessage());
+        $flash_err = 'Your profile could not be updated. Please try again.';
+    }
+} elseif ($action === 'upload_avatar') {
+    try {
+        save_user_avatar_upload((int)$user['id'], $_FILES['avatar'] ?? []);
+        log_activity($user['id'], 'Admin Avatar Updated', '');
+        $flash_ok = 'Profile picture updated successfully.';
+    } catch (DomainException $error) {
+        $flash_err = $error->getMessage();
+    } catch (RuntimeException $error) {
+        $flash_err = $error->getMessage();
+    }
+} elseif ($action === 'change_password') {
+    $current = $_POST['current_password'] ?? '';
+    $new     = $_POST['new_password'] ?? '';
+    $confirm = $_POST['confirm_password'] ?? '';
+    $db_user = query_one("SELECT password FROM users WHERE id=?", [$user['id']], 'i');
+
+    if (!password_verify($current, $db_user['password'])) {
+        $flash_err = 'Current password is incorrect.';
+    } elseif (strlen($new) < 6) {
+        $flash_err = 'New password must be at least 6 characters.';
+    } elseif ($new !== $confirm) {
+        $flash_err = 'New passwords do not match.';
+    } else {
+        query("UPDATE users SET password=? WHERE id=?", [password_hash($new, PASSWORD_DEFAULT), $user['id']], 'si');
+        $_SESSION['auth_fingerprint'] = hash('sha256', query_one("SELECT password FROM users WHERE id=?", [$user['id']], 'i')['password']);
+        session_regenerate_id(true);
+        log_activity($user['id'], 'Password Changed', '');
+        $flash_ok = 'Administrator password updated.';
+    }
+}
+
+if ($flash_ok) {
+    $_SESSION['flash_success'] = $flash_ok;
+}
+if ($flash_err) {
+    $_SESSION['flash_error'] = $flash_err;
+}
+
+// Re-open modal after save
+$sep = (strpos($redirect, '?') === false) ? '?' : '&';
+$return_modal = $action === 'change_password' ? 'password=1' : 'profile=1';
+header('Location: ' . $redirect . $sep . $return_modal);
+exit;

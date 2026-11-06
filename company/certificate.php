@@ -1,0 +1,288 @@
+<?php
+define('OJTRACK', true);
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/auth.php';
+require_login(['company']);
+
+$user    = current_user();
+$company = query_one("SELECT * FROM companies WHERE user_id=?", [$user['id']], 'i');
+
+$success = ''; $error = '';
+
+$template = normalized_certificate_template_for_company((int)$company['id']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action=$_POST['action'] ?? '';
+
+    if ($action==='save_template') {
+        $t=[
+            'logo'=>$template['logo'] ?? '',
+            'org_name'=>normalize_person_name($_POST['org_name'] ?? ''),
+            'org_address'=>trim($_POST['org_address'] ?? ''),
+            'cert_title'=>trim($_POST['cert_title'] ?? 'Certificate of Recognition'),
+            'body_text'=>trim($_POST['body_text'] ?? ''),
+            'signatory_name'=>normalize_person_name($_POST['signatory_name'] ?? ''),
+            'signatory_name_extensions'=>[],
+            'signatory_title'=>trim($_POST['signatory_title'] ?? ''),
+            'footer_text'=>trim($_POST['footer_text'] ?? ''),
+        ];
+        $signatory_extension_result = name_extensions_from_post('signatory_name_extension_type', 'signatory_name_extension_value');
+        $t['signatory_name_extensions'] = $signatory_extension_result['extensions'];
+        $signatory_extension_error = $signatory_extension_result['error'];
+        $first_signatory_extension = $t['signatory_name_extensions'][0] ?? [];
+        $t['signatory_name_extension_type'] = $first_signatory_extension['type'] ?? '';
+        $t['signatory_name_extension_value'] = $first_signatory_extension['value'] ?? '';
+        if ($signatory_extension_error) $error = $signatory_extension_error;
+        if ($t['signatory_name'] === '' && $t['signatory_name_extensions']) $error = 'Enter the signatory name before adding its extension.';
+        if (mb_strlen(format_person_name($t['signatory_name'], $t['signatory_name_extensions'])) > 100) $error = 'Signatory name must be 100 characters or fewer, including its extension.';
+        $newLogo=null;
+        $logoName=null;
+        if (!$error && !empty($_FILES['logo']['name']) && ($_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE)===UPLOAD_ERR_OK) {
+            $logoName=$_FILES['logo']['name'];
+            $ext=strtolower(pathinfo($logoName,PATHINFO_EXTENSION));
+            if (!in_array($ext,['jpg','jpeg','png','gif','webp'],true)) {
+                $error='Logo must be JPG, PNG, GIF, or WEBP.';
+            } else {
+                $destDir=__DIR__.'/../uploads/cert_logos/';
+                if (!is_dir($destDir)) mkdir($destDir,0755,true);
+                $filename='certlogo_'.$company['id'].'_'.bin2hex(random_bytes(16)).'.'.$ext;
+                if (move_uploaded_file($_FILES['logo']['tmp_name'],$destDir.$filename)) {
+                    $newLogo='cert_logos/'.$filename;
+                    $t['logo']=$newLogo;
+                } else {
+                    $error='Logo upload failed.';
+                }
+            }
+        }
+        if (!$error) {
+            try {
+                normalized_certificate_save_template(
+                    (int)$company['id'],(int)$user['id'],$t,$newLogo,$logoName
+                );
+                $template=normalized_certificate_template_for_company((int)$company['id']);
+                log_activity($user['id'],'Certificate Template Updated','Normalized version created');
+                $success='Certificate template saved as a new version. Previously issued certificates remain unchanged.';
+            } catch (DomainException $exception) {
+                $error=$exception->getMessage();
+            }
+        }
+    } elseif ($action==='issue_certificate') {
+        $studentId=(int)($_POST['student_id'] ?? 0);
+        try {
+            $certificate=normalized_issue_certificate($studentId,(int)$user['id']);
+            log_activity($user['id'],'Certificate Issued',"Student ID: $studentId · {$certificate['certificate_no']}");
+            $success='Official certificate issued. Future reprints will use this frozen certificate snapshot.';
+            header('Location: /ojtrack/company/certificate.php?student='.$studentId.'&issued=1');
+            exit;
+        } catch (DomainException $exception) {
+            $error=$exception->getMessage();
+        }
+    }
+}
+
+$students=array_values(array_filter(
+    normalized_students_for_company((int)$company['id']),
+    fn($studentRow)=>in_array($studentRow['ojt_status'],['ongoing','completed'],true)
+));
+
+$sel_id=isset($_GET['student']) ? (int)$_GET['student'] : (int)($students[0]['id'] ?? 0);
+$selected=null;
+foreach ($students as $studentRow) {
+    if ((int)$studentRow['id']===$sel_id) { $selected=$studentRow; break; }
+}
+
+$issuedCertificate=$selected ? normalized_certificate_for_student((int)$selected['id']) : null;
+$issuedSnapshot=$issuedCertificate ? normalized_certificate_snapshot($issuedCertificate) : [];
+$eligibility=$selected ? normalized_certificate_eligibility((int)$selected['id']) : ['eligible'=>false,'reasons'=>[]];
+
+$certificate_template=$template;
+$rendered_body='';
+$issued_date=null;
+$certificate_no=null;
+if ($selected) {
+    if ($issuedCertificate && $issuedSnapshot) {
+        $certificate_template=$issuedSnapshot['template'] ?? $template;
+        $rendered_body=$issuedSnapshot['rendered_body'] ?? '';
+        $issued_date=$issuedCertificate['issued_at'];
+        $certificate_no=$issuedCertificate['certificate_no'];
+    } else {
+        $context=normalized_student_context((int)$selected['id']) ?: $selected;
+        $coord=!empty($context['_enrollment_id'])
+            ? normalized_current_coordinator_for_enrollment((int)$context['_enrollment_id'])
+            : null;
+        $replace=[
+            '{student_name}'=>$selected['name'],
+            '{program}'=>$selected['program'] ?? '',
+            '{company_name}'=>$company['company_name'] ?? '',
+            '{rendered_hours}'=>number_format($selected['rendered_hours'] ?? 0,0).' hours',
+            '{required_hours}'=>number_format($selected['required_hours'] ?? 0,0).' hours',
+            '{coordinator_name}'=>$coord['name'] ?? '',
+            '{date}'=>date('F d, Y'),
+        ];
+        $rendered_body=strtr($certificate_template['body_text'] ?? '',$replace);
+    }
+}
+
+$page_title = 'Certificates';
+require_once __DIR__ . '/../includes/header.php';
+?>
+
+<div class="page-heading">
+  <div class="page-title">Certificate of Recognition</div>
+  <div class="page-sub">Print certificates with your company template</div>
+</div>
+
+<?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
+<?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
+
+<div class="grid" style="grid-template-columns:1fr">
+  <div>
+    <div class="card card-body mb-4 py-3">
+      <form method="GET" class="filter-toolbar flex-items-center gap-3" data-live-filter style="flex-wrap:wrap">
+        <label class="form-label mb-0">Generate for:</label>
+        <select name="student" class="form-control" style="width:280px">
+          <?php foreach ($students as $s): ?>
+            <option value="<?= $s['id'] ?>" <?= $s['id']==$sel_id?'selected':'' ?>><?= e($s['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php if ($issuedCertificate): ?>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">Reprint</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="downloadCert()">⬇ Download Issued Certificate</button>
+        <?php elseif ($selected && ($eligibility['eligible'] ?? false)): ?>
+          <button type="submit" form="issueCertificateForm" class="btn btn-primary btn-sm" data-confirm-message="Issue the official certificate now? Its student, hours, company, template, issuer and issue date will be frozen for future reprints.">Issue Official Certificate</button>
+        <?php else: ?>
+          <span class="text-xs text-muted">Preview only — <?= e(implode(' ', $eligibility['reasons'] ?? ['Not eligible for issuance yet.'])) ?></span>
+        <?php endif; ?>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-primary" onclick="openModal('templateModal')">✏️ Editable Template</button>
+      </form>
+      <?php if (!$issuedCertificate && $selected && ($eligibility['eligible'] ?? false)): ?>
+        <form method="POST" id="issueCertificateForm" style="display:none"><?= csrf_field() ?>
+          <input type="hidden" name="action" value="issue_certificate">
+          <input type="hidden" name="student_id" value="<?= (int)$selected['id'] ?>">
+        </form>
+      <?php endif; ?>
+    </div>
+<div class="modal-overlay" id="templateModal">
+  <div class="modal modal-lg" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-title">Editable Template</div>
+    <p class="modal-sub">Company template. Fields: {student_name}, {program}, {company_name}, {rendered_hours}, {coordinator_name}, {date}</p>
+    <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
+      <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
+        <input type="hidden" name="action" value="save_template">
+        <div class="form-group">
+          <label class="form-label">Company Logo</label>
+          <?php if (!empty($template['logo'])): ?>
+            <a href="/ojtrack/uploads/<?= e($template['logo']) ?>" aria-label="View current company logo">
+              <img src="/ojtrack/uploads/<?= e($template['logo']) ?>" alt="Company logo" style="height:48px;margin-bottom:6px;display:block">
+            </a>
+          <?php endif; ?>
+          <input type="file" name="logo" class="form-control" accept=".jpg,.jpeg,.png,.gif,.webp">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Organization Name</label>
+          <input type="text" name="org_name" class="form-control" value="<?= e($template['org_name']) ?>" data-uppercase-name>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Address / Subtitle</label>
+          <input type="text" name="org_address" class="form-control" value="<?= e($template['org_address']) ?>">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Certificate Title</label>
+          <input type="text" name="cert_title" class="form-control" value="<?= e($template['cert_title']) ?>">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Body Text</label>
+          <textarea name="body_text" class="form-control" rows="4"><?= e($template['body_text']) ?></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Signatory Name</label>
+            <input type="text" name="signatory_name" class="form-control" value="<?= e($template['signatory_name_base'] ?? $template['signatory_name']) ?>" data-uppercase-name>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Signatory Title</label>
+            <input type="text" name="signatory_title" class="form-control" value="<?= e($template['signatory_title']) ?>">
+          </div>
+        </div>
+        <?php $name_extension_prefix = 'certificateSignatory'; $name_extension_type_field = 'signatory_name_extension_type'; $name_extension_value_field = 'signatory_name_extension_value'; $name_extension_entries = $template['signatory_name_extensions'] ?? []; require __DIR__ . '/../includes/name-extension-fields.php'; ?>
+        <div class="form-group">
+          <label class="form-label">Footer Text</label>
+          <textarea name="footer_text" class="form-control" rows="2"><?= e($template['footer_text']) ?></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('templateModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Template</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+    <?php if (!$selected): ?>
+      <div class="card card-body"><div class="empty-state"><p>No trainees available for certificates.</p></div></div>
+    <?php else: ?>
+    <div id="certificate" style="background:#fff;border:8px double #103b78;padding:56px 48px;text-align:center;font-family:Georgia,serif;max-width:1100px;min-height:560px;margin:0 auto">
+      <?php if (!empty($certificate_template['logo'])): ?>
+        <img src="/ojtrack/uploads/<?= e($certificate_template['logo']) ?>" alt="Logo" style="height:72px;margin-bottom:12px"><br>
+      <?php endif; ?>
+      <div style="font-size:22px;font-weight:700;color:#103b78"><?= e($certificate_template['org_name']) ?></div>
+      <?php if ($certificate_template['org_address']): ?><div style="font-size:13px;color:#666;margin-bottom:24px"><?= e($certificate_template['org_address']) ?></div><?php endif; ?>
+      <div style="font-size:30px;letter-spacing:2px;margin:28px 0 8px;color:#103b78;text-transform:uppercase"><?= e($certificate_template['cert_title']) ?></div>
+      <?php if ($certificate_no): ?><div style="font-size:11px;color:#777;margin-bottom:8px">Certificate No. <?= e($certificate_no) ?></div><?php endif; ?>
+      <div style="font-size:13px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">This certifies that</div>
+      <div style="font-size:26px;font-weight:700;border-bottom:1px solid #999;display:inline-block;padding:0 24px 4px;margin-bottom:20px"><?= e($selected['name']) ?></div>
+      <div style="font-size:14px;line-height:1.7;max-width:640px;margin:0 auto 36px"><?= nl2br(e($rendered_body)) ?></div>
+      <?php if ($certificate_template['footer_text']): ?><div style="font-size:12px;color:#777;font-style:italic;margin-bottom:40px"><?= e($certificate_template['footer_text']) ?></div><?php endif; ?>
+      <div class="certificate-signatures" style="display:flex;justify-content:space-between;max-width:640px;margin:0 auto">
+        <div style="text-align:center">
+          <div style="border-top:1px solid #333;width:200px;margin-bottom:6px"></div>
+          <div style="font-size:14px;font-weight:700"><?= e($certificate_template['signatory_name']) ?></div>
+          <div style="font-size:12px;color:#666"><?= e($certificate_template['signatory_title']) ?></div>
+        </div>
+        <div style="text-align:center">
+          <div style="border-top:1px solid #333;width:200px;margin-bottom:6px"></div>
+          <div style="font-size:14px;font-weight:700"><?= $issued_date ? date('F d, Y', strtotime($issued_date)) : 'Preview — Not Issued' ?></div>
+          <div style="font-size:12px;color:#666"><?= $issuedCertificate ? 'Date Issued' : 'Issue Date' ?></div>
+        </div>
+      </div>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+
+<style>
+@page { size: A4 landscape; margin: 8mm; }
+@media print {
+  body * { visibility: hidden; }
+  #certificate, #certificate * { visibility: visible; }
+  #certificate {
+    position: absolute; left: 0; top: 0;
+    width: 281mm; max-width: 281mm; min-height: 190mm;
+    box-sizing: border-box;
+    padding: 24mm 20mm;
+    border: 8px double #103b78;
+    font-size: 13px;
+    overflow: hidden;
+  }
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function downloadCert() {
+  var el = document.getElementById('certificate');
+  if (!el || typeof html2pdf === 'undefined') { window.showAppToast?.('PDF library not loaded. Please check your internet connection.', {type: 'error'}); return; }
+  var opt = {
+    margin: 8,
+    filename: 'Certificate_of_Recognition.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, windowWidth: 1200 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    pagebreak: { mode: ['css', 'legacy'] }
+  };
+  html2pdf().set(opt).from(el).save();
+}
+</script>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

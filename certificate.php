@@ -1,0 +1,231 @@
+<?php
+define('OJTRACK', true);
+require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/config/auth.php';
+require_login(['student','company','coordinator','admin']);
+
+$user=current_user();
+$requestedStudentId=isset($_GET['student']) ? (int)$_GET['student'] : 0;
+$student=null;
+
+if ($user['role']==='student') {
+    $student=normalized_student_context_by_user((int)$user['id']);
+} elseif ($requestedStudentId>0) {
+    $candidate=normalized_student_context($requestedStudentId);
+    if ($candidate) {
+        if ($user['role']==='admin') {
+            $student=$candidate;
+        } elseif ($user['role']==='company') {
+            $company=query_one("SELECT id FROM companies WHERE user_id=? LIMIT 1",[(int)$user['id']],'i');
+            $certificate=normalized_certificate_for_student($requestedStudentId);
+            if ($company && $certificate) {
+                $allowed=query_one(
+                    "SELECT c.id
+                     FROM certificates c
+                     JOIN placements p ON p.id=c.placement_id
+                     WHERE c.id=? AND p.company_id=? LIMIT 1",
+                    [(int)$certificate['id'],(int)$company['id']],
+                    'ii'
+                );
+                if ($allowed) $student=$candidate;
+            }
+        } elseif ($user['role']==='coordinator') {
+            $coord=query_one("SELECT id FROM coordinators WHERE user_id=? LIMIT 1",[(int)$user['id']],'i');
+            $issued=normalized_certificate_for_student($requestedStudentId);
+            $issuedEnrollmentId=(int)($issued['ojt_enrollment_id'] ?? 0);
+            if ($coord && $issuedEnrollmentId>0) {
+                $assigned=normalized_lean_schema_ready()
+                    ? query_one("SELECT id FROM ojt_enrollments WHERE id=? AND coordinator_id=? LIMIT 1",[$issuedEnrollmentId,(int)$coord['id']],'ii')
+                    : query_one("SELECT id FROM enrollment_coordinators WHERE ojt_enrollment_id=? AND coordinator_id=? LIMIT 1",[$issuedEnrollmentId,(int)$coord['id']],'ii');
+                if ($assigned) $student=$candidate;
+            }
+        }
+    }
+}
+
+$certificate=$student ? normalized_certificate_for_student((int)$student['id']) : null;
+
+if (!$certificate) {
+    require_once __DIR__.'/config/record-filters.php';
+    $filters=issued_certificate_filters($_GET);
+    $available=[];
+    $scope='1=0'; $scope_params=[]; $scope_types='';
+    if ($user['role']==='admin') {
+        $scope='1=1';
+    } elseif ($user['role']==='company') {
+        $company=query_one("SELECT id FROM companies WHERE user_id=? LIMIT 1",[(int)$user['id']],'i');
+        if ($company) { $scope='pl.company_id=?'; $scope_params[]=(int)$company['id']; $scope_types='i'; }
+    } elseif ($user['role']==='coordinator') {
+        $coord=query_one("SELECT id FROM coordinators WHERE user_id=? LIMIT 1",[(int)$user['id']],'i');
+        if ($coord) {
+            $scope='EXISTS (SELECT 1 FROM enrollment_coordinators ec WHERE ec.ojt_enrollment_id=oe.id AND ec.ended_at IS NULL AND ec.coordinator_id=?)';
+            $scope_params[]=(int)$coord['id']; $scope_types='i';
+        }
+    }
+    if ($user['role']!=='student') {
+        $available=query(
+            "SELECT DISTINCT s.id,u.name,c.certificate_no,c.issued_at
+             FROM certificates c
+             JOIN placements pl ON pl.id=c.placement_id
+             JOIN ojt_enrollments oe ON oe.id=pl.ojt_enrollment_id
+             JOIN students s ON s.id=oe.student_id
+             JOIN users u ON u.id=s.user_id
+             WHERE ($scope) AND ({$filters['where']})
+             ORDER BY c.issued_at DESC",
+            array_merge($scope_params,$filters['params']),$scope_types.$filters['types']
+        ) ?: [];
+    }
+
+    $page_title='Certificates';
+    require_once __DIR__ . '/includes/header.php';
+    ?>
+    <div class="page-heading">
+      <div class="page-title">Issued Certificates</div>
+      <div class="page-sub">Official certificate records are permanent after issuance.</div>
+    </div>
+    <div class="card">
+      <?php if ($user['role']!=='student'):
+      $record_filter_ui=[
+          'label'=>'Search certificates','placeholder'=>'Search student, ID, certificate...','search'=>$filters['search'],
+          'fields'=>[
+              ['name'=>'from','label'=>'Issued from','value'=>$filters['from']],
+              ['name'=>'to','label'=>'Issued through','value'=>$filters['to']],
+          ],
+          'active'=>$filters['search']!=='' || $filters['from']!=='' || $filters['to']!=='',
+          'clear'=>'/ojtrack/certificate.php','count'=>count($available).' certificate(s) found','error'=>$filters['error'],
+      ];
+      require __DIR__.'/includes/record-filters.php';
+      endif; ?>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Student</th><th>Certificate No.</th><th>Issued</th><th>Action</th></tr></thead>
+          <tbody>
+          <?php if (!$available): ?>
+            <tr><td colspan="4" class="text-center text-muted py-6">
+              <?= $user['role']==='student'
+                  ? 'Your official certificate has not been issued yet. Completion alone does not create an issuance record.'
+                  : ($record_filter_ui['active'] ? 'No certificates match these filters.' : 'No issued certificates are available in your scope yet.') ?>
+            </td></tr>
+          <?php else: ?>
+            <?php foreach ($available as $row): ?>
+              <tr class="row-clickable issued-certificate-row" tabindex="0" role="link" aria-label="View and reprint certificate for <?= e($row['name']) ?>" data-certificate-url="/ojtrack/certificate.php?student=<?= (int)$row['id'] ?>" title="View and reprint this certificate">
+                <td><strong><?= e($row['name']) ?></strong></td>
+                <td class="td-mono"><?= e($row['certificate_no']) ?></td>
+                <td><?= format_date($row['issued_at']) ?></td>
+                <td><a class="table-action-icon is-primary" href="/ojtrack/certificate.php?student=<?= (int)$row['id'] ?>" title="View / Reprint certificate" aria-label="View / Reprint certificate for <?= e($row['name']) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8V3h12v5M6 17H4a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2M6 14h12v7H6zM18 11h.01"/></svg></a></td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <script>
+    document.addEventListener('click', function (event) {
+      const row = event.target.closest('tr.issued-certificate-row');
+      if (!row || event.defaultPrevented || event.button !== 0 || event.target.closest('a,button,input,select,textarea,label')) return;
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      window.location.href = row.dataset.certificateUrl;
+    });
+    document.addEventListener('keydown', function (event) {
+      const row = event.target.closest('tr.issued-certificate-row');
+      if (row && event.target === row && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        window.location.href = row.dataset.certificateUrl;
+      }
+    });
+    </script>
+    <?php
+    require_once __DIR__ . '/includes/footer.php';
+    exit;
+}
+
+$snapshot=normalized_certificate_snapshot($certificate);
+if (!$snapshot) request_error(500,'The issued certificate snapshot is unavailable.');
+
+$template=$snapshot['template'] ?? [];
+$studentName=$snapshot['student_name'] ?? ($student['name'] ?? 'Student');
+$renderedBody=$snapshot['rendered_body'] ?? '';
+$certificateNo=$certificate['certificate_no'];
+$issuedAt=$certificate['issued_at'];
+
+$page_title='Certificate of Recognition';
+require_once __DIR__ . '/includes/header.php';
+?>
+
+<div class="page-heading flex-between">
+  <div>
+    <div class="page-title">Certificate of Recognition</div>
+    <div class="page-sub">Permanent issued record · <?= e($certificateNo) ?></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="/ojtrack/certificate.php" class="btn btn-secondary btn-sm">← Issued Certificates</a>
+    <button class="btn btn-secondary" onclick="window.print()">🖨 Reprint</button>
+    <button class="btn btn-primary" onclick="downloadCert()">⬇ Download</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+function downloadCert() {
+  var el=document.getElementById('certificate');
+  if (!el || typeof html2pdf==='undefined') {
+    window.showAppToast?.('PDF library not loaded. Please check your internet connection.', {type: 'error'});
+    return;
+  }
+  html2pdf().set({
+    margin:8,
+    filename:'Certificate_<?= preg_replace('/[^A-Za-z0-9]+/','_',$certificateNo) ?>.pdf',
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true,windowWidth:1200},
+    jsPDF:{unit:'mm',format:'a4',orientation:'landscape'},
+    pagebreak:{mode:['css','legacy']}
+  }).from(el).save();
+}
+</script>
+
+<div id="certificate" style="background:#fff;border:8px double #103b78;padding:56px 48px;text-align:center;font-family:Georgia,serif;max-width:1100px;min-height:560px;margin:0 auto">
+  <?php if (!empty($template['logo'])): ?>
+    <img src="/ojtrack/uploads/<?= e($template['logo']) ?>" alt="Logo" style="height:72px;margin-bottom:12px"><br>
+  <?php endif; ?>
+  <div style="font-size:22px;font-weight:700;color:#103b78"><?= e($template['org_name'] ?? ($snapshot['company_name'] ?? '')) ?></div>
+  <?php if (!empty($template['org_address'])): ?>
+    <div style="font-size:13px;color:#666;margin-bottom:24px"><?= e($template['org_address']) ?></div>
+  <?php endif; ?>
+  <div style="font-size:30px;letter-spacing:2px;margin:28px 0 8px;color:#103b78;text-transform:uppercase"><?= e($template['cert_title'] ?? 'Certificate of Recognition') ?></div>
+  <div style="font-size:11px;color:#777;margin-bottom:10px">Certificate No. <?= e($certificateNo) ?></div>
+  <div style="font-size:13px;color:#888;letter-spacing:3px;text-transform:uppercase;margin-bottom:28px">This certifies that</div>
+  <div style="font-size:26px;font-weight:700;border-bottom:1px solid #999;display:inline-block;padding:0 24px 4px;margin-bottom:20px"><?= e($studentName) ?></div>
+  <div style="font-size:14px;line-height:1.7;max-width:640px;margin:0 auto 36px"><?= nl2br(e($renderedBody)) ?></div>
+  <?php if (!empty($template['footer_text'])): ?>
+    <div style="font-size:12px;color:#777;font-style:italic;margin-bottom:40px"><?= e($template['footer_text']) ?></div>
+  <?php endif; ?>
+  <div class="certificate-signatures" style="display:flex;justify-content:space-between;max-width:640px;margin:0 auto">
+    <div style="text-align:center">
+      <div style="border-top:1px solid #333;width:200px;margin-bottom:6px"></div>
+      <div style="font-size:14px;font-weight:700"><?= e($template['signatory_name'] ?? '') ?></div>
+      <div style="font-size:12px;color:#666"><?= e($template['signatory_title'] ?? '') ?></div>
+    </div>
+    <div style="text-align:center">
+      <div style="border-top:1px solid #333;width:200px;margin-bottom:6px"></div>
+      <div style="font-size:14px;font-weight:700"><?= date('F d, Y',strtotime($issuedAt)) ?></div>
+      <div style="font-size:12px;color:#666">Date Issued</div>
+    </div>
+  </div>
+</div>
+
+<style>
+@page { size:A4 landscape; margin:8mm; }
+@media print {
+  body * { visibility:hidden; }
+  #certificate,#certificate * { visibility:visible; }
+  #certificate {
+    position:absolute; left:0; top:0;
+    width:281mm; max-width:281mm; min-height:190mm;
+    box-sizing:border-box; padding:24mm 20mm;
+    border:8px double #103b78; font-size:13px; overflow:hidden;
+  }
+}
+</style>
+
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

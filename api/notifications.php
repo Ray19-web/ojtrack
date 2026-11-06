@@ -1,0 +1,78 @@
+<?php
+define('OJTRACK', true);
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/auth.php';
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, private');
+
+require_login([], true);
+
+$user = current_user();
+$uid  = (int)$user['id'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $afterId = filter_var($_GET['after_id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>0]]);
+    if ($afterId !== false && $afterId !== null) {
+        $notifications = query(
+            "SELECT id, message, notif_type, link, is_read, created_at FROM notifications
+             WHERE user_id=? AND id>? ORDER BY id ASC LIMIT 20",
+            [$uid, $afterId],
+            'ii'
+        ) ?: [];
+    } else {
+        $notifications = query(
+            "SELECT id, message, notif_type, link, is_read, created_at FROM notifications WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT 20",
+            [$uid],
+            'i'
+        ) ?: [];
+    }
+
+    $unread = (int)(query_one(
+        "SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND is_read=0",
+        [$uid],
+        'i'
+    )['c'] ?? 0);
+
+    $formatted = array_map(function($n) {
+        $n['time_ago'] = time_ago($n['created_at']);
+        $n['date_str'] = format_date($n['created_at']);
+        return $n;
+    }, $notifications);
+
+    echo json_encode([
+        'ok'            => true,
+        'notifications' => $formatted,
+        'unread'        => $unread,
+        'cursor'        => $formatted ? (int)end($formatted)['id'] : ($afterId !== false && $afterId !== null ? $afterId : 0)
+    ]);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action   = $_POST['action'] ?? $_GET['action'] ?? '';
+    $notif_id = (int)($_POST['id'] ?? 0);
+
+    if ($action === 'mark_read') {
+        if ($notif_id > 0) {
+            query("UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?", [$notif_id, $uid], 'ii');
+        } elseif (($_POST['all'] ?? '') === '1') {
+            query("UPDATE notifications SET is_read=1 WHERE user_id=?", [$uid], 'i');
+        } else {
+            request_error(422, 'Specify a notification ID or an explicit mark-all action.', true);
+        }
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    if ($action === 'clear') {
+        query("DELETE FROM notifications WHERE user_id=?", [$uid], 'i');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    echo json_encode(['ok' => false, 'error' => 'Invalid action']);
+    exit;
+}
+
+echo json_encode(['ok' => false, 'error' => 'Method not allowed']);

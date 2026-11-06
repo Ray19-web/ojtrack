@@ -1,0 +1,2040 @@
+<?php
+define('OJTRACK', true);
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../config/auth.php';
+require_login(['student']);
+
+$user = current_user();
+$uid  = (int)$user['id'];
+
+$student = normalized_student_context_by_user($uid);
+if (!$student) {
+    redirect('login.php?error=student_profile_missing');
+}
+
+$student_id = (int)$student['id'];
+$feedback = $_SESSION['onboarding_feedback'] ?? [];
+unset($_SESSION['onboarding_feedback']);
+$success = is_array($feedback) ? (string)($feedback['success'] ?? '') : '';
+$error = is_array($feedback) ? (string)($feedback['error'] ?? '') : '';
+
+// A completed setup must not process an old form from another tab or browser history.
+$requirements = normalized_requirement_rows_for_student($student_id);
+$all_approved = count($requirements) > 0 && count(array_filter($requirements, fn($r) => $r['status'] !== 'approved')) === 0;
+$setup_complete = $all_approved && student_onboarding_complete($student_id);
+if ($setup_complete) {
+    $success = $error = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        http_response_code(303);
+        redirect('student/onboarding.php');
+    }
+}
+
+$submit_onboarding_files = function(int $reqId, array $files) use ($student_id, $uid) {
+    $req = normalized_requirement_get($reqId, $student_id);
+    if (!$req) throw new DomainException("Requirement ID $reqId could not be found.");
+    if ($req['status'] === 'approved') return ['skipped'=>true,'name'=>$req['document_name']];
+    $files = array_values(array_filter($files, fn($file) => is_array($file)
+        && (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE
+        && (string)($file['name'] ?? '') !== ''));
+    if (!$files) throw new DomainException("Choose at least one file for “{$req['document_name']}”.");
+    if (count($files) > 20) throw new DomainException('Select no more than 20 files for each requirement.');
+
+    $prepared = [];
+    foreach ($files as $file) {
+        $errCode = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($errCode !== UPLOAD_ERR_OK) throw new DomainException("A file for “{$req['document_name']}” could not be uploaded.");
+        if ((int)($file['size'] ?? 0) > 10 * 1024 * 1024) {
+            throw new DomainException("A file for “{$req['document_name']}” is too large. Maximum size is 10MB per file.");
+        }
+        $origName = (string)($file['name'] ?? '');
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['pdf','jpg','jpeg','png','doc','docx'], true)) {
+            throw new DomainException("A file for “{$req['document_name']}” has an invalid format.");
+        }
+        $filename = 'req_' . $student_id . '_' . $reqId . '_' . bin2hex(random_bytes(16)) . '.' . $ext;
+        $prepared[] = [
+            'upload'=>$file,
+            'storage_key'=>'requirements/' . $filename,
+            'filename'=>$filename,
+            'original_filename'=>$origName,
+        ];
+    }
+
+    $uploadedFiles = [];
+    try {
+        foreach ($prepared as $item) {
+            if (!store_private_upload($item['upload']['tmp_name'], 'requirements', $item['filename'])) {
+                throw new DomainException("Failed to save a file for “{$req['document_name']}”.");
+            }
+            $uploadedFiles[] = [
+                'storage_key'=>$item['storage_key'],
+                'original_filename'=>$item['original_filename'],
+            ];
+        }
+        normalized_requirement_submit($reqId, $student_id, $uid, null, null, $uploadedFiles);
+    } catch (Throwable $exception) {
+        // If saving the submission fails, remove any private files that were stored
+        // for this attempt so they are not left behind without a database record.
+        foreach ($uploadedFiles as $uploadedFile) {
+            $storedPath = resolve_private_document($uploadedFile['storage_key']);
+            if ($storedPath) @unlink($storedPath);
+        }
+        throw $exception;
+    }
+
+    log_activity($uid, 'Requirement Submitted', "Assignment ID $reqId from onboarding");
+    return ['skipped'=>false,'name'=>$req['document_name']];
+};
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload') {
+    $reqId = (int)($_POST['req_id'] ?? 0);
+    if ($reqId <= 0) {
+        $error = 'The selected requirement could not be found.';
+    } elseif (!isset($_FILES['document']) || ($_FILES['document']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        $error = 'Please choose a document to upload.';
+    } else {
+        try {
+            $result = $submit_onboarding_files($reqId, [$_FILES['document']]);
+            if (!$result['skipped']) {
+                $enrollment = normalized_enrollment_for_student($student_id);
+                $coord = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+                if ($coord) {
+                    create_notification(
+                        (int)$coord['user_id'],
+                        "{$user['name']} submitted an OJT requirement for review.",
+                        'info',
+                        '/ojtrack/coordinator/requirements.php'
+                    );
+                }
+                $success = "“{$result['name']}” was submitted and is now awaiting coordinator review.";
+            }
+        } catch (DomainException $exception) {
+            $error = $exception->getMessage();
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'upload_all') {
+    $files = $_FILES['documents'] ?? [];
+    $submittedCount = 0;
+    $submittedNames = [];
+    $fileErrors = [];
+
+    if (!empty($files['name']) && is_array($files['name'])) {
+        $uploadValue = static function($values, $reqKey, $index) {
+            if (!is_array($values)) return null;
+            $requirementValues = $values[$reqKey] ?? null;
+            return is_array($requirementValues)
+                ? ($requirementValues[$index] ?? null)
+                : $requirementValues;
+        };
+        foreach ($files['name'] as $reqIdRaw => $names) {
+            $reqId = (int)$reqIdRaw;
+            $fileList = [];
+            foreach ((array)$names as $index => $origName) {
+                $fileList[] = [
+                    'name'=>$origName,
+                    'error'=>$uploadValue($files['error'] ?? [], $reqIdRaw, $index) ?? UPLOAD_ERR_NO_FILE,
+                    'size'=>$uploadValue($files['size'] ?? [], $reqIdRaw, $index) ?? 0,
+                    'tmp_name'=>$uploadValue($files['tmp_name'] ?? [], $reqIdRaw, $index) ?? '',
+                ];
+            }
+            if (!$fileList || count(array_filter($fileList, fn($file) => (int)$file['error'] !== UPLOAD_ERR_NO_FILE && (string)$file['name'] !== '')) === 0) continue;
+            try {
+                $result = $submit_onboarding_files($reqId, $fileList);
+                if (!$result['skipped']) {
+                    $submittedCount++;
+                    $submittedNames[] = $result['name'];
+                }
+            } catch (DomainException $exception) {
+                $fileErrors[] = $exception->getMessage();
+            }
+        }
+    }
+
+    if ($submittedCount > 0) {
+        $enrollment = normalized_enrollment_for_student($student_id);
+        $coord = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+        if ($coord) {
+            create_notification(
+                (int)$coord['user_id'],
+                "{$user['name']} submitted $submittedCount OJT requirement" . ($submittedCount === 1 ? '' : 's') . " for review.",
+                'info',
+                '/ojtrack/coordinator/requirements.php'
+            );
+        }
+        $success = 'Submitted: ' . implode(', ', $submittedNames) . '. Awaiting coordinator review.';
+    } elseif (!$fileErrors) {
+        $error = 'Please attach at least one document before submitting.';
+    }
+
+    if ($fileErrors) {
+        $error = trim($error . ' ' . implode(' ', $fileErrors));
+    }
+}
+
+// Post/Redirect/Get prevents browser refresh from sending the same documents twice.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $_SESSION['onboarding_feedback'] = ['success' => $success, 'error' => $error];
+    http_response_code(303);
+    redirect('student/onboarding.php');
+}
+
+$requirements = normalized_requirement_rows_for_student($student_id);
+usort($requirements, function($a,$b) {
+    $rank = ['rejected'=>0,'pending'=>1,'approved'=>2];
+    $ra = $rank[$a['status']] ?? 3;
+    $rb = $rank[$b['status']] ?? 3;
+    if ($ra !== $rb) return $ra <=> $rb;
+    return strcmp((string)($a['deadline'] ?? '9999-12-31'), (string)($b['deadline'] ?? '9999-12-31'));
+});
+
+$total = count($requirements);
+
+$submitted = count(
+    array_filter(
+        $requirements,
+        fn($r) => $r['status'] === 'approved' || (!empty($r['submitted_at']) && $r['status'] !== 'rejected')
+    )
+);
+
+$approved = count(
+    array_filter(
+        $requirements,
+        fn($r) => $r['status'] === 'approved'
+    )
+);
+
+$rejected = count(
+    array_filter(
+        $requirements,
+        fn($r) => $r['status'] === 'rejected'
+    )
+);
+
+$pending_review = count(
+    array_filter(
+        $requirements,
+        fn($r) =>
+            $r['status'] === 'pending' &&
+            !empty($r['submitted_at'])
+    )
+);
+
+$ready = $setup_complete;
+
+if ($ready) {
+
+
+    $student['onboarding_completed_at'] =
+        date('Y-m-d H:i:s');
+}
+
+$details_complete =
+    !empty($student['student_id_no']) &&
+    (
+        !empty($student['program_id']) ||
+        !empty($student['program'])
+    );
+
+$documents_complete =
+    $total > 0 &&
+    $submitted === $total;
+
+$current_step =
+    $ready
+        ? 4
+        : (
+            $pending_review > 0 ||
+            $documents_complete
+                ? 3
+                : 2
+        );
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Student Activation — OJTRACK</title>
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="/ojtrack/assets/css/style.css?v=20261023-bottom-feedback-v1"
+    >
+    <link rel="stylesheet" href="/ojtrack/assets/css/onboarding-tour.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/onboarding-tour.css') ?>">
+
+    <link rel="stylesheet" href="/ojtrack/assets/css/confirmations.css?v=20261013">
+    <style>
+.user-avatar-photo { display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit; }
+
+        body.ojt-onboarding {
+            min-height: 100vh;
+            overflow-wrap: anywhere;
+            margin: 0;
+
+            background:
+                radial-gradient(
+                    circle at 10% 10%,
+                    rgba(37,99,235,.08),
+                    transparent 32%
+                ),
+                radial-gradient(
+                    circle at 90% 90%,
+                    rgba(16,185,129,.07),
+                    transparent 30%
+                ),
+                #f4f7fb;
+
+            color: #172033;
+            font-family: Inter, sans-serif;
+        }
+
+        .onboarding-shell {
+            width: min(1120px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 34px 0 50px;
+        }
+
+        /* =========================================
+           BRAND / HEADER
+        ========================================= */
+
+        .onboarding-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            width: 100%;
+        }
+
+        .onboarding-brand img {
+            width: 46px;
+            height: 46px;
+            object-fit: contain;
+            border-radius: 12px;
+            flex-shrink: 0;
+        }
+
+        .onboarding-brand > div {
+            min-width: 0;
+        }
+
+        .onboarding-brand strong {
+            font: 700 20px Outfit, sans-serif;
+            letter-spacing: .2px;
+        }
+
+        .onboarding-brand span {
+            display: block;
+            font-size: 11px;
+            color: #7b8798;
+            margin-top: 2px;
+        }
+
+        /* THIS PUSHES SIGN OUT TO THE RIGHT */
+        .onboarding-brand .signout {
+            margin-left: auto;
+
+            font-size: 16px;
+            font-weight: 700;
+
+            color: #cf2e2eff;
+            text-decoration: none;
+
+            white-space: nowrap;
+
+            padding: 8px 4px;
+        }
+
+        .onboarding-brand .signout:hover {
+            color: #1764bb;
+            text-decoration: underline;
+        }
+
+        /* =========================================
+           MAIN CARD
+        ========================================= */
+                  
+
+        .onboarding-head {
+            padding: 30px 34px 26px;
+            border-bottom: 1px solid #edf1f5;
+        }
+
+        .eyebrow {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #2563eb;
+            margin-bottom: 7px;
+        }
+
+        .onboarding-title {
+            font: 700 28px Outfit, sans-serif;
+            margin: 0 0 7px;
+        }
+
+        .onboarding-sub {
+            margin: 0;
+            color: #697589;
+            font-size: 14px;
+            line-height: 1.6;
+            max-width: 760px;
+        }
+
+        /* =========================================
+           STEPPER
+        ========================================= */
+
+        .stepper {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            padding: 26px 34px 30px;
+        }
+
+        .step {
+            position: relative;
+            min-width: 0;
+        }
+
+        .step:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            top: 18px;
+            left: calc(50% + 20px);
+            right: calc(-50% + 20px);
+            height: 2px;
+            background: #dfe6ef;
+        }
+
+        .step.complete:not(:last-child)::after {
+            background: #19b889;
+        }
+
+        .step.current:not(:last-child)::after {
+            background:
+                linear-gradient(
+                    90deg,
+                    #19b889 0 28%,
+                    #dfe6ef 28%
+                );
+        }
+
+        .step-dot {
+            position: relative;
+            z-index: 2;
+
+            width: 36px;
+            height: 36px;
+
+            margin: 0 auto 9px;
+
+            border-radius: 50%;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            background: #fff;
+            border: 2px solid #dfe6ef;
+
+            color: #9aa5b4;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .step.complete .step-dot {
+            background: #20bc8e;
+            border-color: #20bc8e;
+            color: #fff;
+        }
+
+        .step.current .step-dot {
+            background: #fff;
+            border-color: #2b82f6;
+            color: #1764bb;
+            box-shadow: 0 0 0 5px #e7f1ff;
+        }
+
+        .step-label {
+            text-align: center;
+            font-size: 12px;
+            font-weight: 800;
+            color: #374151;
+        }
+
+        .step-state {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 10px;
+            color: #9aa5b4;
+        }
+
+        .step.complete .step-state {
+            color: #16a879;
+        }
+
+        .step.current .step-state {
+            color: #1764bb;
+        }
+
+        /* =========================================
+           BODY
+        ========================================= */
+
+        .onboarding-body {
+            padding: 30px 34px;
+        }
+
+        .account-summary {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .summary-item {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            border: 1px solid #e7edf4;
+            border-radius: 14px;
+            padding: 14px 16px;
+            background: #fbfcfe;
+        }
+
+        .summary-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: #8a95a5;
+            font-weight: 800;
+        }
+
+        .summary-value {
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+
+        .section-title {
+            font: 700 18px Outfit, sans-serif;
+            margin: 0;
+        }
+
+        .section-sub {
+            font-size: 13px;
+            color: #748095;
+            margin: 4px 0 18px;
+        }
+
+        /* =========================================
+           NOTICES
+        ========================================= */
+
+        .notice {
+            border-radius: 13px;
+            padding: 13px 15px;
+            margin-bottom: 18px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .notice.info {
+            background: #eef6ff;
+            border: 1px solid #cfe4ff;
+            color: #24547f;
+        }
+
+        .notice.success {
+            background: #ecfbf5;
+            border: 1px solid #bdeedc;
+            color: #166c51;
+        }
+
+        .notice.warn {
+            background: #fff8e8;
+            border: 1px solid #f6dfaa;
+            color: #8a5b00;
+        }
+
+        .notice.error {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            color: #9f1239;
+        }
+
+        /* =========================================
+           REQUIREMENTS
+        ========================================= */
+
+        .requirements {
+            display: grid;
+            gap: 12px;
+        }
+
+        .requirement {
+            border: 1px solid #e5ebf2;
+            border-radius: 16px;
+            padding: 17px 18px;
+
+            display: grid;
+            /* Keep long selected filenames from making the action column
+               consume the whole card and crushing the requirement title. */
+            grid-template-columns: minmax(0, 1fr) minmax(180px, 34%);
+
+            gap: 18px;
+            align-items: center;
+        }
+
+        .requirement > div {
+            min-width: 0;
+        }
+
+        .requirement:hover {
+            border-color: #d4deea;
+        }
+
+        .req-name {
+            font-weight: 800;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .req-meta {
+            font-size: 11px;
+            color: #7c8798;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .req-remarks {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+            max-width: 700px;
+        }
+
+        .req-remarks.rejected {
+            color: #b42318;
+            font-weight: 600;
+        }
+
+        .req-actions {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            min-width: 0;
+        }
+
+        .req-actions .req-file-name {
+            flex: 1 1 100%;
+            min-width: 0;
+            display: block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            text-align: right;
+        }
+
+        .requirement.has-selected-files .req-actions,
+        .requirement.has-attachments .req-actions {
+            justify-content: flex-start;
+        }
+
+        .requirement.has-selected-files .req-actions .req-file-name {
+            text-align: left;
+        }
+
+        .onboarding-selected-files {
+            display: flex;
+            /* Keep previews compact and on one row; allow horizontal scrolling
+               when the selected files exceed the available width. */
+            flex-flow: row nowrap;
+            gap: 10px;
+            flex: 1 0 100%;
+            width: 100%;
+            min-width: 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding-bottom: 4px;
+        }
+
+        /* Keep requirement information and the selected file tiles on one
+           row on wide screens. The tile area gets the remaining card width. */
+        .requirement.has-selected-files,
+        .requirement.has-attachments {
+            grid-template-columns: minmax(220px, 32%) minmax(0, 1fr);
+            align-items: start;
+        }
+
+        .onboarding-selected-files[hidden] {
+            display: none;
+        }
+
+        .onboarding-selected-file {
+            position: relative;
+            display: flex;
+            flex: 0 0 110px;
+            box-sizing: border-box;
+            width: 110px;
+            min-width: 110px;
+            max-width: 110px;
+            height: 112px;
+            min-height: 112px;
+            max-height: 112px;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #dfe5ed;
+            border-radius: 10px;
+            background: #22232d;
+        }
+
+        /* Align a short row of selected uploads to the right while allowing
+           overflowing rows to keep their natural, scrollable start edge. */
+        .onboarding-selected-file:first-child {
+            margin-left: auto;
+        }
+
+        .onboarding-selected-file__preview {
+            display: grid;
+            flex: 0 0 78px;
+            height: 78px;
+            min-height: 78px;
+            max-height: 78px;
+            place-items: center;
+            overflow: hidden;
+            background: #f5f6f8;
+        }
+
+        .onboarding-selected-file__preview img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-height: 78px;
+            object-fit: contain;
+            background: #fff;
+        }
+
+        .onboarding-selected-file__icon {
+            display: grid;
+            width: 100%;
+            height: 100%;
+            min-height: 78px;
+            place-items: center;
+            color: #cbd5e1;
+        }
+
+        .onboarding-selected-file__icon svg {
+            width: 30px;
+            height: 30px;
+            stroke: currentColor;
+        }
+
+        .onboarding-selected-file__name {
+            width: 100%;
+            padding: 7px 25px 7px 8px;
+            overflow: hidden;
+            color: #fff;
+            font-size: 10px;
+            line-height: 1.35;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .onboarding-selected-file__remove {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            display: grid;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            place-items: center;
+            border: 1px solid rgba(255,255,255,.75);
+            border-radius: 50%;
+            background: rgba(20, 28, 42, .78);
+            color: #fff;
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .onboarding-selected-file__remove:hover,
+        .onboarding-selected-file__remove:focus-visible {
+            background: #b42318;
+        }
+
+        .req-attachments {
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: flex-start;
+            gap: 10px;
+            flex: 1 0 100%;
+            width: 100%;
+            min-width: 0;
+            margin-top: 0;
+            padding-bottom: 4px;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .req-attachment {
+            flex: 0 0 110px;
+            width: 110px;
+            min-width: 110px;
+        }
+
+        .req-attachment:first-child {
+            margin-left: auto;
+        }
+
+        .req-attachments .attachment-preview:not([hidden]) {
+            display: flex;
+            width: 100%;
+            min-width: 0;
+            margin-top: 0;
+        }
+
+        .req-attachments .attachment-preview-item {
+            display: flex;
+            flex: 0 0 110px;
+            box-sizing: border-box;
+            width: 110px;
+            min-width: 110px;
+            max-width: 110px;
+            height: 112px;
+            min-height: 112px;
+            max-height: 112px;
+            padding: 0;
+            flex-direction: column;
+            gap: 0;
+            overflow: hidden;
+            border: 1px solid #dfe5ed;
+            border-radius: 10px;
+            background: #22232d;
+        }
+
+        .req-attachments .attachment-preview-link {
+            display: flex;
+            flex: 1 1 auto;
+            width: 100%;
+            min-width: 0;
+            min-height: 0;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .req-attachments .attachment-preview-image,
+        .req-attachments .attachment-preview-type {
+            display: grid;
+            box-sizing: border-box;
+            flex: 0 0 78px;
+            width: 100%;
+            height: 78px;
+            min-height: 78px;
+            max-height: 78px;
+            margin: 0;
+            place-items: center;
+            overflow: hidden;
+            border-radius: 0;
+            background: #f5f6f8;
+        }
+
+        .req-attachments .attachment-preview-image {
+            object-fit: contain;
+        }
+
+        .req-attachments .attachment-preview-type {
+            color: #173e72;
+            font-size: 10px;
+        }
+
+        .req-attachments .attachment-preview-details {
+            display: grid;
+            box-sizing: border-box;
+            flex: 0 0 32px;
+            width: 100%;
+            min-width: 0;
+            gap: 0;
+            padding: 6px 7px;
+            align-content: center;
+            background: #22232d;
+        }
+
+        .req-attachments .attachment-preview-name {
+            display: block;
+            overflow: hidden;
+            color: #fff;
+            font-size: 9px;
+            line-height: 1.2;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .req-attachments .attachment-preview-meta {
+            display: none;
+        }
+
+        /* =========================================
+           STATUS
+        ========================================= */
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+
+            padding: 6px 9px;
+
+            border-radius: 999px;
+
+            font-size: 10px;
+            font-weight: 800;
+
+            white-space: nowrap;
+        }
+
+        .status.approved {
+            background: #e9fbf3;
+            color: #14825e;
+        }
+
+        .status.pending {
+            background: #edf6ff;
+            color: #2169b2;
+        }
+
+        .status.rejected {
+            background: #fff0f1;
+            color: #b42318;
+        }
+
+        .status.unsubmitted {
+            background: #fff7e8;
+            color: #9a6500;
+        }
+
+        /* =========================================
+           UPLOAD
+        ========================================= */
+
+        .upload-form {
+            display: flex;
+            flex-wrap: wrap;
+            max-width: 100%;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .upload-form input[type=file] {
+            display: none;
+        }
+
+        .file-label {
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 180px;
+            border: 1.5px dashed #c3d2e4;
+            border-radius: 12px;
+            padding: 9px 14px;
+            font-size: 11px;
+            font-weight: 700;
+            background: linear-gradient(180deg, #fbfdff, #f3f8ff);
+            color: #40516a;
+            transition:
+                border-color 0.2s ease,
+                background 0.2s ease,
+                color 0.2s ease,
+                transform 0.15s ease,
+                box-shadow 0.2s ease;
+        }
+
+        .file-label:hover {
+            border-color: #1764bb;
+            border-style: solid;
+            background: #eef5ff;
+            color: #1764bb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(23, 100, 187, 0.12);
+        }
+
+        .file-label .file-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 7px;
+            background: #e4efff;
+            color: #1764bb;
+            font-size: 12px;
+            flex-shrink: 0;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .file-label:hover .file-icon {
+            background: #1764bb;
+            color: #fff;
+        }
+
+        .file-label.has-file {
+            border-style: solid;
+            border-color: #bcebd9;
+            background: #f2fbf7;
+            color: #14825e;
+        }
+
+        .file-label.has-file .file-icon {
+            background: #d6f3e6;
+            color: #14825e;
+        }
+
+        .file-label.has-file:hover {
+            border-color: #14825e;
+            color: #14825e;
+            box-shadow: 0 4px 10px rgba(20, 130, 94, 0.12);
+        }
+
+        .file-label.has-file:hover .file-icon {
+            background: #14825e;
+            color: #fff;
+        }
+
+        .file-label .file-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .req-rejected-note {
+            margin-top: 8px;
+            padding: 8px 12px;
+            border: 1px solid #f3c2c0;
+            border-radius: 9px;
+            background: #fff0f1;
+            color: #b42318;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .req-file-name {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            color: #9aa8bb;
+        }
+
+        .req-file-name.has-file {
+            color: #14825e;
+        }
+
+        .requirement[onclick]:hover {
+            border-color: #9db7d5;
+            box-shadow: 0 4px 12px rgba(23, 100, 187, 0.08);
+        }
+
+        .upload-btn {
+            border: 0;
+            border-radius: 9px;
+            padding: 9px 12px;
+            background: #1764bb;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .upload-btn:hover {
+            background: #12559f;
+        }
+
+        .upload-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        /* =========================================
+           READY CARD
+        ========================================= */
+
+        .ready-card {
+            border: 1px solid #bcebd9;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #effcf7,
+                    #f8fffc
+                );
+
+            border-radius: 17px;
+            padding: 22px;
+            text-align: center;
+        }
+
+        .ready-icon {
+            width: 46px;
+            height: 46px;
+
+            border-radius: 50%;
+
+            background: #1bb889;
+            color: #fff;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            margin: 0 auto 10px;
+
+            font-weight: 900;
+        }
+
+        .ready-card h2 {
+            font: 700 21px Outfit, sans-serif;
+            margin: 0 0 5px;
+        }
+
+        .ready-card p {
+            margin: 0 0 16px;
+            color: #607184;
+            font-size: 13px;
+        }
+
+        .btn-dashboard {
+            display: inline-flex;
+            text-decoration: none;
+            background: #1764bb;
+            color: #fff;
+            padding: 11px 17px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .btn-dashboard:hover {
+            background: #12559f;
+        }
+
+        /* =========================================
+           FOOTER
+        ========================================= */
+
+        .onboarding-foot {
+            padding: 18px 34px;
+
+            border-top: 1px solid #edf1f5;
+
+            background: #fbfcfe;
+
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .foot-note {
+            font-size: 11px;
+            color: #8792a2;
+            line-height: 1.5;
+        }
+
+        /* =========================================
+           MOBILE
+        ========================================= */
+
+        @media (max-width: 760px) {
+
+            .onboarding-shell {
+                width: min(100% - 20px, 1120px);
+                padding-top: 18px;
+            }
+
+            .onboarding-head,
+            .onboarding-body {
+                padding: 24px 18px;
+            }
+
+            .stepper {
+                padding: 22px 12px;
+            }
+
+            .step-label {
+                font-size: 10px;
+            }
+
+            .step-state {
+                font-size: 9px;
+            }
+
+            .step-dot {
+                width: 32px;
+                height: 32px;
+            }
+
+            .step:not(:last-child)::after {
+                top: 16px;
+                left: calc(50% + 17px);
+                right: calc(-50% + 17px);
+            }
+
+            .account-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .requirement {
+                grid-template-columns: 1fr;
+            }
+
+            .requirement.has-selected-files,
+            .requirement.has-attachments {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .req-actions {
+                justify-content: flex-start;
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            .onboarding-title {
+                font-size: 24px;
+            }
+
+            .onboarding-foot {
+                padding: 16px 18px;
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            /*
+             * Keep the sign-out button at the
+             * right side on smaller screens too.
+             */
+            .onboarding-brand .signout {
+                margin-left: auto;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .onboarding-brand { flex-wrap: wrap; }
+            .stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 10px; }
+            .step:not(:last-child)::after { display: none; }
+            .requirement { padding: 14px; overflow-wrap: anywhere; }
+            .upload-form { width: 100%; }
+            .file-label { min-width: 0; flex: 1 1 100%; }
+            .ojt-onboarding .form-control { font-size: 16px; min-width: 0; }
+        }
+
+        @media (max-width: 760px) {
+            /* Smaller upload thumbnails keep each requirement card compact
+               on phones and narrow responsive layouts. */
+            .req-attachment {
+                flex-basis: 84px;
+                width: 84px;
+                min-width: 84px;
+            }
+
+            .req-attachments .attachment-preview-item {
+                flex-basis: 84px;
+                width: 84px;
+                min-width: 84px;
+                max-width: 84px;
+                height: 88px;
+                min-height: 88px;
+                max-height: 88px;
+            }
+
+            .req-attachments .attachment-preview-image,
+            .req-attachments .attachment-preview-type {
+                flex-basis: 60px;
+                height: 60px;
+                min-height: 60px;
+                max-height: 60px;
+            }
+
+            .req-attachments .attachment-preview-details {
+                flex-basis: 26px;
+                padding: 5px 6px;
+            }
+
+            .onboarding-selected-file {
+                flex-basis: 84px;
+                width: 84px;
+                min-width: 84px;
+                max-width: 84px;
+                height: 88px;
+                min-height: 88px;
+                max-height: 88px;
+            }
+
+            .onboarding-selected-file__preview,
+            .onboarding-selected-file__preview img,
+            .onboarding-selected-file__icon {
+                flex-basis: 60px;
+                height: 60px;
+                min-height: 60px;
+                max-height: 60px;
+            }
+
+            .onboarding-selected-file__icon svg {
+                width: 24px;
+                height: 24px;
+            }
+
+            .onboarding-selected-file__name {
+                padding: 5px 21px 5px 6px;
+                font-size: 9px;
+            }
+
+            .onboarding-selected-file__remove {
+                top: 4px;
+                right: 4px;
+                width: 18px;
+                height: 18px;
+                font-size: 14px;
+            }
+        }
+
+        /* Shared action sizing for the standalone student activation screen. */
+        .upload-btn, .btn-dashboard, .onboarding-brand .signout {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: var(--button-height);
+            padding: 10px 18px;
+            border: 1px solid transparent;
+            border-radius: var(--button-radius);
+            font: 600 14px/1.4 var(--font-body);
+            text-decoration: none;
+        }
+        .upload-btn, .btn-dashboard { background: var(--primary); color: #fff; }
+        .upload-btn:hover, .btn-dashboard:hover { background: var(--primary-dark); color: #fff; }
+        .onboarding-brand .signout { border-color: var(--border); background: #fff; color: var(--danger); }
+        .onboarding-brand .signout:hover { background: var(--danger-bg); color: var(--danger); text-decoration: none; }
+    </style>
+
+</head>
+
+<body class="ojt-onboarding" data-tour-user-id="<?= $uid ?>" data-tour-role="student" data-tour-page="student/onboarding">
+
+<div class="onboarding-shell">
+
+    <!-- =========================================
+         HEADER
+    ========================================== -->
+
+    <div class="onboarding-brand">
+
+        <img
+            src="/ojtrack/assets/images/logo.png"
+            alt="OJTRACK"
+        >
+
+        <div>
+            <strong style="color: #103b78ff">OJT</strong><strong style="color: #F5A623;">RACK</strong>
+            <span>USTP Jasaan OJT Management System</span>
+        </div>
+
+        <button type="button" class="onboarding-tour-trigger" data-tour-open aria-label="Open page guide" title="Open page guide">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.6 9a2.5 2.5 0 1 1 4.5 1.5c-.9 1-2.1 1.2-2.1 2.8"></path><path d="M12 17h.01"></path></svg>
+            Guide
+        </button>
+
+        <!-- SIGN OUT -->
+        <form method="POST" action="/ojtrack/logout.php" style="margin:0 0 0 auto">
+            <?= csrf_field() ?>
+            <button type="submit" class="signout">Sign out</button>
+        </form>
+
+    </div>
+
+
+    <!-- =========================================
+         MAIN CARD
+    ========================================== -->
+
+    <section class="onboarding-card">
+
+        <div class="onboarding-head">
+
+            <h1 class="onboarding-title">
+                OJT Setup
+            </h1>
+
+        </div>
+
+
+        <!-- =========================================
+             STEPPER
+        ========================================== -->
+
+        <div
+            class="stepper"
+            aria-label="Student activation progress"
+        >
+
+            <!-- STEP 1 -->
+
+            <div
+                class="step <?= $details_complete ? 'complete' : 'current' ?>"
+            >
+
+                <div class="step-dot">
+                    <?= $details_complete ? '✓' : '1' ?>
+                </div>
+
+                <div class="step-label">
+                    Student Details
+                </div>
+
+                <div class="step-state">
+                    <?= $details_complete ? 'Completed' : 'In Progress' ?>
+                </div>
+
+            </div>
+
+
+            <!-- STEP 2 -->
+
+            <div
+                class="step <?= $documents_complete
+                    ? 'complete'
+                    : (!$details_complete ? '' : 'current') ?>"
+            >
+
+                <div class="step-dot">
+                    <?= $documents_complete ? '✓' : '2' ?>
+                </div>
+
+                <div class="step-label">
+                    Required Documents
+                </div>
+
+                <div class="step-state">
+                    <?= $documents_complete
+                        ? 'Completed'
+                        : 'In Progress' ?>
+                </div>
+
+            </div>
+
+
+            <!-- STEP 3 -->
+
+            <div
+                class="step <?= $ready
+                    ? 'complete'
+                    : (($current_step === 3) ? 'current' : '') ?>"
+            >
+
+                <div class="step-dot">
+                    <?= $ready ? '✓' : '3' ?>
+                </div>
+
+                <div class="step-label">
+                    Coordinator Review
+                </div>
+
+                <div class="step-state">
+
+                    <?= $ready
+                        ? 'Completed'
+                        : (
+                            ($pending_review > 0 || $documents_complete)
+                                ? 'In Progress'
+                                : 'Pending'
+                        )
+                    ?>
+
+                </div>
+
+            </div>
+
+
+            <!-- STEP 4 -->
+
+            <div
+                class="step <?= $ready ? 'complete current' : '' ?>"
+            >
+
+                <div class="step-dot">
+                    <?= $ready ? '✓' : '4' ?>
+                </div>
+
+                <div class="step-label">
+                    Dashboard Access
+                </div>
+
+                <div class="step-state">
+                    <?= $ready ? 'Ready' : 'Pending' ?>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =========================================
+             BODY
+        ========================================== -->
+
+        <div class="onboarding-body">
+
+            <!-- ACCOUNT SUMMARY -->
+
+            <div class="account-summary">
+
+                <div class="summary-item">
+
+                    <div class="summary-label">
+                        Student
+                    </div>
+
+                    <div class="summary-value">
+                        <span class="avatar avatar-md" style="vertical-align:middle;margin-right:8px;overflow:hidden"><?= user_avatar_content($student['avatar'] ?? null, $student['name']) ?></span><?= e($student['name']) ?>
+                    </div>
+
+                </div>
+
+
+                <div class="summary-item">
+
+                    <div class="summary-label">
+                        Student ID
+                    </div>
+
+                    <div class="summary-value">
+                        <?= e($student['student_id_no']) ?>
+                    </div>
+
+                </div>
+
+
+                <div class="summary-item">
+
+                    <div class="summary-label">
+                        Program
+                    </div>
+
+                    <div class="summary-value">
+                        <?= e(
+                            ($student['program_code'] ?? '')
+                                ?: ($student['program'] ?? ($student['program_name'] ?? 'Not assigned'))
+                        ) ?>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- SUCCESS MESSAGE -->
+
+            <?php if ($success): ?>
+
+                <div class="notice success">
+                    <?= e($success) ?>
+                </div>
+
+            <?php endif; ?>
+
+
+            <!-- ERROR MESSAGE -->
+
+            <?php if ($error): ?>
+
+                <div class="notice error">
+                    <?= e($error) ?>
+                </div>
+
+            <?php endif; ?>
+
+
+            <!-- =====================================
+                 READY
+            ====================================== -->
+
+            <?php if ($ready): ?>
+
+                <div class="ready-card">
+
+                    <div class="ready-icon">
+                        ✓
+                    </div>
+
+                    <h2>
+                        Setup complete
+                    </h2>
+
+                    <p>
+                        All <?= $total ?>
+                        required document<?= $total === 1 ? '' : 's' ?>
+                        approved. You can now open your dashboard.
+                    </p>
+
+                    <a
+                        class="btn-dashboard"
+                        href="/ojtrack/student/dashboard.php"
+                    >
+                        Go to Dashboard →
+                    </a>
+
+                </div>
+
+
+            <!-- =====================================
+                 NO REQUIREMENTS
+            ====================================== -->
+
+            <?php elseif ($total === 0): ?>
+
+                <div class="notice info" style="text-align:center">
+
+                    <strong>
+                        Waiting for your coordinator.
+                    </strong>
+
+                    <br>
+
+                   No requirements assigned yet. Your coordinator will assign them.
+
+                </div>
+
+
+            <!-- =====================================
+                 REQUIREMENTS
+            ====================================== -->
+
+            <?php else: ?>
+
+                <div
+                    style="
+                        display:flex;
+                        justify-content:space-between;
+                        gap:16px;
+                        flex-wrap:wrap;
+                        align-items:end;
+                        margin-bottom:14px
+                    "
+                >
+
+                    <div>
+
+                        <h2 class="section-title">
+                            Required OJT Documents
+                        </h2>
+
+                    </div>
+
+                    <div
+                        style="
+                            font-size:11px;
+                            color:#748095;
+                            white-space:nowrap
+                        "
+                    >
+                        <?= $approved ?>/<?= $total ?> approved
+                    </div>
+
+                </div>
+
+
+                <form
+                    method="POST"
+                    enctype="multipart/form-data"
+                    id="onboarding-documents-form"
+                ><?= csrf_field() ?>
+
+                    <input
+                        type="hidden"
+                        name="action"
+                        value="upload_all"
+                    >
+
+                <div class="requirements">
+
+                    <?php foreach ($requirements as $r): ?>
+
+                        <?php
+
+                        $status = $r['status'];
+
+                        $submitted_at =
+                            $r['submitted_at']
+                                ? date(
+                                    'M d, Y',
+                                    strtotime($r['submitted_at'])
+                                )
+                                : '';
+
+                        $status_class =
+                            $status === 'approved'
+                                ? 'approved'
+                                : (
+                                    $status === 'rejected'
+                                        ? 'rejected'
+                                        : (
+                                            $r['submitted_at']
+                                                ? 'pending'
+                                                : 'unsubmitted'
+                                        )
+                                );
+
+                        $status_label =
+                            $status === 'approved'
+                                ? 'Approved'
+                                : (
+                                    $status === 'rejected'
+                                        ? 'Rejected — Resubmit'
+                                        : (
+                                            $r['submitted_at']
+                                                ? 'Under Review'
+                                                : 'Not Submitted'
+                                        )
+                                );
+
+                        $requirementAttachments = $r['attachments'] ?? [];
+                        if (!$requirementAttachments && !empty($r['file_path'])) {
+                            $requirementAttachments = [[
+                                'file_path' => $r['file_path'],
+                                'attachment_name' => $r['attachment_name'] ?? basename($r['file_path']),
+                            ]];
+                        }
+
+                        ?>
+
+                        <article
+                            class="requirement<?= !empty($requirementAttachments) ? ' has-attachments' : '' ?>"
+                            data-custom-file-preview
+                            <?php if ($status === 'approved'): ?>tabindex="0" data-locked-feedback="This requirement is already approved. You can view its files, but it cannot be changed or resubmitted."<?php endif; ?>
+                            <?php if ($status !== 'approved'): ?>
+                                style="cursor:pointer"
+                                onclick="
+                                    var t = event.target;
+                                    if (t.closest('a') || t.closest('button') || t.closest('input[type=file]')) return;
+                                    var i = this.querySelector('input[type=file]');
+                                    if (i) i.click();
+                                "
+                            <?php endif; ?>
+                        >
+
+                            <div>
+
+                                <div class="req-name">
+                                    <?= e($r['document_name']) ?>
+                                </div>
+
+
+                                <div class="req-meta">
+
+                                    <span
+                                        class="status <?= $status_class ?>"
+                                    >
+                                        <?= e($status_label) ?>
+                                    </span>
+
+
+                                    <?php if ($r['deadline']): ?>
+
+                                        <span>
+                                            Deadline:
+                                            <?= e(
+                                                format_date(
+                                                    $r['deadline']
+                                                )
+                                            ) ?>
+                                        </span>
+
+                                    <?php endif; ?>
+
+
+                                    <?php if ($submitted_at): ?>
+
+                                        <span>
+                                            Submitted:
+                                            <?= e($submitted_at) ?>
+                                        </span>
+
+                                    <?php endif; ?>
+
+                                </div>
+
+
+                                <?php if ($status === 'rejected'): ?>
+
+                                    <div class="req-rejected-note">
+                                        Returned. Upload a new file and resubmit.
+                                    </div>
+
+                                <?php endif; ?>
+
+                                <?php if (!empty($r['remarks'])): ?>
+
+                                    <div
+                                        class="req-remarks <?= $status === 'rejected'
+                                            ? 'rejected'
+                                            : '' ?>"
+                                    >
+                                        <?= e($r['remarks']) ?>
+                                    </div>
+
+                                <?php endif; ?>
+
+
+                            </div>
+
+
+                            <div class="req-actions">
+
+                                <?php if ($requirementAttachments): ?>
+                                    <div class="req-attachments" aria-label="Previously submitted files">
+                                        <?php foreach ($requirementAttachments as $attachment):
+                                            $attachmentPath = (string)($attachment['file_path'] ?? '');
+                                            if ($attachmentPath === '') continue;
+                                            $attachmentName = (string)($attachment['attachment_name'] ?? basename($attachmentPath));
+                                            $attachmentUrl = '/ojtrack/download.php?file=' . rawurlencode($attachmentPath);
+                                        ?>
+                                            <div class="req-attachment">
+                                                <div
+                                                    class="attachment-preview"
+                                                    data-attachment-preview
+                                                    data-file-name="<?= e($attachmentName) ?>"
+                                                    data-file-url="<?= e($attachmentUrl) ?>"
+                                                    data-preview-url="<?= e($attachmentUrl . '&preview=1') ?>"
+                                                    aria-live="polite"
+                                                    hidden
+                                                ></div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($status !== 'approved'): ?>
+
+                                    <input
+                                        type="file"
+                                        name="documents[<?= (int)$r['id'] ?>][]"
+                                        multiple
+                                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                        style="display:none"
+                                    >
+
+                                    <?php
+                                    if ($status === 'rejected') {
+                                        $defaultUploadLabel = 'Click this card to choose replacement files';
+                                    } elseif (!empty($requirementAttachments)) {
+                                        $defaultUploadLabel = count($requirementAttachments) . ' file' . (count($requirementAttachments) === 1 ? '' : 's') . ' submitted — click to add or replace files';
+                                    } elseif (!empty($r['submitted_at'])) {
+                                        $defaultUploadLabel = 'Files already submitted — click to add or replace files';
+                                    } else {
+                                        $defaultUploadLabel = 'Click this card to attach one or more files';
+                                    }
+                                    ?>
+                                    <span
+                                        class="req-file-name<?= (!empty($r['submitted_at']) || !empty($requirementAttachments)) ? ' has-file' : '' ?>"
+                                        data-default-upload-label="<?= e($defaultUploadLabel) ?>"
+                                        aria-live="polite"
+                                    >
+                                        <?= e($defaultUploadLabel) ?>
+                                    </span>
+
+                                    <div class="onboarding-selected-files" hidden aria-live="polite"></div>
+
+                                <?php else: ?>
+
+                                    <span
+                                        style="
+                                            font-size:11px;
+                                            font-weight:800;
+                                            color:#14825e
+                                        "
+                                    >
+                                        Verified ✓
+                                    </span>
+
+                                <?php endif; ?>
+
+                            </div>
+
+                        </article>
+
+                    <?php endforeach; ?>
+
+                </div>
+
+                    <div style="margin-top:14px;text-align:right">
+
+                        <button
+                            class="upload-btn"
+                            type="submit"
+                            id="onboarding-submit"
+                            disabled
+                        >
+                            Submit Documents
+                        </button>
+
+                    </div>
+
+                </form>
+
+            <?php endif; ?>
+
+        </div>
+
+    </section>
+
+</div>
+
+<script>
+(function () {
+    const form = document.getElementById('onboarding-documents-form');
+    const submit = document.getElementById('onboarding-submit');
+    if (!form || !submit) return;
+    const selectedByInput = new WeakMap();
+    const objectUrlsByHost = new WeakMap();
+
+    function updateInputFiles(input, files) {
+        const transfer = new DataTransfer();
+        files.forEach(file => transfer.items.add(file));
+        input.files = transfer.files;
+        selectedByInput.set(input, files.slice());
+    }
+
+    function renderSelectedFiles(input, files) {
+        const card = input.closest('.requirement');
+        const host = card?.querySelector('.onboarding-selected-files');
+        const label = card?.querySelector('.req-file-name');
+        if (!card || !host || !label) return;
+
+        (objectUrlsByHost.get(host) || []).forEach(url => URL.revokeObjectURL(url));
+        const objectUrls = [];
+        host.replaceChildren();
+        host.hidden = files.length === 0;
+        card.classList.toggle('has-selected-files', files.length > 0);
+        label.classList.toggle('has-file', files.length > 0);
+        label.textContent = files.length
+            ? files.length + ' file' + (files.length === 1 ? '' : 's') + ' selected · click to add more'
+            : label.dataset.defaultUploadLabel;
+
+        files.forEach((file, index) => {
+            const tile = document.createElement('div');
+            tile.className = 'onboarding-selected-file';
+            const preview = document.createElement('div');
+            preview.className = 'onboarding-selected-file__preview';
+
+            if (file.type && file.type.startsWith('image/')) {
+                const image = document.createElement('img');
+                const objectUrl = URL.createObjectURL(file);
+                objectUrls.push(objectUrl);
+                image.src = objectUrl;
+                image.alt = file.name;
+                preview.append(image);
+            } else {
+                const icon = document.createElement('span');
+                icon.className = 'onboarding-selected-file__icon';
+                icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>';
+                preview.append(icon);
+            }
+
+            const name = document.createElement('div');
+            name.className = 'onboarding-selected-file__name';
+            name.textContent = file.name;
+            name.title = file.name;
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'onboarding-selected-file__remove';
+            remove.textContent = '×';
+            remove.setAttribute('aria-label', 'Remove ' + file.name);
+            remove.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const remaining = (selectedByInput.get(input) || []).filter((_, fileIndex) => fileIndex !== index);
+                updateInputFiles(input, remaining);
+                renderSelectedFiles(input, remaining);
+                submit.disabled = !hasFiles();
+            });
+
+            tile.append(preview, name, remove);
+            host.append(tile);
+        });
+        objectUrlsByHost.set(host, objectUrls);
+    }
+
+    form.querySelectorAll('input[type="file"][multiple]').forEach(input => {
+        input.addEventListener('change', () => {
+            const previouslySelected = selectedByInput.get(input) || [];
+            const newlySelected = Array.from(input.files || []);
+            const combined = [...previouslySelected];
+            newlySelected.forEach(file => {
+                const duplicate = combined.some(existing => existing.name === file.name
+                    && existing.size === file.size
+                    && existing.lastModified === file.lastModified);
+                if (!duplicate) combined.push(file);
+            });
+            updateInputFiles(input, combined);
+            renderSelectedFiles(input, combined);
+        });
+    });
+
+    const hasFiles = () => Array.from(form.querySelectorAll('input[type="file"]')).some(input => input.files.length > 0);
+    form.addEventListener('change', () => { submit.disabled = !hasFiles(); });
+    form.addEventListener('submit', event => {
+        if (!hasFiles()) { event.preventDefault(); return; }
+        submit.disabled = true;
+        submit.textContent = 'Submitting…';
+    });
+    window.addEventListener('pageshow', () => {
+        submit.disabled = !hasFiles();
+        submit.textContent = 'Submit Documents';
+    });
+    submit.disabled = !hasFiles();
+})();
+</script>
+<script src="/ojtrack/assets/js/confirmations.js?v=20261013"></script>
+<script src="/ojtrack/assets/js/attachment-previews.js?v=20261031-onboarding-custom-preview-v1"></script>
+<script src="/ojtrack/assets/js/feedback-toasts.js?v=20261101-locked-feedback"></script>
+<script src="/ojtrack/assets/js/main.js?v=20261023-ajax-actions-v2"></script>
+<script src="/ojtrack/assets/js/student-guide.js?v=<?= (int)filemtime(__DIR__.'/../assets/js/student-guide.js') ?>"></script>
+<script src="/ojtrack/assets/js/onboarding-tour.js?v=<?= (int)filemtime(__DIR__.'/../assets/js/onboarding-tour.js') ?>"></script>
+</body>
+</html>
