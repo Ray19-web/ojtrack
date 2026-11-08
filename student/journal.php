@@ -8,6 +8,7 @@ $user    = current_user();
 $uid     = (int)$user['id'];
 $student = normalized_student_context_by_user($uid);
 $sid     = (int)($student['id'] ?? 0);
+$ojtCompleted = ($student['ojt_status'] ?? '') === 'completed';
 
 $success = ''; $error = '';
 $view = $_GET['view'] ?? 'list';
@@ -17,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'submit_journal') {
+        if ($ojtCompleted) request_error(409, 'Journal entries are closed because your OJT is completed.');
         $date       = $_POST['entry_date'] ?? '';
         $activities = trim($_POST['activities'] ?? '');
         $learnings  = trim($_POST['learnings'] ?? '');
@@ -98,6 +100,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $edit_id,$proof_image,$proof_name,$additionalProofs
                 );
                 $journalSaved = true;
+                $enrollment = normalized_enrollment_for_student($sid);
+                $coord = $enrollment ? normalized_current_coordinator_for_enrollment((int)$enrollment['id']) : null;
+                if ($coord) {
+                    create_notification(
+                        (int)$coord['user_id'],
+                        "{$user['name']} submitted a journal " . ($edit_id ? 'revision' : 'entry') . " for coordinator review.",
+                        'info',
+                        '/ojtrack/coordinator/monitoring.php'
+                    );
+                }
                 log_activity($uid, $edit_id ? 'Journal Revision Submitted' : 'Journal Entry Submitted', "Date: $date (#$savedId)");
                 $success = $edit_id
                     ? 'Journal revision submitted successfully. Earlier revisions were preserved.'
@@ -125,6 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $view = 'list';
     }
 }
+
+if ($ojtCompleted && in_array($view, ['form', 'edit'], true)) $view = 'list';
 
 $entries = normalized_journal_rows_for_student($sid);
 $approved = count(array_filter($entries, fn($e) => $e['status'] === 'approved'));
@@ -285,7 +299,11 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="page-title">Daily Journal</div>
       <div class="page-sub">Activities, learning, and challenges</div>
     </div>
-    <a href="/ojtrack/student/journal.php?view=form" class="btn btn-primary">+ Write Daily Entry</a>
+    <?php if ($ojtCompleted): ?>
+      <button type="button" class="btn btn-primary" disabled aria-disabled="true" title="Journal entries are closed after OJT completion">+ Write Daily Entry</button>
+    <?php else: ?>
+      <a href="/ojtrack/student/journal.php?view=form" class="btn btn-primary">+ Write Daily Entry</a>
+    <?php endif; ?>
   </div>
 
   <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
@@ -296,7 +314,7 @@ require_once __DIR__ . '/../includes/header.php';
   foreach ($entries as $entry) {
       if ($entry['entry_date'] === $today) { $today_entry = $entry; break; }
   }
-  if (!$today_entry):
+  if (!$ojtCompleted && !$today_entry):
   ?>
     <div class="alert alert-warn mb-4 flex-between">
       <div class="flex-items-center gap-3">
@@ -309,19 +327,44 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
   <?php endif; ?>
 
-  <div class="card">
-    <div class="card-header">
+  <div class="card student-journal-entries-card">
+    <div class="card-header flex-between journal-entry-header">
       <div class="card-title">Journal Entries <span class="text-sm text-muted">(<?= count($entries) ?>)</span></div>
+      <?php if (!empty($entries)): ?>
+        <div class="journal-entry-filters" aria-label="Search and filter journal entries">
+          <input type="search" class="form-control" id="studentJournalSearch" placeholder="Search entries..." aria-label="Search journal entries">
+          <div class="journal-filter-wrap">
+            <button type="button" class="journal-filter-icon" id="studentJournalFilterToggle" aria-label="Filter journal entries" aria-expanded="false" title="Filter entries">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-6.5 7.2v5.3l-3 1.5v-6.8L4 5Z"/></svg>
+            </button>
+            <div class="journal-filter-popover" id="studentJournalFilterPopover" hidden>
+              <label for="studentJournalStatus">Status</label>
+              <select class="form-control" id="studentJournalStatus">
+                <option value="">All statuses</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending</option>
+                <option value="rejected">Rejected</option>
+              </select>
+              <button type="button" class="journal-filter-clear" id="studentJournalFilterClear">Clear filters</button>
+            </div>
+          </div>
+          <span class="journal-filter-summary" id="studentJournalFilterSummary">Showing <?= count($entries) ?> of <?= count($entries) ?></span>
+        </div>
+      <?php endif; ?>
     </div>
-    <div>
+    <div class="student-journal-list-scroll" aria-label="Journal entries list">
       <?php if (empty($entries)): ?>
         <div class="empty-state py-12 text-center">
           <p class="text-muted">No journal entries recorded yet. Click below to document your first day.</p>
-          <a href="/ojtrack/student/journal.php?view=form" class="btn btn-primary btn-sm mt-3">+ Write Entry</a>
+          <?php if ($ojtCompleted): ?>
+            <button type="button" class="btn btn-primary btn-sm mt-3" disabled aria-disabled="true">+ Write Entry</button>
+          <?php else: ?>
+            <a href="/ojtrack/student/journal.php?view=form" class="btn btn-primary btn-sm mt-3">+ Write Entry</a>
+          <?php endif; ?>
         </div>
       <?php else: ?>
         <?php foreach ($entries as $e): ?>
-          <a href="/ojtrack/student/journal.php?view=detail&id=<?= $e['id'] ?>" class="journal-list-row student-journal-row">
+          <a href="/ojtrack/student/journal.php?view=detail&id=<?= $e['id'] ?>" class="journal-list-row student-journal-row" data-journal-search="<?= e(strtolower(date('F d, Y D', strtotime($e['entry_date'])) . ' ' . $e['activities'])) ?>" data-journal-status="<?= e(strtolower($e['status'])) ?>">
             <div class="flex-between">
               <div class="flex-items-center gap-3">
                 <div class="journal-date-badge">
@@ -341,6 +384,10 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
           </a>
         <?php endforeach; ?>
+        <div class="journal-filter-empty student-journal-filter-empty" id="studentJournalFilterEmpty" hidden>
+          <div class="font-bold text-800">No matching journal entries</div>
+          <div class="text-sm text-muted">Try a different search or clear the filters.</div>
+        </div>
       <?php endif; ?>
     </div>
   </div>
@@ -348,6 +395,11 @@ require_once __DIR__ . '/../includes/header.php';
 
 <style>
 .student-journal-row { display:block; padding:20px 24px; color:inherit; text-decoration:none; border-bottom:1px solid var(--border,#e5eaf0); transition:background .18s ease; }
+.student-journal-row[hidden] { display:none !important; }
+.student-journal-entries-card { min-height:0; overflow:hidden; }
+.student-journal-list-scroll { min-height:280px; max-height:min(64vh,680px); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+.student-journal-filter-empty { min-height:280px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:28px 16px; text-align:center; }
+.student-journal-filter-empty[hidden] { display:none !important; }
 .student-journal-row:last-child { border-bottom:0; }
 .student-journal-row:hover { background:#f7f9fc; }
 .student-journal-row:focus-visible { outline:2px solid #174781; outline-offset:-3px; }
@@ -360,6 +412,7 @@ require_once __DIR__ . '/../includes/header.php';
 .student-journal-row .journal-date-badge .day { font-size:15px; font-weight:700; }
 .student-journal-preview { margin-top:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 @media(max-width:600px) {
+ .student-journal-list-scroll { max-height:calc(100dvh - 330px); }
  .student-journal-row { padding:16px; }
  .student-journal-row > .flex-between { flex-wrap:wrap; gap:12px; }
  .student-journal-row > .flex-between > div:first-child { flex-basis:100%; }
@@ -395,6 +448,40 @@ require_once __DIR__ . '/../includes/header.php';
 .journal-detail-actions { display:flex; justify-content:flex-end; padding-top:20px; margin-top:20px; border-top:1px solid #e2e8f0; }
 #journalDialogBody .space-y-4 > div + div { margin-top:20px; }
 </style>
+<script>
+(() => {
+  const search = document.getElementById('studentJournalSearch');
+  const status = document.getElementById('studentJournalStatus');
+  const toggle = document.getElementById('studentJournalFilterToggle');
+  const popover = document.getElementById('studentJournalFilterPopover');
+  const clear = document.getElementById('studentJournalFilterClear');
+  const summary = document.getElementById('studentJournalFilterSummary');
+  const empty = document.getElementById('studentJournalFilterEmpty');
+  const rows = [...document.querySelectorAll('.student-journal-row')];
+  if (!search || !status || !toggle || !popover || !summary) return;
+  const apply = () => {
+    const query = search.value.trim().toLowerCase();
+    const selected = status.value.toLowerCase();
+    let visible = 0;
+    rows.forEach(row => {
+      const matches = (!query || row.dataset.journalSearch.includes(query)) && (!selected || row.dataset.journalStatus === selected);
+      row.hidden = !matches;
+      if (matches) visible++;
+    });
+    summary.textContent = `Showing ${visible} of ${rows.length}`;
+    if (empty) empty.hidden = visible !== 0;
+    toggle.classList.toggle('is-active', Boolean(query || selected));
+  };
+  search.addEventListener('input', apply);
+  status.addEventListener('change', apply);
+  toggle.addEventListener('click', () => {
+    popover.hidden = !popover.hidden;
+    toggle.setAttribute('aria-expanded', String(!popover.hidden));
+  });
+  clear?.addEventListener('click', () => { search.value = ''; status.value = ''; apply(); popover.hidden = true; toggle.setAttribute('aria-expanded', 'false'); });
+  document.addEventListener('click', event => { if (!popover.hidden && !event.target.closest('.journal-filter-wrap')) { popover.hidden = true; toggle.setAttribute('aria-expanded', 'false'); } });
+})();
+</script>
 <script>
 (() => {
  const dialog = document.getElementById('journalDetailsDialog');

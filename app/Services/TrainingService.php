@@ -257,14 +257,20 @@ function normalized_attendance_rows_for_coordinator_date(int $coordinatorId,stri
 
 function normalized_attendance_punch(int $studentId,int $companyId,string $date,string $time,int $actorUserId): string
 {
-    if (!query_one(
-        "SELECT s.id FROM students s JOIN users u ON u.id=s.user_id
-         WHERE s.id=? AND s.is_archived=0 AND u.status!='archived' LIMIT 1",
+    $studentAccount = query_one(
+        "SELECT s.is_archived,u.status FROM students s JOIN users u ON u.id=s.user_id
+         WHERE s.id=? LIMIT 1",
         [$studentId], 'i'
-    )) throw new DomainException('Archived trainees cannot record attendance.');
+    );
+    if (!$studentAccount || (int)$studentAccount['is_archived'] === 1) {
+        throw new DomainException('Archived trainees cannot record attendance.');
+    }
+    if ($studentAccount['status'] !== 'active') {
+        throw new DomainException('Only active student accounts can record attendance.');
+    }
     $placement=normalized_current_placement_for_student($studentId,$companyId);
-    if (!$placement || !in_array($placement['status'],['active','on_hold','planned'],true)) {
-        throw new DomainException('This trainee does not have an active placement with your company.');
+    if (!$placement || !in_array($placement['status'],['active','ongoing'],true)) {
+        throw new DomainException('Attendance is available only after the assignment is approved and the OJT is active or ongoing.');
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date) || !preg_match('/^\d{2}:\d{2}:\d{2}$/',$time)) {
         throw new DomainException('Invalid attendance timestamp.');

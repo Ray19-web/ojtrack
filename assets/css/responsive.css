@@ -176,6 +176,8 @@
   .table-wrap table { overflow-wrap: normal; word-break: normal; }
   .table-wrap:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
   .table-wrap .td-mono { white-space: nowrap; }
+  .student-requirements-table-wrap { max-height: calc(100dvh - 240px); }
+  .student-attendance-table-wrap { max-height: calc(100dvh - 240px); }
   .table-person { display: flex; gap: 10px; align-items: center; min-width: 220px; }
   .table-person > :first-child { flex-shrink: 0; white-space: nowrap; }
   .table-person > :last-child { min-width: 0; }
@@ -636,12 +638,12 @@
 .company-trainee-table-card .table-tools { border-bottom: 1px solid var(--border-light); }
 .company-trainee-table { width: 100%; min-width: 1080px; table-layout: fixed; font-size: 12.5px; }
 .company-trainee-table th { padding: 11px 14px; background: #f8fafc; color: var(--text-500); font-size: 11px; font-weight: 700; text-align: left; white-space: nowrap; }
-.company-trainee-table th:nth-child(1) { width: 22%; }
-.company-trainee-table th:nth-child(2) { width: 14%; }
-.company-trainee-table th:nth-child(3) { width: 18%; }
-.company-trainee-table th:nth-child(4) { width: 14%; }
-.company-trainee-table th:nth-child(5) { width: 11%; }
-.company-trainee-table th:nth-child(6) { width: 21%; }
+.company-trainee-table th:nth-child(1) { width: 24%; }
+.company-trainee-table th:nth-child(2) { width: 15%; }
+.company-trainee-table th:nth-child(3) { width: 20%; }
+.company-trainee-table th:nth-child(4) { width: 16%; }
+.company-trainee-table th:nth-child(5) { width: 15%; }
+.company-trainee-table th:nth-child(6) { width: 10%; }
 .company-trainee-table td { padding: 14px; }
 .company-trainee-table tbody tr { transition: background .15s ease; }
 .company-trainee-table tbody tr:hover { background: #f7f9fc; }

@@ -46,12 +46,117 @@ function normalized_active_term(): ?array
          ORDER BY id DESC
          LIMIT 1"
     );
+    if ($term) normalized_refresh_automatic_statuses($term);
     return $term ?: null;
 }
 
 function normalized_active_term_id(): int
 {
     return (int)(normalized_active_term()['id'] ?? 0);
+}
+
+/**
+ * Apply date/progress-driven OJT status transitions for the active term.
+ * Manual hold/withdrawn/completed states are never downgraded automatically.
+ */
+function normalized_refresh_automatic_statuses(array $term): void
+{
+    static $running = false;
+    if ($running || empty($term['id'])) return;
+    $running = true;
+    try {
+        $enrollments = query(
+            "SELECT oe.id,oe.student_id,oe.status,oe.required_hours,oe.onboarding_completed_at,
+                    p.id placement_id,p.status placement_status,p.starts_on
+             FROM ojt_enrollments oe
+             LEFT JOIN placements p ON p.id=(
+                SELECT p2.id FROM placements p2
+                WHERE p2.ojt_enrollment_id=oe.id
+                  AND p2.status IN ('planned','active','on_hold','completed')
+                ORDER BY FIELD(p2.status,'active','planned','on_hold','completed'),p2.id DESC
+                LIMIT 1
+             )
+             WHERE oe.academic_term_id=?
+               AND oe.status NOT IN ('withdrawn','completed')",
+            [(int)$term['id']],
+            'i'
+        ) ?: [];
+
+        foreach ($enrollments as $enrollment) {
+            $enrollmentId = (int)$enrollment['id'];
+            $placementId = (int)($enrollment['placement_id'] ?? 0);
+            if ($placementId <= 0) continue;
+
+            $renderedMinutes = (int)(query_one(
+                "SELECT COALESCE(SUM(ad.credited_minutes),0) minutes
+                 FROM attendance_days ad WHERE ad.placement_id=?",
+                [$placementId],
+                'i'
+            )['minutes'] ?? 0);
+            $requiredMinutes = max(1, (int)$enrollment['required_hours'] * 60);
+            $assignedRequirements = (int)(query_one(
+                "SELECT COUNT(*) total FROM requirement_assignments
+                 WHERE ojt_enrollment_id=? AND status!='waived'",
+                [$enrollmentId],
+                'i'
+            )['total'] ?? 0);
+            $unfinishedRequirements = (int)(query_one(
+                "SELECT COUNT(*) total
+                 FROM requirement_assignments ra
+                 LEFT JOIN requirement_submissions rs ON rs.id=(
+                    SELECT rs2.id FROM requirement_submissions rs2
+                    WHERE rs2.requirement_assignment_id=ra.id
+                    ORDER BY rs2.version_no DESC,rs2.id DESC LIMIT 1
+                 )
+                 WHERE ra.ojt_enrollment_id=? AND ra.status!='waived'
+                   AND (rs.id IS NULL OR rs.status!='approved')",
+                [$enrollmentId],
+                'i'
+            )['total'] ?? 0);
+            $requirementsComplete = $assignedRequirements > 0 && $unfinishedRequirements === 0;
+            $onboardingComplete = !empty($enrollment['onboarding_completed_at']);
+            $today = date('Y-m-d');
+            $startDate = (string)($enrollment['starts_on'] ?? '');
+            $startReached = $startDate !== '' && $startDate <= $today;
+            $nextStatus = null;
+
+            if ($renderedMinutes >= $requiredMinutes && $requirementsComplete && $onboardingComplete) {
+                $nextStatus = 'completed';
+            } elseif (
+                in_array($enrollment['status'], ['pending','not_started'], true)
+                && $onboardingComplete
+                && $startReached
+                && in_array($enrollment['placement_status'], ['planned','active'], true)
+            ) {
+                $nextStatus = 'ongoing';
+            }
+
+            if ($nextStatus === null) continue;
+            query(
+                "UPDATE ojt_enrollments
+                 SET status=?,completed_at=CASE WHEN ?='completed' THEN COALESCE(completed_at,NOW()) ELSE completed_at END
+                 WHERE id=?",
+                [$nextStatus,$nextStatus,$enrollmentId],
+                'ssi'
+            );
+            if ($nextStatus === 'ongoing' && $enrollment['placement_status'] === 'planned') {
+                query("UPDATE placements SET status='active' WHERE id=?", [$placementId], 'i');
+            } elseif ($nextStatus === 'completed') {
+                query(
+                    "UPDATE placements SET status='completed',ends_on=COALESCE(ends_on,CURDATE()) WHERE id=?",
+                    [$placementId],
+                    'i'
+                );
+            }
+            query(
+                "UPDATE students SET ojt_status=? WHERE id=?",
+                [$nextStatus,(int)$enrollment['student_id']],
+                'si'
+            );
+        }
+    } finally {
+        $running = false;
+    }
 }
 
 function normalized_enrollment_for_student(int $studentId): ?array

@@ -123,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($student_id && isset($sel_student)): ?>
 <?php $journalWeeks = array_values(array_unique(array_map('intval', array_column($journals, 'week_number')))); rsort($journalWeeks, SORT_NUMERIC); ?>
 <div class="journal-entries-layout">
-  <div class="card">
+  <div class="card journal-entries-card">
     <div class="card-header flex-between journal-entries-header">
       <div class="card-title">Entries <span class="journal-entry-count"><?= count($journals) ?></span></div>
       <?php if (!empty($journals)): ?>
@@ -172,6 +172,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if (empty($journals)): ?>
       <div class="text-center text-muted py-8"><p>No journal entries yet.</p></div>
     <?php else: ?>
+      <div class="journal-card-scroll" aria-label="Journal entries list">
       <div class="journal-card-grid" id="journalCardGrid">
       <?php foreach ($journals as $j): ?>
       <?php
@@ -210,6 +211,7 @@ require_once __DIR__ . '/../includes/header.php';
       </article>
       <?php endforeach; ?>
         <div class="journal-filter-empty" id="journalFilterEmpty" hidden>No entries match these filters.</div>
+      </div>
       </div>
     <?php endif; ?>
   </div>

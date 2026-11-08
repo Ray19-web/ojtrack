@@ -218,7 +218,6 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <div class="card mb-4">
-  <div class="card-header"><div class="card-title">Evaluation Forms from OJT Coordinator</div></div>
   <div class="evaluation-list-toolbar" data-evaluation-list>
     <div class="evaluation-list-tabs" role="group" aria-label="Evaluation status">
       <button type="button" class="evaluation-list-tab is-active" data-evaluation-filter="pending" aria-pressed="true">
@@ -227,13 +226,6 @@ require_once __DIR__ . '/../includes/header.php';
       <button type="button" class="evaluation-list-tab" data-evaluation-filter="completed" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg> Evaluated <span class="evaluation-list-count"><?= $evaluated_count ?></span>
       </button>
-    </div>
-    <div class="evaluation-list-tools">
-      <label class="evaluation-list-search">
-        <span class="sr-only">Search evaluations</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
-        <input type="search" class="form-control" data-evaluation-search placeholder="Search trainee..." autocomplete="off">
-      </label>
     </div>
   </div>
   <div class="table-wrap" data-custom-pagination tabindex="0" role="region" aria-label="Scrollable records">

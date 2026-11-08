@@ -84,8 +84,8 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success mb-4"><div class="alert-body"><p><?= e($success) ?></p></div></div><?php endif; ?>
 <?php if ($error):   ?><div class="alert alert-error mb-4"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
 
-<div class="card">
-  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
+<div class="card student-requirements-card">
+  <div class="table-wrap student-requirements-table-wrap" tabindex="0" role="region" aria-label="Scrollable requirement records">
     <table id="reqTable">
       <thead>
         <tr>

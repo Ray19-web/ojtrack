@@ -49,7 +49,7 @@ require_once __DIR__ . '/../includes/header.php';
   <div class="page-sub">Recorded by your company. View only.</div>
 </div>
 
-<div class="card">
+<div class="card student-attendance-card">
   <div class="card-header flex-between">
     <form method="GET" class="filter-toolbar flex-items-center gap-2" data-live-filter>
       <input type="month" name="month" value="<?= e($month_filter) ?>" class="form-control text-sm" style="width:160px">
@@ -59,7 +59,7 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
   </div>
 
-  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable records">
+  <div class="table-wrap student-attendance-table-wrap" tabindex="0" role="region" aria-label="Scrollable attendance records">
     <table id="attTable" data-pdf-export-url="?<?= e(http_build_query(['month' => $month_filter, 'download_pdf' => 1])) ?>">
       <thead>
         <tr>
