@@ -4,7 +4,7 @@ The final target model is `../schema.normalized.sql`.
 
 ## Migration catalog status
 
-The SQL files currently present are 001–009 and 011–018 (including the `002a` attendance resolution). Phase 010 is implemented by `bin/migrate-normalized-phase10-lean-schema.php`, version `010_lean_schema`; it is runner-only and has no standalone SQL file in this directory. It follows Phase 9 and consolidates the normalized model from 48 to the lean 40-base-table target using preflight checks and six compatibility views. See `docs/LEAN_DATABASE_AUDIT.md` and the runner's dry-run/apply output. The runner's presence does not establish that it has been applied to any particular database; inspect that database's `schema_migrations` ledger and verify its resulting schema separately.
+The SQL files currently present are 001–009, 011–019 (including the `002a` attendance resolution). Phase 010 is implemented by `bin/migrate-normalized-phase10-lean-schema.php`, version `010_lean_schema`; it is runner-only and has no standalone SQL file in this directory. It follows Phase 9 and consolidates the normalized model from 48 to the lean 40-base-table target using preflight checks and six compatibility views. See `docs/LEAN_DATABASE_AUDIT.md` and the runner's dry-run/apply output. The runner's presence does not establish that it has been applied to any particular database; inspect that database's `schema_migrations` ledger and verify its resulting schema separately.
 
 Do not create a destructive "one shot" migration from the current database. OJTrack contains historical OJT records and uploaded files, so normalization must be staged and reversible.
 

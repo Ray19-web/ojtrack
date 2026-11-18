@@ -14,6 +14,18 @@ function openModal(id) {
   el.classList.add('open');
   const dialog = el.querySelector('.modal') || el;
   prepareFormModalHeader(dialog);
+  // Form dialogs can retain their internal scroll position after closing.
+  // Always reopen at the beginning so profile fields are not skipped and the
+  // sticky action bar cannot appear to cover an earlier section.
+  const resetDialogScroll = () => {
+    dialog.scrollTop = 0;
+    dialog.scrollLeft = 0;
+    dialog.querySelectorAll('form, .modal-body, .coordinator-modal-form-body, .company-modal-form-body').forEach(scrollable => {
+      scrollable.scrollTop = 0;
+      scrollable.scrollLeft = 0;
+    });
+  };
+  resetDialogScroll();
   dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true'); dialog.tabIndex = -1;
   const title = dialog.querySelector('.modal-title');
   if (title) { if (!title.id) title.id = id + '-title'; dialog.setAttribute('aria-labelledby', title.id); }
@@ -21,6 +33,9 @@ function openModal(id) {
   dialog.querySelectorAll('form[method="post"], form[method="POST"]').forEach(captureAjaxFormBaseline);
   document.body.style.overflow = 'hidden';
   (dialog.querySelector('input:not([type="hidden"]), textarea, select, button') || dialog).focus({ preventScroll: true });
+  // Some browsers restore a form's scroll position after focus/layout work;
+  // reset once more on the next frame after the dialog is fully laid out.
+  requestAnimationFrame(resetDialogScroll);
 }
 
 function prepareFormModalHeader(dialog) {
@@ -543,6 +558,7 @@ async function updateLiveFilterResults(form, requestUrl = null) {
     const currentBody = document.querySelector('.page-body');
     closeTableFilterDrawers();
     document.querySelectorAll('.table-filter-drawer').forEach(drawer => drawer.remove());
+    history.replaceState({}, '', url.pathname + url.search + url.hash);
     currentBody.querySelectorAll('.table-wrap table').forEach(table => table._paginationObserver?.disconnect());
     const existingModals = [...currentBody.querySelectorAll('.modal-overlay')];
     const refreshedContent = document.createDocumentFragment();
@@ -558,7 +574,6 @@ async function updateLiveFilterResults(form, requestUrl = null) {
       const refreshedForm = document.querySelector('[data-live-filter-index="' + formIndex + '"]');
       if (refreshedForm?.id) document.querySelector('[data-table-filter-toggle="' + refreshedForm.id + '"]')?.focus({preventScroll: true});
     }
-    history.replaceState({}, '', url.pathname + url.search + url.hash);
   } catch (error) {
     if (error.name !== 'AbortError') {
       console.error('Could not update search results:', error);
@@ -610,9 +625,50 @@ function bindLiveFilterForms(root = document) {
 
 document.addEventListener('DOMContentLoaded', () => bindLiveFilterForms());
 
-// Submit ordinary app forms in the background, then replace only the page content.
-// This keeps navigation, filters, and forms feeling like one continuous app.
+// Submit ordinary app forms in the background, then refresh the current page
+// after a successful mutation so every binding and server query is current.
 const ajaxFormBaselines = new WeakMap();
+const mutationRefreshStorageKey = 'ojtrack:mutation-refresh-state';
+
+function rememberMutationRefreshPosition() {
+  try {
+    sessionStorage.setItem(mutationRefreshStorageKey, JSON.stringify({
+      href: location.href,
+      x: window.scrollX || 0,
+      y: window.scrollY || 0,
+      createdAt: Date.now()
+    }));
+  } catch (_) {
+    // A disabled or unavailable sessionStorage must never prevent a save.
+  }
+}
+
+function refreshAfterSuccessfulMutation() {
+  rememberMutationRefreshPosition();
+  // Use a normal reload so every page script, table binding, modal, and server
+  // query starts from the latest saved state. The current route/query remains.
+  window.location.reload();
+}
+
+function restoreMutationRefreshPosition() {
+  let state = null;
+  try {
+    const raw = sessionStorage.getItem(mutationRefreshStorageKey);
+    if (raw) sessionStorage.removeItem(mutationRefreshStorageKey);
+    state = raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return;
+  }
+  if (!state || state.href !== location.href || !Number.isFinite(state.createdAt)
+    || Date.now() - state.createdAt > 15000) return;
+  requestAnimationFrame(() => window.scrollTo({
+    left: Number(state.x) || 0,
+    top: Number(state.y) || 0,
+    behavior: 'auto'
+  }));
+}
+
+document.addEventListener('DOMContentLoaded', restoreMutationRefreshPosition);
 
 function captureAjaxFormBaseline(form) {
   if (!form || [...form.querySelectorAll('input[type="password"], input[type="file"]')].length) {
@@ -697,6 +753,7 @@ function replacePageBody(parsed, finalUrl, invalidModalId = '') {
   const currentBody = document.querySelector('.page-body, .onboarding-card');
   const nextBody = parsed.querySelector(currentBody?.matches('.onboarding-card') ? '.onboarding-card' : '.page-body');
   if (!currentBody || !nextBody) return false;
+  if (finalUrl && finalUrl.href !== location.href) history.pushState({}, '', finalUrl.pathname + finalUrl.search + finalUrl.hash);
   currentBody.querySelectorAll('.table-wrap table').forEach(table => table._paginationObserver?.disconnect());
   const nextContent = document.createDocumentFragment();
   [...nextBody.childNodes].forEach(node => nextContent.appendChild(node.cloneNode(true)));
@@ -710,8 +767,6 @@ function replacePageBody(parsed, finalUrl, invalidModalId = '') {
   const incomingAvatar = parsed.querySelector('.topbar-avatar');
   const currentAvatar = document.querySelector('.topbar-avatar');
   if (incomingAvatar && currentAvatar) currentAvatar.replaceWith(incomingAvatar.cloneNode(true));
-  if (finalUrl && finalUrl.href !== location.href) history.pushState({}, '', finalUrl.pathname + finalUrl.search + finalUrl.hash);
-
   // Preserve server-side validation feedback by reopening its containing form modal.
   const invalidModal = invalidModalId ? document.getElementById(invalidModalId) : currentBody.querySelector('.modal-overlay:has(.alert-error), .modal-overlay:has(.notice.error)');
   if (invalidModal?.id) openModal(invalidModal.id);
@@ -768,10 +823,14 @@ document.addEventListener('submit', async event => {
         type: 'success',
         undo: async () => {
           await sendFormInBackground(undoAction.endpoint, undoAction.payload, {silent: true});
+          refreshAfterSuccessfulMutation();
           return 'Your changes were undone.';
         }
       });
-    } else window.showAppToast(successMessage, {type: 'success'});
+    } else {
+      window.showAppToast(successMessage, {type: 'success'});
+      refreshAfterSuccessfulMutation();
+    }
   } catch (error) {
     window.showAppToast(error?.message || 'The request could not be completed. Please try again.', {type: 'error'});
   } finally {
@@ -1112,7 +1171,20 @@ function addTablePagination(table) {
   const pageNav = pagination.querySelector('.table-pagination-pages');
   const previous = pagination.querySelector('[data-page-previous]');
   const next = pagination.querySelector('[data-page-next]');
+  const tableIndex = [...document.querySelectorAll('.table-wrap table')].indexOf(table);
+  const tableSignature = [...(table.tHead?.rows[0]?.cells || [])].map(cell => tableCellText(cell)).join('|');
+  const pageStateKey = 'ojtrack:table-page:' + location.pathname + location.search + ':' + tableIndex + ':' + tableSignature;
   let currentPage = 1;
+  try {
+    const savedPage = Number(sessionStorage.getItem(pageStateKey));
+    if (Number.isInteger(savedPage) && savedPage > 0) currentPage = savedPage;
+  } catch (_) {
+    // Pagination must still work when browser storage is unavailable.
+  }
+
+  const rememberPage = () => {
+    try { sessionStorage.setItem(pageStateKey, String(currentPage)); } catch (_) {}
+  };
 
   const renderPageNumbers = (pageCount) => {
     pageNav.replaceChildren();
@@ -1151,6 +1223,7 @@ function addTablePagination(table) {
     const matchingRows = rows.filter(rowMatchesFilters);
     const pageCount = Math.max(1, Math.ceil(matchingRows.length / 10));
     currentPage = Math.min(currentPage, pageCount);
+    rememberPage();
     const start = (currentPage - 1) * 10;
     const visibleRows = new Set(matchingRows.slice(start, start + 10));
 
@@ -1231,6 +1304,55 @@ function setTableToolIcon(element, icon, label) {
   element.title = label;
   element.setAttribute('aria-label', label);
 }
+
+// Selection toolbars are authored above their tables so they work without
+// JavaScript. Once a list has a selection, replace the generated search/tools
+// row visually instead of stacking two competing action rows.
+const selectionToolbarSelectors = [
+  '[data-user-bulk-toolbar]',
+  '[data-archived-user-bulk-toolbar]',
+  '[data-program-bulk-toolbar]',
+  '#requirementBulkToolbar',
+  '#reportSelectionToolbar',
+  '#evaluationSelectionToolbar'
+].join(',');
+
+function syncSelectionToolbarReplacement(toolbar) {
+  if (!(toolbar instanceof HTMLElement)) return;
+  const card = toolbar.closest('.card');
+  const table = card?.querySelector('.table-wrap table');
+  if (!table) return;
+  const tools = [...card.querySelectorAll('.table-tools')]
+    .find(candidate => candidate.dataset.tableToolsFor === table.id);
+  if (!tools) return;
+  const active = !toolbar.hidden;
+  toolbar.classList.toggle('selection-toolbar-replacement-active', active);
+  toolbar.setAttribute('aria-live', active ? 'polite' : 'off');
+  tools.classList.toggle('selection-tools-replaced', active);
+}
+
+function initializeSelectionToolbarReplacement(root = document) {
+  root.querySelectorAll(selectionToolbarSelectors).forEach(syncSelectionToolbarReplacement);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initializeSelectionToolbarReplacement();
+  if (!document.body) return;
+  const selectionToolbarObserver = new MutationObserver(records => {
+    let refresh = false;
+    records.forEach(record => {
+      if (record.type === 'attributes' && record.target.matches?.(selectionToolbarSelectors)) refresh = true;
+      if (record.type === 'childList') refresh = true;
+    });
+    if (refresh) initializeSelectionToolbarReplacement();
+  });
+  selectionToolbarObserver.observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['hidden']
+  });
+});
 
 function initializeProgramMultiSelect(table) {
   if (!table?.matches('[data-program-multi-select]') || table.dataset.programMultiSelectReady === 'true') return;

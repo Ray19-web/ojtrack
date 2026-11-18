@@ -75,6 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $_SESSION['sub'] = $sub;
 
+                remember_user_login((int)$user['id'], !empty($_POST['remember']));
+
                 log_activity(
                     $user['id'],
                     'Login',
@@ -1748,7 +1750,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
                 <a
-                    href="#"
+                    href="/ojtrack/forgot-password.php"
                     class="forgot"
                 >
                     Forgot Password?

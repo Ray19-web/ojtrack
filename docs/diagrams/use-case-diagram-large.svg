@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1320" viewBox="0 0 1200 1320" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <style>
+      .boundary { fill: white; stroke: #0f172a; stroke-width: 3; } .section { stroke-width: 2; stroke-dasharray: 8 6; } .case { stroke: #334155; stroke-width: 2; } .association { stroke: #64748b; stroke-width: 1.8; fill: none; } .actor { stroke-width: 3; fill: none; stroke-linecap: round; } .heading { font-size: 26px; font-weight: 700; fill: #0f172a; } .section-heading { font-size: 22px; font-weight: 700; } .case-label { font-size: 20px; font-weight: 600; fill: #0f172a; text-anchor: middle; } .actor-label { font-size: 21px; font-weight: 700; text-anchor: middle; } .caption { font-size: 17px; fill: #475569; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect width="1200" height="1320" fill="white"/>
+  <rect class="boundary" x="90" y="120" width="1020" height="1115" rx="14"/>
+  <text class="heading" x="600" y="158" text-anchor="middle">OJTRACK — OJT Monitoring System</text>
+  <text class="caption" x="600" y="187">Web application use case diagram</text>
+  <rect class="section" x="345" y="215" width="510" height="164" rx="12" fill="#f8fafc" stroke="#475569"/>
+  <text class="section-heading" x="600" y="248" text-anchor="middle" fill="#334155">All authenticated roles</text>
+  <ellipse class="case" cx="475" cy="292" rx="108" ry="29" fill="#e2e8f0"/><text class="case-label" x="475" y="299">Sign in / out</text>
+  <ellipse class="case" cx="725" cy="292" rx="108" ry="29" fill="#e2e8f0"/><text class="case-label" x="725" y="285">Manage profile</text><text class="case-label" x="725" y="308">and password</text>
+  <ellipse class="case" cx="600" cy="343" rx="145" ry="25" fill="#e2e8f0"/><text class="case-label" x="600" y="350">View notifications</text>
+  <rect class="section" x="125" y="415" width="455" height="350" rx="12" fill="#fffbeb" stroke="#b45309"/>
+  <text class="section-heading" x="352" y="450" text-anchor="middle" fill="#b45309">Administrator</text>
+  <ellipse class="case" cx="385" cy="500" rx="165" ry="34" fill="#fde68a"/><text class="case-label" x="385" y="493">Manage academic terms,</text><text class="case-label" x="385" y="517">programs, and accounts</text>
+  <ellipse class="case" cx="385" cy="590" rx="165" ry="34" fill="#fde68a"/><text class="case-label" x="385" y="583">Manage coordinators, companies,</text><text class="case-label" x="385" y="607">students, and placements</text>
+  <ellipse class="case" cx="385" cy="680" rx="165" ry="34" fill="#fde68a"/><text class="case-label" x="385" y="673">Publish announcements and</text><text class="case-label" x="385" y="697">restore archived accounts</text>
+  <ellipse class="case" cx="385" cy="735" rx="165" ry="25" fill="#fde68a"/><text class="case-label" x="385" y="742">View activity log</text>
+  <rect class="section" x="620" y="415" width="455" height="350" rx="12" fill="#ecfdf5" stroke="#047857"/>
+  <text class="section-heading" x="847" y="450" text-anchor="middle" fill="#047857">Company Supervisor</text>
+  <ellipse class="case" cx="815" cy="500" rx="165" ry="34" fill="#a7f3d0"/><text class="case-label" x="815" y="493">View assigned trainees and</text><text class="case-label" x="815" y="517">record attendance</text>
+  <ellipse class="case" cx="815" cy="590" rx="165" ry="34" fill="#a7f3d0"/><text class="case-label" x="815" y="583">Complete assigned trainee</text><text class="case-label" x="815" y="607">evaluations</text>
+  <ellipse class="case" cx="815" cy="680" rx="165" ry="34" fill="#a7f3d0"/><text class="case-label" x="815" y="673">Manage certificate template</text><text class="case-label" x="815" y="697">and issue certificates</text>
+  <ellipse class="case" cx="815" cy="735" rx="165" ry="25" fill="#a7f3d0"/><text class="case-label" x="815" y="742">Announcements and messages</text>
+  <rect class="section" x="125" y="805" width="455" height="365" rx="12" fill="#eff6ff" stroke="#1d4ed8"/>
+  <text class="section-heading" x="352" y="840" text-anchor="middle" fill="#1d4ed8">Coordinator</text>
+  <ellipse class="case" cx="385" cy="890" rx="165" ry="25" fill="#bfdbfe"/><text class="case-label" x="385" y="897">Manage assigned students</text>
+  <ellipse class="case" cx="385" cy="962" rx="165" ry="34" fill="#bfdbfe"/><text class="case-label" x="385" y="955">Assign and review requirements,</text><text class="case-label" x="385" y="979">reports, and daily journals</text>
+  <ellipse class="case" cx="385" cy="1052" rx="165" ry="34" fill="#bfdbfe"/><text class="case-label" x="385" y="1045">Manage and send evaluation</text><text class="case-label" x="385" y="1069">forms to companies</text>
+  <ellipse class="case" cx="385" cy="1127" rx="165" ry="25" fill="#bfdbfe"/><text class="case-label" x="385" y="1134">Monitor attendance and messages</text>
+  <rect class="section" x="620" y="805" width="455" height="365" rx="12" fill="#fff1f2" stroke="#be123c"/>
+  <text class="section-heading" x="847" y="840" text-anchor="middle" fill="#be123c">Student</text>
+  <ellipse class="case" cx="815" cy="890" rx="165" ry="25" fill="#fecdd3"/><text class="case-label" x="815" y="897">Complete onboarding and view progress</text>
+  <ellipse class="case" cx="815" cy="962" rx="165" ry="34" fill="#fecdd3"/><text class="case-label" x="815" y="955">Submit requirement files, reports,</text><text class="case-label" x="815" y="979">and daily journals</text>
+  <ellipse class="case" cx="815" cy="1052" rx="165" ry="34" fill="#fecdd3"/><text class="case-label" x="815" y="1045">View attendance, evaluations,</text><text class="case-label" x="815" y="1069">monthly PDFs, and certificates</text>
+  <ellipse class="case" cx="815" cy="1127" rx="165" ry="25" fill="#fecdd3"/><text class="case-label" x="815" y="1134">Read announcements and messages</text>
+  <g class="actor" stroke="#b45309"><circle cx="45" cy="555" r="13"/><line x1="45" y1="568" x2="45" y2="606"/><line x1="21" y1="580" x2="69" y2="580"/><line x1="45" y1="606" x2="25" y2="636"/><line x1="45" y1="606" x2="65" y2="636"/></g><text class="actor-label" x="45" y="663" fill="#b45309">Admin</text>
+  <g class="actor" stroke="#047857"><circle cx="1155" cy="555" r="13"/><line x1="1155" y1="568" x2="1155" y2="606"/><line x1="1131" y1="580" x2="1179" y2="580"/><line x1="1155" y1="606" x2="1135" y2="636"/><line x1="1155" y1="606" x2="1175" y2="636"/></g><text class="actor-label" x="1155" y="663" fill="#047857">Company</text>
+  <g class="actor" stroke="#1d4ed8"><circle cx="45" cy="960" r="13"/><line x1="45" y1="973" x2="45" y2="1011"/><line x1="21" y1="985" x2="69" y2="985"/><line x1="45" y1="1011" x2="25" y2="1041"/><line x1="45" y1="1011" x2="65" y2="1041"/></g><text class="actor-label" x="45" y="1068" fill="#1d4ed8">Coordinator</text>
+  <g class="actor" stroke="#be123c"><circle cx="1155" cy="960" r="13"/><line x1="1155" y1="973" x2="1155" y2="1011"/><line x1="1131" y1="985" x2="1179" y2="985"/><line x1="1155" y1="1011" x2="1135" y2="1041"/><line x1="1155" y1="1011" x2="1175" y2="1041"/></g><text class="actor-label" x="1155" y="1068" fill="#be123c">Student</text>
+  <path class="association" d="M70 580 H220 M70 580 L220 680 M1130 580 H980 M1130 580 L980 680 M70 985 H220 M70 985 L220 1052 M1130 985 H980 M1130 985 L980 1052"/>
+  <text class="caption" x="600" y="1280">Web scope only — admin/, coordinator/, company/, student/, and authenticated web services</text>
+</svg>

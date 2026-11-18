@@ -28,6 +28,7 @@ Students sign in with their assigned student ID; other roles use email. Newly cr
 ## Documentation
 
 - [System documentation](docs/SYSTEM_DOCUMENTATION.md): roles, workflows, architecture, and data ownership.
+- [Web use case diagrams](docs/diagrams/use-case-diagram-large.svg): a large, readable overview of the four web roles and their supported workflows.
 - [Deployment](docs/DEPLOYMENT.md): configuration, first setup, storage, and operational checks.
 - [Verification](docs/VERIFICATION.md): executed checks and their scope.
 - [Release notes](docs/RELEASE_NOTES.md): finalization changes and package contents.

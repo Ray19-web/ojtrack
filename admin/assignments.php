@@ -206,7 +206,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="modal-overlay" id="assignModal"><div class="modal">
   <div class="modal-title">Student Assignment</div><p class="modal-sub" id="assignModalSub"></p>
-  <form method="POST" id="assignStudentForm" onsubmit="return validateAssignForm()">
+  <!-- Keep assignment saves as a normal POST so the browser always rebuilds the
+       page from the latest enrollment, placement, and coordinator records. -->
+  <form method="POST" id="assignStudentForm" data-no-ajax onsubmit="return validateAssignForm()">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="assign_student"><input type="hidden" name="student_id" id="assignStudentId">
     <div class="user-form-section-heading">Academic placement</div>

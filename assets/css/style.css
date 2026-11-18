@@ -1031,10 +1031,17 @@ html.sidebar-collapsed .sidebar-expand-fab svg {
 }
 
 .student-attendance-table-wrap thead th {
+  background: #f8fafc;
+}
+
+/* Keep the two-row AM/PM header together so it cannot cover the first record
+   when the attendance table is scrolled. */
+.student-attendance-table-wrap thead {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
   background: #f8fafc;
+  box-shadow: 0 1px 0 var(--border);
 }
 
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -1070,7 +1077,10 @@ th[hidden], td[hidden] { display: none !important; }
 /* Compact list controls shared by every web data table. */
 .table-tools {
   position: relative;
-  z-index: 2;
+  /* Keep control menus above sticky table headers.  The attendance table uses
+     a higher z-index for its sticky <thead>; without this, the column picker
+     is painted behind the header even though the menu itself has a z-index. */
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1078,6 +1088,19 @@ th[hidden], td[hidden] { display: none !important; }
   min-height: 68px;
   padding: 10px 16px;
   background: #fff;
+}
+.table-tools.selection-tools-replaced {
+  display: none !important;
+}
+.selection-toolbar-replacement-active {
+  animation: selection-toolbar-reveal 180ms ease-out both;
+}
+@keyframes selection-toolbar-reveal {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .selection-toolbar-replacement-active { animation: none; }
 }
 .table-filter-source-only { display: none !important; }
 .table-filter-search-source { display: none !important; }
@@ -1682,6 +1705,68 @@ select.form-control { cursor: pointer; }
 
 .modal-lg { max-width: 680px; }
 .modal-name-form { max-width: 640px; }
+
+/* Keep the coordinator editor usable when the form is taller than the
+   viewport.  The action bar stays available, while the last extension row
+   can scroll fully above it instead of being hidden underneath it. */
+.modal-overlay#addCoordModal > .modal-name-form,
+.modal-overlay#editCoordModal > .modal-name-form,
+.modal-overlay#addCompanyModal > .modal-name-form,
+.modal-overlay#editCompanyModal > .modal-name-form {
+  display: flex;
+  flex-direction: column;
+  height: min(900px, calc(100dvh - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+.modal-overlay#addCoordModal > .modal-name-form > form,
+.modal-overlay#editCoordModal > .modal-name-form > form,
+.modal-overlay#addCompanyModal > .modal-name-form > form,
+.modal-overlay#editCompanyModal > .modal-name-form > form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.coordinator-modal-form-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 28px 24px;
+  scrollbar-gutter: stable;
+}
+.company-modal-form-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 28px 24px;
+  scrollbar-gutter: stable;
+}
+.modal-overlay#addCoordModal .modal-footer,
+.modal-overlay#editCoordModal .modal-footer,
+.modal-overlay#addCompanyModal .modal-footer,
+.modal-overlay#editCompanyModal .modal-footer {
+  position: static;
+  flex: 0 0 auto;
+  z-index: 1;
+  margin: 20px 0 0;
+  padding: 16px 28px 20px;
+  border-top: 1px solid rgba(16, 59, 120, .10);
+  background: #fff;
+}
+@media screen and (max-width: 520px) {
+  .modal-overlay#addCoordModal > .modal-name-form,
+  .modal-overlay#editCoordModal > .modal-name-form,
+  .modal-overlay#addCompanyModal > .modal-name-form,
+  .modal-overlay#editCompanyModal > .modal-name-form {
+    height: calc(100dvh - 20px);
+    max-height: calc(100vh - 20px);
+  }
+}
 .requirement-detail-modal { max-width: 680px; padding: 0; overflow-x: hidden; }
 .requirement-detail-header { position: sticky; top: 0; z-index: 4; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 22px 26px 18px; border-bottom: 1px solid #e8edf4; background: linear-gradient(135deg, #f5f8fd 0%, #fff 78%); }
 .requirement-detail-eyebrow { display: block; margin-bottom: 4px; color: var(--text-500); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
@@ -2999,8 +3084,11 @@ body.sidebar-open {
   --ojt-progress-color: #f5b942;
   --ojt-progress-track: rgba(255, 255, 255, .22);
   background: #103b78;
+  background-color: #103b78;
   border-radius: var(--radius-xl);
   min-height: 190px;
+  width: 100%;
+  max-width: 100%;
   padding: 32px 28px;
   color: white;
   display: flex;
@@ -3010,6 +3098,8 @@ body.sidebar-open {
   gap: 16px;
   margin-bottom: 20px;
   box-shadow: var(--shadow-sm);
+  position: relative;
+  isolation: isolate;
 }
 
 .ojt-banner-starting {
@@ -5502,7 +5592,8 @@ body .announcement-modal .announcement-upload svg{width:24px;height:24px;margin:
 .announcement-item-footer strong{color:var(--text-600)}
 .announcement-search-form{min-width:0}
 .announcement-feed{display:grid;gap:18px;max-width:920px;margin:0 auto}
-.announcement-admin-feed{display:grid;gap:18px;max-width:1040px;margin:0 auto}
+.announcement-admin-feed{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;max-width:1040px;margin:0 auto}
+.announcement-admin-feed>.announcement-feed.is-empty{width:100%;max-width:none;grid-template-columns:minmax(0,1fr)}
 .announcement-admin-feed>.announcement-filter-card{overflow:hidden}
 .announcement-admin-feed>.announcement-filter-card{position:sticky;top:calc(var(--topbar-h) + 8px);z-index:40;box-shadow:0 8px 24px rgba(15,35,65,.10)}
 .announcement-admin-feed>.announcement-filter-card .record-filter-panel{padding:17px 20px;border:0;background:transparent}
@@ -5559,6 +5650,7 @@ body .announcement-modal .announcement-upload svg{width:24px;height:24px;margin:
 .announcement-feed .announcement-item-footer,.announcement-admin-feed .announcement-item-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:13px;border-top:1px solid #edf0f4;color:#8a97a9;font-size:11px}
 .announcement-edit-link{padding:5px 0;border:0;background:transparent;color:#17477e;font:inherit;font-weight:700;cursor:pointer}
 .announcement-edit-link:hover{color:#f09a00}
+.announcement-admin-feed>.announcement-feed.is-empty>.announcement-empty-state{width:100%;max-width:none;height:230px;min-height:230px;box-sizing:border-box;justify-content:center;overflow:hidden}
 .announcement-empty-state{display:flex;flex-direction:column;align-items:center;padding:42px 24px;text-align:center}
 .announcement-empty-icon{width:46px;height:46px;display:grid;place-items:center;margin-bottom:12px;border-radius:15px;background:#eff4fb;color:#19457d;font-size:22px}
 .announcement-empty-state h2{margin:0 0 5px;color:#17385f;font-size:17px}

@@ -6,6 +6,10 @@ OJTRACK is a server-rendered PHP web application backed by MariaDB/MySQL. Shared
 
 Runtime areas are `admin/`, `coordinator/`, `company/`, `student/`, and authenticated endpoints under `api/`. Shared layouts and reusable UI components are in `frontend/`; backend services, middleware, infrastructure, and support helpers are in `app/`. The legacy `includes/` and `config/` paths remain compatibility entry points. Browser resources are in `assets/`, and the release installation schema is `database/install.sql`.
 
+## Reference diagrams
+
+The [large web use case diagram](diagrams/use-case-diagram-large.svg) summarizes the supported Administrator, Coordinator, Company Supervisor, and Student workflows. The [detailed web use case diagram](diagrams/use-case-diagram.svg) provides the corresponding individual use cases. Both diagrams cover the web application only; the `mobile/` directory is outside this system documentation and remains out of scope.
+
 ## Roles and ownership
 
 Administrators manage accounts, academic terms, programs, coordinator assignments, and company placements. Activating an academic term changes the enrollment context used by current OJT workflows; prior records remain attached to their own terms.
@@ -38,6 +42,6 @@ Requirements, reports, and journal proofs are stored outside the public document
 
 ## Security and operations
 
-Protected routes check the active account, role, session expiry, password fingerprint, onboarding state, and CSRF token for mutations. Document downloads validate record relationships. Client-side visibility does not replace server authorization. Database calls use bound parameters where user values are accepted. The server must enforce internal-directory and executable-upload denial rules.
+Protected routes check the active account, role, session expiry, password fingerprint, onboarding state, and CSRF token for mutations. The login page supports an optional 30-day Remember Me cookie backed by rotated, hashed server tokens. Password recovery creates a one-time reset token that expires after 30 minutes; reset tokens are invalidated after use and whenever a password changes. Document downloads validate record relationships. Client-side visibility does not replace server authorization. Database calls use bound parameters where user values are accepted. The server must enforce internal-directory and executable-upload denial rules.
 
 Back up the database, private storage, and retained public uploads together. Preserve historical records when changing assignments or academic terms. Deploy over HTTPS with a dedicated database user, protected service credentials, writable upload directories only where needed, and production error logging. See `docs/DEPLOYMENT.md` and the explicitly scoped verification results.

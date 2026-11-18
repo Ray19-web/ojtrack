@@ -158,7 +158,7 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
     </form>
   </div>
-  <div class="announcement-feed">
+  <div class="announcement-feed<?= empty($announcements) ? ' is-empty' : '' ?>">
     <?php if (empty($announcements)): ?>
       <div class="card card-body announcement-empty-state">
         <div class="announcement-empty-icon" aria-hidden="true">✦</div>

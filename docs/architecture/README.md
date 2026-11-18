@@ -15,6 +15,10 @@ OJTrack remains a server-rendered PHP application. The current role routes are i
 - `bin/` remains the current maintenance-script location until a later compatibility-preserving migration to `scripts/` is approved and verified.
 - `mobile/` is outside the web architecture and must remain untouched.
 
+## Web role overview
+
+The [large web use case diagram](../diagrams/use-case-diagram-large.svg) shows the role boundaries and supported workflows for the Administrator, Coordinator, Company Supervisor, and Student portals. The detailed version is available as [use-case-diagram.svg](../diagrams/use-case-diagram.svg). Both diagrams document the web application only.
+
 ## Current service layout
 
 The migrated backend services are grouped under `app/`:

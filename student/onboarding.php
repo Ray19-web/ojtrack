@@ -2033,7 +2033,7 @@ $current_step =
 <script src="/ojtrack/assets/js/confirmations.js?v=20261013"></script>
 <script src="/ojtrack/assets/js/attachment-previews.js?v=20261031-onboarding-custom-preview-v1"></script>
 <script src="/ojtrack/assets/js/feedback-toasts.js?v=20261101-locked-feedback"></script>
-<script src="/ojtrack/assets/js/main.js?v=20261023-ajax-actions-v2"></script>
+<script src="/ojtrack/assets/js/main.js?v=<?= (int)filemtime(__DIR__ . '/../assets/js/main.js') ?>"></script>
 <script src="/ojtrack/assets/js/student-guide.js?v=<?= (int)filemtime(__DIR__.'/../assets/js/student-guide.js') ?>"></script>
 <script src="/ojtrack/assets/js/onboarding-tour.js?v=<?= (int)filemtime(__DIR__.'/../assets/js/onboarding-tour.js') ?>"></script>
 </body>

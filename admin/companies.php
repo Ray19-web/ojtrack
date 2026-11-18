@@ -240,21 +240,23 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if ($add_company_failed): ?><div class="alert alert-error" role="alert"><div class="alert-body"><p><?= e($error) ?></p></div></div><?php endif; ?>
     <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="add_company">
-      <div class="user-form-section-heading">Company details</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label" for="newCompanyName">Company / Organization Name <span style="color:red">*</span></label><input type="text" name="company_name" id="newCompanyName" maxlength="100" value="<?= e($add_values['company_name'] ?? '') ?>" class="form-control" placeholder="e.g. Innovatech Solutions" data-uppercase-name required></div>
-        <div class="form-group"><label class="form-label" for="newCompanyLocation">Workplace Location</label><input type="text" name="location" id="newCompanyLocation" maxlength="200" value="<?= e($add_values['location'] ?? '') ?>" class="form-control" placeholder="e.g. Cagayan de Oro City"></div>
+      <div class="company-modal-form-body">
+        <div class="user-form-section-heading">Company details</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label" for="newCompanyName">Company / Organization Name <span style="color:red">*</span></label><input type="text" name="company_name" id="newCompanyName" maxlength="100" value="<?= e($add_values['company_name'] ?? '') ?>" class="form-control" placeholder="e.g. Innovatech Solutions" data-uppercase-name required></div>
+          <div class="form-group"><label class="form-label" for="newCompanyLocation">Workplace Location</label><input type="text" name="location" id="newCompanyLocation" maxlength="200" value="<?= e($add_values['location'] ?? '') ?>" class="form-control" placeholder="e.g. Cagayan de Oro City"></div>
+        </div>
+        <div class="user-form-section-heading">Supervisor / contact person</div>
+        <?php $person_name_prefix = 'newCompanySupervisor'; $person_name_fields = ['first' => 'supervisor_first_name', 'middle' => 'supervisor_middle_name', 'last' => 'supervisor_last_name']; $person_name_values = ['first' => $add_values['supervisor_first_name'] ?? '', 'middle' => $add_values['supervisor_middle_name'] ?? '', 'last' => $add_values['supervisor_last_name'] ?? '']; $person_name_required = false; require __DIR__ . '/../includes/person-name-fields.php'; ?>
+        <?php $name_extension_prefix = 'newCompanySupervisor'; $name_extension_type_field = 'supervisor_name_extension_type'; $name_extension_value_field = 'supervisor_name_extension_value'; $name_extension_selected = $add_values['supervisor_name_extension_type'] ?? []; $name_extension_value = $add_values['supervisor_name_extension_value'] ?? []; $name_extension_entries = null; require __DIR__ . '/../includes/name-extension-fields.php'; ?>
+        <div class="form-group"><label class="form-label" for="newCompanyPhone">Contact Number</label><input type="text" name="contact_number" id="newCompanyPhone" maxlength="20" value="<?= e($add_values['contact_number'] ?? '') ?>" class="form-control" placeholder="0917-123-4567"></div>
+        <div class="user-form-section-heading">Account access</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label" for="newCompanyEmail">Account Email Address <span style="color:red">*</span></label><input type="email" name="email" id="newCompanyEmail" maxlength="150" value="<?= e($add_values['email'] ?? '') ?>" class="form-control" placeholder="company@domain.com" required></div>
+          <div class="form-group"><label class="form-label" for="newCompanyPassword">Initial Password <span style="color:red">*</span></label><input type="password" id="newCompanyPassword" name="password" class="form-control" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="companyPasswordHelp" required><div id="companyPasswordHelp" class="text-xs text-muted mt-1">Use 12–72 characters.</div></div>
+        </div>
+        <div class="alert alert-info"><div class="alert-body"><small>Creates a company login for trainee management and evaluations.</small></div></div>
       </div>
-      <div class="user-form-section-heading">Supervisor / contact person</div>
-      <?php $person_name_prefix = 'newCompanySupervisor'; $person_name_fields = ['first' => 'supervisor_first_name', 'middle' => 'supervisor_middle_name', 'last' => 'supervisor_last_name']; $person_name_values = ['first' => $add_values['supervisor_first_name'] ?? '', 'middle' => $add_values['supervisor_middle_name'] ?? '', 'last' => $add_values['supervisor_last_name'] ?? '']; $person_name_required = false; require __DIR__ . '/../includes/person-name-fields.php'; ?>
-      <?php $name_extension_prefix = 'newCompanySupervisor'; $name_extension_type_field = 'supervisor_name_extension_type'; $name_extension_value_field = 'supervisor_name_extension_value'; $name_extension_selected = $add_values['supervisor_name_extension_type'] ?? []; $name_extension_value = $add_values['supervisor_name_extension_value'] ?? []; $name_extension_entries = null; require __DIR__ . '/../includes/name-extension-fields.php'; ?>
-      <div class="form-group"><label class="form-label" for="newCompanyPhone">Contact Number</label><input type="text" name="contact_number" id="newCompanyPhone" maxlength="20" value="<?= e($add_values['contact_number'] ?? '') ?>" class="form-control" placeholder="0917-123-4567"></div>
-      <div class="user-form-section-heading">Account access</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label" for="newCompanyEmail">Account Email Address <span style="color:red">*</span></label><input type="email" name="email" id="newCompanyEmail" maxlength="150" value="<?= e($add_values['email'] ?? '') ?>" class="form-control" placeholder="company@domain.com" required></div>
-        <div class="form-group"><label class="form-label" for="newCompanyPassword">Initial Password <span style="color:red">*</span></label><input type="password" id="newCompanyPassword" name="password" class="form-control" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="companyPasswordHelp" required><div id="companyPasswordHelp" class="text-xs text-muted mt-1">Use 12–72 characters.</div></div>
-      </div>
-      <div class="alert alert-info"><div class="alert-body"><small>Creates a company login for trainee management and evaluations.</small></div></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('addCompanyModal')">Cancel</button>
         <button type="submit" class="btn btn-primary">Register Company</button>
@@ -271,22 +273,24 @@ require_once __DIR__ . '/../includes/header.php';
     <form method="POST"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit_company">
       <input type="hidden" name="company_id" id="editCompId">
-      <div class="user-form-section-heading">Company details</div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Company Name <span style="color:red">*</span></label><input type="text" name="company_name" id="editCompName" class="form-control" data-uppercase-name required></div>
-        <div class="form-group"><label class="form-label">Location</label><input type="text" name="location" id="editCompLoc" class="form-control"></div>
-      </div>
-      <div class="user-form-section-heading">Supervisor / contact person</div>
-      <?php $person_name_prefix = 'editCompanySupervisor'; $person_name_fields = ['first' => 'supervisor_first_name', 'middle' => 'supervisor_middle_name', 'last' => 'supervisor_last_name']; $person_name_values = []; $person_name_required = false; require __DIR__ . '/../includes/person-name-fields.php'; ?>
+      <div class="company-modal-form-body">
+        <div class="user-form-section-heading">Company details</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Company Name <span style="color:red">*</span></label><input type="text" name="company_name" id="editCompName" class="form-control" data-uppercase-name required></div>
+          <div class="form-group"><label class="form-label">Location</label><input type="text" name="location" id="editCompLoc" class="form-control"></div>
+        </div>
+        <div class="user-form-section-heading">Supervisor / contact person</div>
+        <?php $person_name_prefix = 'editCompanySupervisor'; $person_name_fields = ['first' => 'supervisor_first_name', 'middle' => 'supervisor_middle_name', 'last' => 'supervisor_last_name']; $person_name_values = []; $person_name_required = false; require __DIR__ . '/../includes/person-name-fields.php'; ?>
         <div class="text-xs text-muted mb-3">For older records without saved name parts, leave all three fields blank to keep the current supervisor name.</div>
-      <?php $name_extension_prefix = 'editCompanySupervisor'; $name_extension_type_field = 'supervisor_name_extension_type'; $name_extension_value_field = 'supervisor_name_extension_value'; $name_extension_entries = []; require __DIR__ . '/../includes/name-extension-fields.php'; ?>
-      <div class="user-form-section-heading">Contact and account details</div>
-      <div class="form-group"><label class="form-label" for="editCompPhone">Contact Number</label><input type="text" name="contact_number" id="editCompPhone" class="form-control"></div>
-      <div class="form-group"><label class="form-label">Account Email</label><input type="text" id="editCompEmail" class="form-control" readonly style="background:#f1f5f9;cursor:not-allowed"></div>
-      <div class="form-group"><label class="form-label" for="editCompPassword">New Password</label><input type="password" name="new_password" id="editCompPassword" class="form-control" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="editCompPasswordHelp"><div id="editCompPasswordHelp" class="text-xs text-muted mt-1">Leave blank to keep the current password. A new password must be at least 12 characters.</div></div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Total Trainees</label><input type="text" id="editCompTrainees" class="form-control" readonly style="background:#f1f5f9;cursor:not-allowed"></div>
-        <div class="form-group"><label class="form-label">Active in OJT</label><input type="text" id="editCompActive" class="form-control" readonly style="background:#f1f5f9;cursor:not-allowed"></div>
+        <?php $name_extension_prefix = 'editCompanySupervisor'; $name_extension_type_field = 'supervisor_name_extension_type'; $name_extension_value_field = 'supervisor_name_extension_value'; $name_extension_entries = []; require __DIR__ . '/../includes/name-extension-fields.php'; ?>
+        <div class="user-form-section-heading">Contact and account details</div>
+        <div class="form-group"><label class="form-label" for="editCompPhone">Contact Number</label><input type="text" name="contact_number" id="editCompPhone" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Account Email</label><input type="text" id="editCompEmail" class="form-control" readonly style="background:#f1f5f9;cursor:not-allowed"></div>
+        <div class="form-group"><label class="form-label" for="editCompPassword">New Password</label><input type="password" name="new_password" id="editCompPassword" class="form-control" minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="editCompPasswordHelp"><div id="editCompPasswordHelp" class="text-xs text-muted mt-1">Leave blank to keep the current password. A new password must be at least 12 characters.</div></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Total Trainees</label><input type="text" id="editCompTrainees" class="form-control" readonly style="background:#f1f5f9;cursor:not-allowed"></div>
+          <div class="form-group"><label class="form-label">Active in OJT</label><input type="text" id="editCompActive" class="form-control" readonly style="background:#f1f5f9;cursor:not-allowed"></div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('editCompanyModal')">Cancel</button>

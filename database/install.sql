@@ -918,6 +918,37 @@ CREATE TABLE `users` (
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
+CREATE TABLE `auth_remember_tokens` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `selector` char(24) NOT NULL,
+  `validator_hash` char(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `last_used_at` datetime DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_auth_remember_selector` (`selector`),
+  KEY `idx_auth_remember_user` (`user_id`),
+  KEY `idx_auth_remember_expiry` (`expires_at`),
+  CONSTRAINT `fk_auth_remember_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `password_reset_tokens` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `selector` char(24) NOT NULL,
+  `token_hash` char(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `used_at` datetime DEFAULT NULL,
+  `request_ip` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_password_reset_selector` (`selector`),
+  KEY `idx_password_reset_user` (`user_id`),
+  KEY `idx_password_reset_expiry` (`expires_at`),
+  CONSTRAINT `fk_password_reset_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -948,4 +979,5 @@ INSERT INTO schema_migrations (version,description) VALUES
 ('016_multiple_name_extensions','Included in the web release install schema'),
 ('017_person_name_parts','Included in the web release install schema'),
 ('018_multiple_submission_files','Included in the web release install schema'),
-('011_journal_multiple_images','Included in the web release install schema');
+('011_journal_multiple_images','Included in the web release install schema'),
+('019_auth_tokens','Included in the web release install schema');

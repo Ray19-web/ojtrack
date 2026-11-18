@@ -5,7 +5,133 @@ require_once __DIR__ . '/../Services/CommunicationService.php';
 require_once __DIR__ . '/../Services/UploadService.php';
 require_once __DIR__ . '/../Services/StorageService.php';
 
+const OJTRACK_REMEMBER_COOKIE = 'ojtrack_remember';
+const OJTRACK_REMEMBER_DAYS = 30;
+
+function auth_token_tables_ready(): bool {
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    $remember = query_one("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='auth_remember_tokens' LIMIT 1");
+    $reset = query_one("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='password_reset_tokens' LIMIT 1");
+    return $ready = (bool)$remember && (bool)$reset;
+}
+
+function auth_cookie_options(int $expires): array {
+    return ['expires' => $expires, 'path' => '/ojtrack/', 'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'httponly' => true, 'samesite' => 'Lax'];
+}
+
+function clear_remember_cookie(): void {
+    setcookie(OJTRACK_REMEMBER_COOKIE, '', auth_cookie_options(time() - 3600));
+    unset($_COOKIE[OJTRACK_REMEMBER_COOKIE]);
+}
+
+function set_authenticated_session(array $user): void {
+    session_regenerate_id(true);
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    $_SESSION['auth_fingerprint'] = hash('sha256', $user['password']);
+    $_SESSION['last_activity'] = time();
+    $_SESSION['user_id'] = (int)$user['id'];
+    $_SESSION['role'] = $user['role'];
+    $_SESSION['name'] = $user['name'];
+    $_SESSION['avatar'] = $user['avatar'] ?? '';
+    $_SESSION['sub'] = match ($user['role']) {
+        'student' => ($user['program'] ?? 'BSIT') . ' · ' . ($user['student_id_no'] ?? ''),
+        'coordinator' => $user['department'] ?? 'OJT Coordinator',
+        'company' => $user['company_name'] ?? 'Company',
+        'admin' => 'All Access',
+        default => '',
+    };
+}
+
+function auth_user_context(int $user_id): ?array {
+    return query_one(
+        "SELECT u.*, s.student_id_no, s.program, s.year_level, s.rendered_hours, s.required_hours, c.department, co.company_name
+         FROM users u
+         LEFT JOIN students s ON s.user_id=u.id
+         LEFT JOIN coordinators c ON c.user_id=u.id
+         LEFT JOIN companies co ON co.user_id=u.id
+         WHERE u.id=? AND u.status='active'",
+        [$user_id], 'i'
+    );
+}
+
+function issue_remember_token(int $user_id): void {
+    if (!auth_token_tables_ready() || $user_id < 1) return;
+    $selector = bin2hex(random_bytes(12));
+    $validator = bin2hex(random_bytes(32));
+    $expires = date('Y-m-d H:i:s', time() + OJTRACK_REMEMBER_DAYS * 86400);
+    query('DELETE FROM auth_remember_tokens WHERE user_id=? OR expires_at<NOW()', [$user_id], 'i');
+    insert('INSERT INTO auth_remember_tokens (user_id, selector, validator_hash, expires_at, user_agent) VALUES (?,?,?,?,?)',
+        [$user_id, $selector, hash('sha256', $validator), $expires, substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255)], 'issss');
+    setcookie(OJTRACK_REMEMBER_COOKIE, $selector . ':' . $validator, auth_cookie_options(time() + OJTRACK_REMEMBER_DAYS * 86400));
+    $_COOKIE[OJTRACK_REMEMBER_COOKIE] = $selector . ':' . $validator;
+}
+
+function restore_remembered_session(): bool {
+    static $attempted = false;
+    if ($attempted || !auth_token_tables_ready()) return false;
+    $attempted = true;
+    $raw = $_COOKIE[OJTRACK_REMEMBER_COOKIE] ?? '';
+    if (!is_string($raw) || !preg_match('/^([a-f0-9]{24}):([a-f0-9]{64})$/', $raw, $m)) return false;
+    $row = query_one("SELECT t.id,t.user_id,t.validator_hash FROM auth_remember_tokens t JOIN users u ON u.id=t.user_id WHERE t.selector=? AND t.expires_at>NOW() AND u.status='active' LIMIT 1", [$m[1]], 's');
+    if (!$row || !hash_equals((string)$row['validator_hash'], hash('sha256', $m[2]))) {
+        if ($row) query('DELETE FROM auth_remember_tokens WHERE id=?', [(int)$row['id']], 'i');
+        clear_remember_cookie();
+        return false;
+    }
+    $user = auth_user_context((int)$row['user_id']);
+    if (!$user) { clear_remember_cookie(); return false; }
+    query('DELETE FROM auth_remember_tokens WHERE id=?', [(int)$row['id']], 'i');
+    set_authenticated_session($user);
+    issue_remember_token((int)$user['id']);
+    return true;
+}
+
+function remember_user_login(int $user_id, bool $remember): void {
+    if ($remember) {
+        issue_remember_token($user_id);
+        return;
+    }
+    if (auth_token_tables_ready()) query('DELETE FROM auth_remember_tokens WHERE user_id=?', [$user_id], 'i');
+    clear_remember_cookie();
+}
+
+function revoke_current_remember_token(): void {
+    $raw = $_COOKIE[OJTRACK_REMEMBER_COOKIE] ?? '';
+    if (auth_token_tables_ready() && is_string($raw) && preg_match('/^([a-f0-9]{24}):[a-f0-9]{64}$/', $raw, $m)) {
+        query('DELETE FROM auth_remember_tokens WHERE selector=?', [$m[1]], 's');
+    }
+    clear_remember_cookie();
+}
+
+function create_password_reset_token(int $user_id): ?string {
+    if (!auth_token_tables_ready() || $user_id < 1) return null;
+    $selector = bin2hex(random_bytes(12));
+    $token = bin2hex(random_bytes(32));
+    $expires = date('Y-m-d H:i:s', time() + 30 * 60);
+    query('DELETE FROM password_reset_tokens WHERE user_id=? OR expires_at<NOW()', [$user_id], 'i');
+    insert('INSERT INTO password_reset_tokens (user_id, selector, token_hash, expires_at, request_ip) VALUES (?,?,?,?,?)',
+        [$user_id, $selector, hash('sha256', $token), $expires, substr((string)($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45)], 'issss');
+    return $selector . '.' . $token;
+}
+
+function password_reset_user(string $selector, string $token): ?array {
+    if (!auth_token_tables_ready() || !preg_match('/^[a-f0-9]{24}$/', $selector) || !preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+    $row = query_one("SELECT id,user_id,token_hash FROM password_reset_tokens WHERE selector=? AND used_at IS NULL AND expires_at>NOW() LIMIT 1", [$selector], 's');
+    if (!$row || !hash_equals((string)$row['token_hash'], hash('sha256', $token))) return null;
+    return auth_user_context((int)$row['user_id']);
+}
+
+function consume_password_reset_token(string $selector, string $token): ?array {
+    $user = password_reset_user($selector, $token);
+    if (!$user) return null;
+    query('UPDATE password_reset_tokens SET used_at=NOW() WHERE selector=? AND used_at IS NULL', [$selector], 's');
+    query('DELETE FROM auth_remember_tokens WHERE user_id=?', [(int)$user['id']], 'i');
+    return $user;
+}
+
 function is_logged_in() {
+    if (empty($_SESSION['user_id']) || empty($_SESSION['auth_fingerprint'])) restore_remembered_session();
     if (empty($_SESSION['user_id']) || empty($_SESSION['auth_fingerprint'])) return false;
     $account = query_one("SELECT id, name, email, role, status, password, avatar FROM users WHERE id=?", [(int)$_SESSION['user_id']], 'i');
     $expired = time() - (int)($_SESSION['last_activity'] ?? 0) > 1800;

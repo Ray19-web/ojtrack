@@ -22,7 +22,7 @@ foreach (['admin','api','app','assets','company','config','coordinator','fronten
         $files[$relative] = $file->getPathname();
     }
 }
-foreach (['.htaccess','index.php','login.php','logout.php','download.php','certificate.php','README.md','docs/SYSTEM_DOCUMENTATION.md','docs/RELEASE_NOTES.md','docs/DEPLOYMENT.md','docs/VERIFICATION.md','docs/architecture/README.md','database/.htaccess','database/install.sql','database/default-programs.json','database/bsit-ojt-evaluation.json','bin/.htaccess','bin/create-admin.php','bin/preflight.php','bin/set-default-programs.php'] as $relative) {
+foreach (['.htaccess','index.php','login.php','logout.php','forgot-password.php','reset-password.php','download.php','certificate.php','README.md','docs/SYSTEM_DOCUMENTATION.md','docs/RELEASE_NOTES.md','docs/DEPLOYMENT.md','docs/VERIFICATION.md','docs/architecture/README.md','docs/diagrams/use-case-diagram.svg','docs/diagrams/use-case-diagram-large.svg','database/.htaccess','database/install.sql','database/default-programs.json','database/bsit-ojt-evaluation.json','database/migrations/019_auth_tokens.sql','bin/.htaccess','bin/create-admin.php','bin/preflight.php','bin/migrate-auth-tokens.php','bin/set-default-programs.php'] as $relative) {
     if (!is_file($project.'/'.$relative)) throw new RuntimeException('Missing release input: '.$relative);
     $files[$relative] = $project.'/'.$relative;
 }

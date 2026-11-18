@@ -1,5 +1,18 @@
 # Web release notes - 1 November 2026
 
+## Authentication recovery - 18 November 2026
+
+- Added secure 30-day Remember Me sessions backed by rotated, hashed server tokens.
+- Added one-time, 30-minute password-reset links with token invalidation after use and after password changes.
+- Added local-development reset-link visibility for XAMPP environments without configured outbound email; production responses remain account-enumeration-safe.
+
+## Web cleanup - 18 November 2026
+
+- Removed the project-local BSIT company demonstration seed and the staged synthetic database seed scripts. The maintained web source no longer includes those demo-data generators.
+- Removed generated user-testing PDF screenshots from `tmp/`; temporary fixture output is not part of the web application.
+- Reset the local demonstration database's operational records and uploaded files while retaining registered account identities, basic role profiles, and reference catalog definitions. Students now have pending OJT status, no placement or assignments, no onboarding completion, and zero rendered hours.
+- This cleanup applies to the web project only. The `mobile/` directory remains outside the project scope and was not modified.
+
 - Prepared an allowlisted web deployment archive with a clean installation schema and per-file SHA-256 manifest.
 - Moved unrelated application code, temporary fixtures/screenshots, historical audit documents, populated SQL exports, demo seed/repair scripts, and personal roster sources to a dated backup outside the web project. Existing live database records and runtime uploads were preserved.
 - Excluded source control, tests, legacy migration tools, runtime uploads, machine-local configuration, and development-only material from the deployment archive. Essential first-admin, catalog, and preflight commands are included.

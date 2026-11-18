@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1854" viewBox="0 0 1700 1854" font-family="Segoe UI, Arial, sans-serif">
+<defs>
+<marker id="tri" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L12,7 L1,13 Z" fill="#fff" stroke="#334155" stroke-width="1.4"/></marker>
+<marker id="open" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M1,1 L10,6 L1,11" fill="none" stroke="#475569" stroke-width="1.4"/></marker>
+</defs>
+<rect width="1700" height="1854" fill="#ffffff"/>
+<text x="850" y="1842" text-anchor="middle" font-size="12" fill="#64748b">OJTRACK Web Application - Use Case Diagram (web portals only: admin/, coordinator/, company/, student/)</text>
+<rect x="240" y="110" width="1220" height="1704" rx="14" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+<text x="850" y="132" text-anchor="middle" font-size="16" font-weight="700" fill="#0f172a">OJTRACK - OJT Monitoring System (Web)</text>
+<rect x="700" y="25" width="300" height="70" rx="8" fill="#f1f5f9" stroke="#334155" stroke-width="1.6"/>
+<text x="850" y="52" text-anchor="middle" font-size="12" font-style="italic" fill="#475569">«abstract actor»</text>
+<text x="850" y="76" text-anchor="middle" font-size="16" font-weight="700" fill="#0f172a">Authenticated User</text>
+<rect x="710" y="170" width="280" height="404" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4"/><text x="850" y="193" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">Common Use Cases (All Roles)</text>
+<rect x="260" y="170" width="410" height="704" rx="10" fill="#fffbeb" stroke="#b45309" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="465.0" y="193" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">Administrator Use Cases</text>
+<rect x="260" y="900" width="410" height="884" rx="10" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="465.0" y="923" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">Coordinator Use Cases</text>
+<rect x="1030" y="170" width="410" height="584" rx="10" fill="#ecfdf5" stroke="#047857" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="1235.0" y="193" text-anchor="middle" font-size="14" font-weight="700" fill="#047857">Company Supervisor Use Cases</text>
+<rect x="1030" y="780" width="410" height="764" rx="10" fill="#fff1f2" stroke="#be123c" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="1235.0" y="803" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">Student Use Cases</text>
+<line x1="176" y1="512.0" x2="280.0" y2="226.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="286.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="346.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="406.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="466.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="526.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="586.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="646.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="706.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="766.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="512.0" x2="280.0" y2="826.0" stroke="#b45309" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="956.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1016.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1076.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1136.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1196.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1316.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1376.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1496.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1556.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1616.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1676.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="176" y1="1332.0" x2="280.0" y2="1736.0" stroke="#1d4ed8" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="226.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="286.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="346.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="406.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="466.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="526.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="586.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="646.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="452.0" x2="1420.0" y2="706.0" stroke="#047857" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="836.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="896.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="956.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1016.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1076.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1136.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1196.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1256.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1316.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1376.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1436.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="1524" y1="1152.0" x2="1420.0" y2="1496.0" stroke="#be123c" stroke-width="1.2" opacity=".75"/>
+<line x1="465.0" y1="1236" x2="465.0" y2="1217" stroke="#475569" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#open)"/>
+<text x="473.0" y="1230" font-size="10.5" font-style="italic" fill="#475569">«extend»</text>
+<line x1="465.0" y1="1416" x2="465.0" y2="1397" stroke="#475569" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#open)"/>
+<text x="473.0" y="1410" font-size="10.5" font-style="italic" fill="#475569">«extend»</text>
+<polyline points="725,95 725,526.0" fill="none" stroke="#334155" stroke-width="1.3"/>
+<line x1="725" y1="226.0" x2="735" y2="226.0" stroke="#334155" stroke-width="1.3"/>
+<line x1="725" y1="286.0" x2="735" y2="286.0" stroke="#334155" stroke-width="1.3"/>
+<line x1="725" y1="346.0" x2="735" y2="346.0" stroke="#334155" stroke-width="1.3"/>
+<line x1="725" y1="406.0" x2="735" y2="406.0" stroke="#334155" stroke-width="1.3"/>
+<line x1="725" y1="466.0" x2="735" y2="466.0" stroke="#334155" stroke-width="1.3"/>
+<line x1="725" y1="526.0" x2="735" y2="526.0" stroke="#334155" stroke-width="1.3"/>
+<polyline points="124,1332.0 60,1332.0 60,45 700,45" fill="none" stroke="#1d4ed8" stroke-width="1.6" marker-end="url(#tri)"/>
+<polyline points="150,470.0 150,75 700,75" fill="none" stroke="#b45309" stroke-width="1.6" marker-end="url(#tri)"/>
+<polyline points="1576,1152.0 1640,1152.0 1640,45 1000,45" fill="none" stroke="#be123c" stroke-width="1.6" marker-end="url(#tri)"/>
+<polyline points="1550,410.0 1550,75 1000,75" fill="none" stroke="#047857" stroke-width="1.6" marker-end="url(#tri)"/>
+<ellipse cx="465.0" cy="226.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="230.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Dashboard &amp; Statistics</text>
+<ellipse cx="465.0" cy="286.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="290.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Academic Terms (Save / Activate)</text>
+<ellipse cx="465.0" cy="346.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="350.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Programs</text>
+<ellipse cx="465.0" cy="406.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="410.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage User Accounts</text>
+<ellipse cx="465.0" cy="466.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="470.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Coordinators</text>
+<ellipse cx="465.0" cy="526.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="530.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Students</text>
+<ellipse cx="465.0" cy="586.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="590.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Partner Companies</text>
+<ellipse cx="465.0" cy="646.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="650.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Student Assignments</text>
+<ellipse cx="465.0" cy="706.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="710.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Announcements</text>
+<ellipse cx="465.0" cy="766.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="770.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Restore Archived Users</text>
+<ellipse cx="465.0" cy="826.0" rx="185.0" ry="20.0" fill="#fde68a" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="830.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Activity Log</text>
+<ellipse cx="465.0" cy="956.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="960.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Dashboard</text>
+<ellipse cx="465.0" cy="1016.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1020.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Student Assignments</text>
+<ellipse cx="465.0" cy="1076.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1080.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Requirement Templates</text>
+<ellipse cx="465.0" cy="1136.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1140.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Send Requirements to Students</text>
+<ellipse cx="465.0" cy="1196.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1200.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Review Requirement Submissions</text>
+<ellipse cx="465.0" cy="1256.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1260.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Approve / Reject Submission</text>
+<ellipse cx="465.0" cy="1316.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1320.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Create Report Assignments</text>
+<ellipse cx="465.0" cy="1376.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1380.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Review Narrative Reports</text>
+<ellipse cx="465.0" cy="1436.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1440.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Approve / Reject Report</text>
+<ellipse cx="465.0" cy="1496.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1500.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Review Student Journals</text>
+<ellipse cx="465.0" cy="1556.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1560.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Evaluation Forms</text>
+<ellipse cx="465.0" cy="1616.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1620.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Student Attendance</text>
+<ellipse cx="465.0" cy="1676.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1680.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Announcements</text>
+<ellipse cx="465.0" cy="1736.0" rx="185.0" ry="20.0" fill="#bfdbfe" stroke="#334155" stroke-width="1.3"/>
+<text x="465.0" y="1740.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Send / Receive Messages</text>
+<ellipse cx="1235.0" cy="226.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="230.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Dashboard</text>
+<ellipse cx="1235.0" cy="286.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="290.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Assigned Trainees &amp; Details</text>
+<ellipse cx="1235.0" cy="346.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="350.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Record Attendance (Bulk Time In / Out)</text>
+<ellipse cx="1235.0" cy="406.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="410.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Attendance Logs</text>
+<ellipse cx="1235.0" cy="466.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="470.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Evaluate Trainees</text>
+<ellipse cx="1235.0" cy="526.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="530.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Manage Certificate Template</text>
+<ellipse cx="1235.0" cy="586.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="590.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Issue Certificates</text>
+<ellipse cx="1235.0" cy="646.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="650.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Post / Manage Announcements</text>
+<ellipse cx="1235.0" cy="706.0" rx="185.0" ry="20.0" fill="#a7f3d0" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="710.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Send / Receive Messages</text>
+<ellipse cx="1235.0" cy="836.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="840.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Dashboard &amp; OJT Progress</text>
+<ellipse cx="1235.0" cy="896.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="900.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Complete Onboarding</text>
+<ellipse cx="1235.0" cy="956.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="960.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Upload Requirement Files</text>
+<ellipse cx="1235.0" cy="1016.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1020.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Submit / Delete Daily Journal</text>
+<ellipse cx="1235.0" cy="1076.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1080.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Submit Narrative Reports</text>
+<ellipse cx="1235.0" cy="1136.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1140.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Download Monthly DTR / Journal PDF</text>
+<ellipse cx="1235.0" cy="1196.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1200.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Submit Monthly Report to Coordinator</text>
+<ellipse cx="1235.0" cy="1256.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1260.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Attendance Records</text>
+<ellipse cx="1235.0" cy="1316.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1320.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Evaluation Result &amp; PDF</text>
+<ellipse cx="1235.0" cy="1376.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1380.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View / Download Certificate</text>
+<ellipse cx="1235.0" cy="1436.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1440.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Announcements</text>
+<ellipse cx="1235.0" cy="1496.0" rx="185.0" ry="20.0" fill="#fecdd3" stroke="#334155" stroke-width="1.3"/>
+<text x="1235.0" y="1500.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Send / Receive Messages</text>
+<ellipse cx="850" cy="226.0" rx="115" ry="20.0" fill="#e2e8f0" stroke="#334155" stroke-width="1.3"/><text x="850" y="230.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Log In</text>
+<ellipse cx="850" cy="286.0" rx="115" ry="20.0" fill="#e2e8f0" stroke="#334155" stroke-width="1.3"/><text x="850" y="290.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Log Out</text>
+<ellipse cx="850" cy="346.0" rx="115" ry="20.0" fill="#e2e8f0" stroke="#334155" stroke-width="1.3"/><text x="850" y="350.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Update Profile</text>
+<ellipse cx="850" cy="406.0" rx="115" ry="20.0" fill="#e2e8f0" stroke="#334155" stroke-width="1.3"/><text x="850" y="410.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Change Password</text>
+<ellipse cx="850" cy="466.0" rx="115" ry="20.0" fill="#e2e8f0" stroke="#334155" stroke-width="1.3"/><text x="850" y="470.5" text-anchor="middle" font-size="12.5" fill="#0f172a">Upload Profile Photo</text>
+<ellipse cx="850" cy="526.0" rx="115" ry="20.0" fill="#e2e8f0" stroke="#334155" stroke-width="1.3"/><text x="850" y="530.5" text-anchor="middle" font-size="12.5" fill="#0f172a">View Notifications</text>
+
+<g stroke="#b45309" stroke-width="2.5" fill="none" stroke-linecap="round"><circle cx="150" cy="488.0" r="13" fill="#fff"/><line x1="150" y1="501.0" x2="150" y2="536.0"/><line x1="126" y1="512.0" x2="174" y2="512.0"/><line x1="150" y1="536.0" x2="130" y2="566.0"/><line x1="150" y1="536.0" x2="170" y2="566.0"/></g><text x="150" y="586.0" text-anchor="middle" font-size="14" font-weight="700" fill="#b45309">Administrator</text>
+<g stroke="#1d4ed8" stroke-width="2.5" fill="none" stroke-linecap="round"><circle cx="150" cy="1308.0" r="13" fill="#fff"/><line x1="150" y1="1321.0" x2="150" y2="1356.0"/><line x1="126" y1="1332.0" x2="174" y2="1332.0"/><line x1="150" y1="1356.0" x2="130" y2="1386.0"/><line x1="150" y1="1356.0" x2="170" y2="1386.0"/></g><text x="150" y="1406.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1d4ed8">Coordinator</text>
+<g stroke="#047857" stroke-width="2.5" fill="none" stroke-linecap="round"><circle cx="1550" cy="428.0" r="13" fill="#fff"/><line x1="1550" y1="441.0" x2="1550" y2="476.0"/><line x1="1526" y1="452.0" x2="1574" y2="452.0"/><line x1="1550" y1="476.0" x2="1530" y2="506.0"/><line x1="1550" y1="476.0" x2="1570" y2="506.0"/></g><text x="1550" y="526.0" text-anchor="middle" font-size="14" font-weight="700" fill="#047857">Company Supervisor</text>
+<g stroke="#be123c" stroke-width="2.5" fill="none" stroke-linecap="round"><circle cx="1550" cy="1128.0" r="13" fill="#fff"/><line x1="1550" y1="1141.0" x2="1550" y2="1176.0"/><line x1="1526" y1="1152.0" x2="1574" y2="1152.0"/><line x1="1550" y1="1176.0" x2="1530" y2="1206.0"/><line x1="1550" y1="1176.0" x2="1570" y2="1206.0"/></g><text x="1550" y="1226.0" text-anchor="middle" font-size="14" font-weight="700" fill="#be123c">Student</text>
+<g transform="translate(1030,1664)"><rect width="410" height="150" rx="8" fill="#fff" stroke="#94a3b8"/>
+<text x="14" y="24" font-size="13" font-weight="700" fill="#0f172a">Legend</text>
+<line x1="14" y1="46" x2="64" y2="46" stroke="#334155" stroke-width="1.3"/><text x="76" y="50" font-size="12" fill="#334155">Association (actor uses the use case)</text>
+<line x1="14" y1="72" x2="64" y2="72" stroke="#475569" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#open)"/><text x="76" y="76" font-size="12" fill="#334155">«extend» (optional behaviour)</text>
+<line x1="14" y1="98" x2="56" y2="98" stroke="#334155" stroke-width="1.6" marker-end="url(#tri)"/><text x="76" y="102" font-size="12" fill="#334155">Generalization (role is an Authenticated User)</text>
+<text x="14" y="130" font-size="11.5" fill="#64748b">Admin has no messaging module; all other roles do.</text></g>
+</svg>

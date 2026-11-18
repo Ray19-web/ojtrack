@@ -26,7 +26,9 @@ $remaining_hours = max(0.0, (float)$student['required_hours'] - (float)$student[
 $remaining_hours_display = rtrim(rtrim(number_format($remaining_hours, 1), '0'), '.');
 $ojt_progress_tone = ($student['ojt_status'] ?? '') === 'completed' || $pct >= 100
     ? 'complete'
-    : ($pct >= 25 ? 'progress' : 'starting');
+    // Keep the banner state class separate from .ojt-banner-progress,
+    // which belongs to the circular progress indicator below.
+    : ($pct >= 25 ? 'active' : 'starting');
 
 $requirement_rows = normalized_requirement_rows_for_student((int)$student['id']);
 $req_total = count($requirement_rows);
