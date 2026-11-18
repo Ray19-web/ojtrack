@@ -95,6 +95,215 @@ document.addEventListener('keydown', event => {
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
 
+// ── Fast shared tooltips ───────────────────────────────────
+// Use one lightweight, accessible popover for every explicit title/data-tooltip
+// hint. Native browser title bubbles are slow, inconsistent, and can remain
+// behind sticky panels; this layer is delegated so it also covers controls
+// inserted later by table tools, filters, and modal forms.
+const ojtrackTooltip = {
+  element: null,
+  target: null,
+  timer: 0,
+  hideTimer: 0,
+  previousDescribedBy: ''
+};
+let ojtrackTooltipId = 0;
+const multiSelectCheckboxSelector = [
+  'input[type="checkbox"].user-select-checkbox',
+  'input[type="checkbox"].program-select-checkbox',
+  'input[type="checkbox"].report-row-select',
+  'input[type="checkbox"].report-student-check',
+  'input[type="checkbox"].requirement-row-checkbox',
+  'input[type="checkbox"].journal-entry-select',
+  'input[type="checkbox"].send-option-checkbox',
+  'input[type="checkbox"][data-evaluation-card-select]',
+  '#evaluationFormList input[type="checkbox"]',
+  '#evaluationCompanyList input[type="checkbox"]',
+  'input[type="checkbox"][data-message-select-visible]',
+  'input[type="checkbox"][data-user-select-all]',
+  'input[type="checkbox"][data-archived-user-select-all]',
+  'input[type="checkbox"][data-program-select-all]',
+  'input[type="checkbox"]#reportSelectAll',
+  'input[type="checkbox"]#reportStudentSelectAll',
+  'input[type="checkbox"]#selectAllRequirements',
+  'input[type="checkbox"]#journalSelectAll',
+  'input[type="checkbox"]#evaluationFormSelectAll',
+  'input[type="checkbox"]#evaluationCompanySelectAll',
+  'input[type="checkbox"].send-select-all',
+  '.send-multiselect-select-all input[type="checkbox"]',
+  '.journal-select-all input[type="checkbox"]',
+  '.evaluation-card-select input[type="checkbox"]',
+  '.bulk-trainee-option input[type="checkbox"]',
+  '[data-recipient-option] input[type="checkbox"]'
+].join(',');
+
+function initializeMultiSelectCheckboxTooltips(root = document) {
+  if (!root?.querySelectorAll) return;
+  const checkboxes = root.matches?.(multiSelectCheckboxSelector)
+    ? [root, ...root.querySelectorAll(multiSelectCheckboxSelector)]
+    : [...root.querySelectorAll(multiSelectCheckboxSelector)];
+  checkboxes.forEach(checkbox => {
+    if (checkbox.hasAttribute('title') || checkbox.hasAttribute('data-tooltip') || checkbox.hasAttribute('data-tooltip-text')) return;
+    const label = checkbox.closest('label');
+    const source = checkbox.getAttribute('aria-label') || label?.getAttribute('title') || label?.textContent || '';
+    const text = source.replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    checkbox.dataset.tooltip = /^select\b/i.test(text) ? text : `Select ${text}`;
+  });
+}
+
+function getTooltipText(target) {
+  if (!(target instanceof Element)) return '';
+  const title = target.getAttribute('title');
+  if (title) {
+    target.dataset.tooltip = title;
+    target.dataset.tooltipTitle = title;
+    target.removeAttribute('title');
+  }
+  const explicit = target.getAttribute('data-tooltip') || target.getAttribute('data-tooltip-text');
+  return (explicit || target.dataset.tooltip || target.dataset.tooltipTitle || '').trim();
+}
+
+function tooltipTargetFromEvent(event) {
+  const target = event.target instanceof Element ? event.target.closest('[data-tooltip], [data-tooltip-text], [title]') : null;
+  return target && document.documentElement.contains(target) ? target : null;
+}
+
+function positionOjtrackTooltip(target, tooltip) {
+  const targetRect = target.getBoundingClientRect();
+  const gap = 9;
+  const edge = 10;
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const maxLeft = Math.max(edge, window.innerWidth - tooltipRect.width - edge);
+  const left = Math.min(Math.max(edge, targetRect.left + (targetRect.width - tooltipRect.width) / 2), maxLeft);
+  const below = targetRect.bottom + gap;
+  const above = targetRect.top - tooltipRect.height - gap;
+  const top = below + tooltipRect.height <= window.innerHeight - edge || above < edge ? below : above;
+  tooltip.style.left = `${Math.round(left)}px`;
+  tooltip.style.top = `${Math.round(Math.max(edge, top))}px`;
+}
+
+function hideOjtrackTooltip(immediate = false) {
+  window.clearTimeout(ojtrackTooltip.timer);
+  window.clearTimeout(ojtrackTooltip.hideTimer);
+  const tooltip = ojtrackTooltip.element;
+  const target = ojtrackTooltip.target;
+  if (!tooltip) {
+    ojtrackTooltip.target = null;
+    return;
+  }
+  if (target) {
+    if (ojtrackTooltip.previousDescribedBy) target.setAttribute('aria-describedby', ojtrackTooltip.previousDescribedBy);
+    else target.removeAttribute('aria-describedby');
+  }
+  ojtrackTooltip.target = null;
+  if (immediate) {
+    tooltip.remove();
+    ojtrackTooltip.element = null;
+    return;
+  }
+  tooltip.classList.remove('is-visible');
+  ojtrackTooltip.hideTimer = window.setTimeout(() => {
+    if (tooltip === ojtrackTooltip.element) {
+      tooltip.remove();
+      ojtrackTooltip.element = null;
+    }
+  }, 140);
+}
+
+function showOjtrackTooltip(target, immediate = false) {
+  const text = getTooltipText(target);
+  if (!text) return;
+  window.clearTimeout(ojtrackTooltip.timer);
+  window.clearTimeout(ojtrackTooltip.hideTimer);
+  if (ojtrackTooltip.target === target && ojtrackTooltip.element) return;
+  hideOjtrackTooltip(true);
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'ojtrack-tooltip';
+  tooltip.id = `ojtrack-tooltip-${++ojtrackTooltipId}`;
+  tooltip.setAttribute('role', 'tooltip');
+  tooltip.textContent = text;
+  document.body.appendChild(tooltip);
+  ojtrackTooltip.element = tooltip;
+  ojtrackTooltip.target = target;
+  ojtrackTooltip.previousDescribedBy = target.getAttribute('aria-describedby') || '';
+  const describedBy = [ojtrackTooltip.previousDescribedBy, tooltip.id].filter(Boolean).join(' ');
+  target.setAttribute('aria-describedby', describedBy);
+  positionOjtrackTooltip(target, tooltip);
+  // Let the browser paint the position before animating opacity/transform.
+  requestAnimationFrame(() => tooltip.classList.add('is-visible'));
+}
+
+function scheduleOjtrackTooltip(target, immediate = false) {
+  window.clearTimeout(ojtrackTooltip.timer);
+  if (!target || !getTooltipText(target)) return;
+  if (immediate) {
+    showOjtrackTooltip(target, true);
+    return;
+  }
+  ojtrackTooltip.timer = window.setTimeout(() => showOjtrackTooltip(target), 110);
+}
+
+function initializeOjtrackTooltips(root = document) {
+  if (!root?.querySelectorAll) return;
+  initializeMultiSelectCheckboxTooltips(root);
+  const elements = root.matches?.('[title], [data-tooltip], [data-tooltip-text]')
+    ? [root, ...root.querySelectorAll('[title], [data-tooltip], [data-tooltip-text]')]
+    : [...root.querySelectorAll('[title], [data-tooltip], [data-tooltip-text]')];
+  elements.forEach(element => getTooltipText(element));
+  if (ojtrackTooltip.target && !ojtrackTooltip.target.isConnected) hideOjtrackTooltip(true);
+}
+
+document.addEventListener('mouseover', event => {
+  const target = tooltipTargetFromEvent(event);
+  if (!target || (event.relatedTarget instanceof Node && target.contains(event.relatedTarget))) return;
+  scheduleOjtrackTooltip(target);
+});
+document.addEventListener('mouseout', event => {
+  const target = tooltipTargetFromEvent(event);
+  if (!target || (event.relatedTarget instanceof Node && target.contains(event.relatedTarget))) return;
+  if (target.matches(':focus')) return;
+  hideOjtrackTooltip();
+});
+document.addEventListener('focusin', event => {
+  const target = tooltipTargetFromEvent(event);
+  if (target) scheduleOjtrackTooltip(target, true);
+});
+document.addEventListener('focusout', event => {
+  const target = tooltipTargetFromEvent(event);
+  if (target && !(event.relatedTarget instanceof Node && target.contains(event.relatedTarget))) hideOjtrackTooltip();
+});
+document.addEventListener('pointerdown', event => {
+  const target = tooltipTargetFromEvent(event);
+  if (target && event.pointerType === 'touch') scheduleOjtrackTooltip(target, true);
+  else if (!target && ojtrackTooltip.target) hideOjtrackTooltip();
+});
+// A clicked control may remain focused, so mouseout alone cannot dismiss its
+// tooltip. Hide it during the click capture phase before row, form, or modal
+// handlers run; this applies consistently to every page using the shared layer.
+document.addEventListener('click', () => {
+  if (ojtrackTooltip.target || ojtrackTooltip.element) hideOjtrackTooltip(true);
+}, true);
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && ojtrackTooltip.target) hideOjtrackTooltip(true);
+});
+window.addEventListener('resize', () => {
+  if (ojtrackTooltip.target && ojtrackTooltip.element) positionOjtrackTooltip(ojtrackTooltip.target, ojtrackTooltip.element);
+});
+window.addEventListener('scroll', () => hideOjtrackTooltip(), true);
+document.addEventListener('DOMContentLoaded', () => {
+  initializeOjtrackTooltips(document);
+  const tooltipObserver = new MutationObserver(records => {
+    records.forEach(record => {
+      if (record.type === 'childList') record.addedNodes.forEach(node => initializeOjtrackTooltips(node));
+      if (record.type === 'attributes') initializeOjtrackTooltips(record.target);
+    });
+    if (ojtrackTooltip.target && !ojtrackTooltip.target.isConnected) hideOjtrackTooltip(true);
+  });
+  tooltipObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title', 'data-tooltip', 'data-tooltip-text'] });
+});
+
 /** Prevent nested controls (buttons, links, forms) from triggering row/card click handlers */
 function stopRowClick(e) {
   if (e) e.stopPropagation();
@@ -110,12 +319,53 @@ document.addEventListener('click', event => {
   window.location.assign(row.dataset.rowLink);
 });
 
-// Close modal on overlay click
-document.addEventListener('click', function(e) {
-  if (e.target.classList.contains('modal-overlay')) {
-    closeModal(e.target.id);
+// Close a modal only on a genuine backdrop click. Browsers can emit a click on
+// the overlay when a mouse drag starts inside a long form and ends outside it;
+// tracking the pointer origin/movement prevents that gesture from discarding
+// the user's unfinished form.
+const modalBackdropPointer = {pointerId: null, overlay: null, startedOnOverlay: false, moved: false, x: 0, y: 0};
+document.addEventListener('pointerdown', event => {
+  const target = event.target instanceof Element ? event.target : null;
+  const overlay = target?.closest('.modal-overlay.open');
+  if (!overlay) return;
+  modalBackdropPointer.pointerId = event.pointerId;
+  modalBackdropPointer.overlay = overlay;
+  modalBackdropPointer.startedOnOverlay = target === overlay;
+  modalBackdropPointer.moved = false;
+  modalBackdropPointer.x = event.clientX;
+  modalBackdropPointer.y = event.clientY;
+}, true);
+document.addEventListener('pointermove', event => {
+  if (modalBackdropPointer.pointerId !== event.pointerId) return;
+  if (Math.hypot(event.clientX - modalBackdropPointer.x, event.clientY - modalBackdropPointer.y) > 6) {
+    modalBackdropPointer.moved = true;
   }
+}, true);
+document.addEventListener('pointercancel', event => {
+  if (modalBackdropPointer.pointerId === event.pointerId) {
+    modalBackdropPointer.pointerId = null;
+    modalBackdropPointer.overlay = null;
+  }
+}, true);
+document.addEventListener('click', function(event) {
+  if (!(event.target instanceof Element) || !event.target.classList.contains('modal-overlay')) return;
+  const state = modalBackdropPointer.pointerId === null ? null : {...modalBackdropPointer};
+  modalBackdropPointer.pointerId = null;
+  modalBackdropPointer.overlay = null;
+  if (state && (state.overlay !== event.target || !state.startedOnOverlay || state.moved)) return;
+  closeModal(event.target.id);
 });
+document.addEventListener('pointerup', event => {
+  if (modalBackdropPointer.pointerId !== event.pointerId) return;
+  // Keep the pointer record through the ensuing click event, then discard it
+  // if the browser did not synthesize a click (for example after a drag).
+  window.setTimeout(() => {
+    if (modalBackdropPointer.pointerId === event.pointerId) {
+      modalBackdropPointer.pointerId = null;
+      modalBackdropPointer.overlay = null;
+    }
+  }, 0);
+}, true);
 
 // ── Tabs ────────────────────────────────────────────────────
 function switchTab(tabGroup, tabId) {
@@ -570,7 +820,10 @@ async function updateLiveFilterResults(form, requestUrl = null) {
     bindLiveFilterForms(currentBody);
     currentBody.querySelectorAll('.table-wrap table').forEach((table, index) => addTableTools(table, index));
     restoreLiveFilterFocus(currentBody, focusInfo);
-    if (submittedFromDrawer) {
+    // A generated table search can use a hidden filter form as its data source,
+    // but the user is actively typing in the visible table-tools input. Do not
+    // move focus to the drawer toggle in that case; it interrupts the next key.
+    if (submittedFromDrawer && focusInfo?.kind !== 'table-tool') {
       const refreshedForm = document.querySelector('[data-live-filter-index="' + formIndex + '"]');
       if (refreshedForm?.id) document.querySelector('[data-table-filter-toggle="' + refreshedForm.id + '"]')?.focus({preventScroll: true});
     }
@@ -624,6 +877,62 @@ function bindLiveFilterForms(root = document) {
 }
 
 document.addEventListener('DOMContentLoaded', () => bindLiveFilterForms());
+
+// Keep browser validation visible next to the field that needs attention. The
+// native invalid event fires before submit, so this also covers forms that are
+// stopped by required, type, pattern, length, or range constraints.
+function fieldValidationMessage(field) {
+  const validity = field?.validity;
+  if (!validity) return '';
+  if (validity.valueMissing) return 'This field is required.';
+  if (validity.typeMismatch) return field.type === 'email' ? 'Enter a valid email address.' : 'Enter a valid value.';
+  if (validity.patternMismatch) return field.getAttribute('data-pattern-message') || 'Use the required format.';
+  if (validity.tooShort) return `Enter at least ${field.minLength} characters.`;
+  if (validity.tooLong) return `Use no more than ${field.maxLength} characters.`;
+  if (validity.rangeUnderflow) return `Enter a value of at least ${field.min}.`;
+  if (validity.rangeOverflow) return `Enter a value no greater than ${field.max}.`;
+  if (validity.stepMismatch) return 'Enter a valid value.';
+  return '';
+}
+
+function clearInlineFieldError(field) {
+  if (!field?.matches?.('input, select, textarea')) return;
+  field.classList.remove('field-invalid');
+  field.removeAttribute('aria-invalid');
+  const describedBy = (field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  const inlineErrorId = describedBy.find(id => document.getElementById(id)?.dataset.inlineFieldError === 'true');
+  if (inlineErrorId) {
+    const error = document.getElementById(inlineErrorId);
+    if (error?.dataset.inlineFieldError === 'true') error.remove();
+    const remaining = describedBy.filter(id => id !== inlineErrorId);
+    if (remaining.length) field.setAttribute('aria-describedby', remaining.join(' '));
+    else field.removeAttribute('aria-describedby');
+  }
+}
+
+function showInlineFieldError(field, message) {
+  if (!field?.matches?.('input, select, textarea') || !message) return;
+  clearInlineFieldError(field);
+  const id = field.id || field.name?.replace(/[^A-Za-z0-9_-]/g, '-') || 'field';
+  const error = document.createElement('div');
+  error.id = id + '-inline-error';
+  error.className = 'form-error field-error';
+  error.dataset.inlineFieldError = 'true';
+  error.setAttribute('role', 'alert');
+  error.textContent = message;
+  field.insertAdjacentElement('afterend', error);
+  field.classList.add('field-invalid');
+  field.setAttribute('aria-invalid', 'true');
+  field.setAttribute('aria-describedby', error.id);
+}
+
+document.addEventListener('invalid', event => {
+  const field = event.target;
+  const message = fieldValidationMessage(field);
+  if (message) showInlineFieldError(field, message);
+}, true);
+document.addEventListener('input', event => clearInlineFieldError(event.target), true);
+document.addEventListener('change', event => clearInlineFieldError(event.target), true);
 
 // Submit ordinary app forms in the background, then refresh the current page
 // after a successful mutation so every binding and server query is current.
@@ -735,6 +1044,103 @@ function formDataChanged(before, submitted) {
   return false;
 }
 
+function captureFormValueSnapshot(form) {
+  if (!form) return [];
+  return [...form.elements]
+    .filter(control => control.name && !['submit', 'button', 'reset', 'file', 'password'].includes(control.type))
+    .map(control => ({
+      name: control.name,
+      type: control.type,
+      value: control.value,
+      checked: control.type === 'checkbox' || control.type === 'radio' ? control.checked : undefined
+    }));
+}
+
+function findReplacementForm(settings = {}) {
+  const modal = settings.invalidModalId ? document.getElementById(settings.invalidModalId) : null;
+  const root = modal || document.querySelector('.page-body') || document;
+  const forms = [...root.querySelectorAll('form')];
+  if (settings.formId) {
+    const byId = document.getElementById(settings.formId);
+    if (byId) return byId;
+  }
+  if (settings.actionValue) {
+    const byAction = forms.find(form => form.elements.namedItem('action')?.value === settings.actionValue);
+    if (byAction) return byAction;
+  }
+  return modal?.querySelector('form') || null;
+}
+
+function restoreFormValueSnapshot(form, snapshot) {
+  if (!form || !Array.isArray(snapshot)) return;
+  const grouped = new Map();
+  snapshot.forEach(entry => {
+    if (!grouped.has(entry.name)) grouped.set(entry.name, []);
+    grouped.get(entry.name).push(entry);
+  });
+  grouped.forEach((entries, name) => {
+    const controls = [...form.elements].filter(control => control.name === name);
+    controls.forEach((control, index) => {
+      const entry = entries[index] || entries[0];
+      if (!entry) return;
+      if (control.type === 'checkbox' || control.type === 'radio') control.checked = Boolean(entry.checked);
+      else if (control.tagName === 'SELECT' && control.multiple) {
+        const selectedValues = new Set(entries.map(item => item.value));
+        [...control.options].forEach(option => { option.selected = selectedValues.has(option.value); });
+      }
+      else control.value = entry.value ?? '';
+    });
+  });
+  normalizeUppercaseNameFields(form);
+}
+
+function serverErrorFields(form, message) {
+  if (!form || !message) return [];
+  const text = message.toLowerCase();
+  const fields = [];
+  const add = selector => {
+    const field = form.querySelector(selector);
+    if (field && !fields.includes(field)) fields.push(field);
+  };
+  if (/email/.test(text)) add('[name="email"]');
+  if (/password/.test(text)) add('[name="password"]');
+  if (/(coordinator|student)\s*id|official id/.test(text)) add('[name="coordinator_id_no"], [name="student_id_no"]');
+  if (/(academic program|program|department)/.test(text)) add('[name="department"], [name="program_id"]');
+  if (/(phone|contact number)/.test(text)) add('[name="contact_number"]');
+  if (/first name/.test(text)) add('[name="first_name"]');
+  if (/last name/.test(text)) add('[name="last_name"]');
+  if (/middle name/.test(text)) add('[name="middle_name"]');
+  if (!fields.length) {
+    const firstField = form.querySelector('input:not([type="hidden"]):not([type="submit"]), select, textarea');
+    if (firstField) fields.push(firstField);
+  }
+  return fields;
+}
+
+function renderServerValidationError(form, message) {
+  if (!form || !message) return false;
+  const fields = serverErrorFields(form, message);
+  fields.forEach(field => {
+    const name = String(field.name || '').toLowerCase();
+    let fieldMessage = message;
+    if (name === 'email') {
+      fieldMessage = /already in use/i.test(message) ? 'This email address is already in use.' : 'Enter a valid email address.';
+    } else if (name === 'password') {
+      fieldMessage = 'Use a password that meets the minimum length requirement.';
+    } else if (name === 'coordinator_id_no' || name === 'student_id_no') {
+      fieldMessage = /already assigned|already in use/i.test(message) ? 'This ID is already assigned.' : 'Enter a valid ID using letters, numbers, or hyphens.';
+    } else if (name === 'department' || name === 'program_id') {
+      fieldMessage = 'Select a valid academic program.';
+    } else if (name === 'contact_number') {
+      fieldMessage = 'Enter a contact number within the allowed length.';
+    } else if (/first_name|last_name|middle_name/.test(name)) {
+      fieldMessage = 'Enter a valid name.';
+    }
+    showInlineFieldError(field, fieldMessage);
+  });
+  return fields.length > 0;
+}
+
 function extractPageFeedback(parsed) {
   const errors = [];
   const successes = [];
@@ -791,8 +1197,24 @@ async function sendFormInBackground(endpoint, payload, settings = {}) {
   }
 
   const feedback = extractPageFeedback(parsed);
-  if (!replacePageBody(parsed, finalUrl, feedback.invalidModalId)) throw new Error('The page could not be updated. Please try again.');
-  if (feedback.errors.length) throw new Error(feedback.errors[0]);
+  const invalidModalId = feedback.invalidModalId || settings.invalidModalId || '';
+  if (feedback.errors.length) {
+    // Keep the live form in place on validation failure. Replacing the page
+    // body here would erase the user's entered values before the error is read.
+    const validationForm = settings.formElement?.isConnected
+      ? settings.formElement
+      : findReplacementForm(settings);
+    if (validationForm) {
+      restoreFormValueSnapshot(validationForm, settings.formSnapshot);
+      if (invalidModalId && !document.getElementById(invalidModalId)?.classList.contains('open')) openModal(invalidModalId);
+    } else if (!replacePageBody(parsed, finalUrl, invalidModalId)) {
+      throw new Error('The page could not be updated. Please try again.');
+    }
+    const validationError = new Error(feedback.errors[0]);
+    validationError.inlineRendered = renderServerValidationError(validationForm, feedback.errors[0]);
+    throw validationError;
+  }
+  if (!replacePageBody(parsed, finalUrl, invalidModalId)) throw new Error('The page could not be updated. Please try again.');
   if (!response.ok) throw new Error('The request could not be completed. Please try again.');
 
   return feedback.successes[0] || settings.successMessage || 'Changes saved.';
@@ -811,13 +1233,24 @@ document.addEventListener('submit', async event => {
   if (submitter?.name && !payload.has(submitter.name)) payload.append(submitter.name, submitter.value);
   const baseline = baselineFormData(form);
   const undoAction = getUndoAction(endpoint.href, payload, baseline);
+  const formSnapshot = captureFormValueSnapshot(form);
+  const invalidModalId = form.closest('.modal-overlay')?.id || '';
+  const formId = form.id || '';
+  const actionValue = String(payload.get('action') || '');
   const submitButtons = [...form.querySelectorAll('button[type="submit"], input[type="submit"], button:not([type])')];
   const buttonLabels = submitButtons.map(button => button.tagName === 'INPUT' ? button.value : button.textContent);
   submitButtons.forEach(button => { button.disabled = true; button.setAttribute('aria-busy', 'true'); });
   form.setAttribute('aria-busy', 'true');
 
   try {
-    const successMessage = await sendFormInBackground(endpoint.href, payload, {silent: true});
+    const successMessage = await sendFormInBackground(endpoint.href, payload, {
+      silent: true,
+      formSnapshot,
+      invalidModalId,
+      formId,
+      actionValue,
+      formElement: form
+    });
     if (undoAction) {
       window.showAppToast(successMessage, {
         type: 'success',
@@ -832,7 +1265,9 @@ document.addEventListener('submit', async event => {
       refreshAfterSuccessfulMutation();
     }
   } catch (error) {
-    window.showAppToast(error?.message || 'The request could not be completed. Please try again.', {type: 'error'});
+    if (!error?.inlineRendered) {
+      window.showAppToast(error?.message || 'The request could not be completed. Please try again.', {type: 'error'});
+    }
   } finally {
     form.removeAttribute('aria-busy');
     submitButtons.forEach((button, index) => {

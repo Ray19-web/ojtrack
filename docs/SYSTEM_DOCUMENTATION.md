@@ -2,13 +2,25 @@
 
 ## Architecture
 
-OJTRACK is a server-rendered PHP web application backed by MariaDB/MySQL. Shared PHP helpers enforce authentication, role authorization, CSRF validation, file validation, and document access. Browser JavaScript provides table search/filtering, attachment previews, notifications, messaging updates, modal interactions, and page guides. The application is installed at `/ojtrack/`.
+OJTRACK is a server-rendered PHP web application backed by MariaDB/MySQL. Shared PHP helpers enforce authentication, role authorization, CSRF validation, file validation, and document access. Browser JavaScript provides table search/filtering, attachment previews, notifications, messaging updates, modal interactions, page guides, inline form validation, and fast accessible tooltips. The application is installed at `/ojtrack/`.
 
 Runtime areas are `admin/`, `coordinator/`, `company/`, `student/`, and authenticated endpoints under `api/`. Shared layouts and reusable UI components are in `frontend/`; backend services, middleware, infrastructure, and support helpers are in `app/`. The legacy `includes/` and `config/` paths remain compatibility entry points. Browser resources are in `assets/`, and the release installation schema is `database/install.sql`.
 
 ## Reference diagrams
 
 The [large web use case diagram](diagrams/use-case-diagram-large.svg) summarizes the supported Administrator, Coordinator, Company Supervisor, and Student workflows. The [detailed web use case diagram](diagrams/use-case-diagram.svg) provides the corresponding individual use cases. Both diagrams cover the web application only; the `mobile/` directory is outside this system documentation and remains out of scope.
+
+## Shared web interaction behavior
+
+Controls with explicit `title`, `data-tooltip`, or `data-tooltip-text` text use the shared fast tooltip popover in `assets/js/main.js`. It appears on pointer hover, keyboard focus, and touch interaction, is positioned above sticky panels and modal overlays, and closes on pointer exit, click, Escape, scrolling, or resizing. Multi-select checkboxes also receive a generated hint from their accessible label or nearby option text, covering select-all controls and row selections without changing unrelated form checkboxes. The popover uses `role="tooltip"` and temporary `aria-describedby` wiring; screen-reader-only `aria-label` values are not displayed as tooltips. Dynamically created table actions and modal controls are covered automatically. Modal backdrops close only on a direct backdrop click; dragging from a form into or outside the backdrop does not discard the form.
+
+Profile settings actions remain pinned to the bottom edge of the profile modal while its longer content scrolls, so Close, Save Changes, and related actions remain available without requiring the user to reach the end of the form.
+
+The company certificate template editor uses the same separated scroll body and fixed action footer, keeping Cancel and Save Template visible while editing longer templates.
+
+Long student create/edit forms, coordinator requirement and evaluation assignment forms, and company bulk-attendance forms use the same layout: only the form body scrolls, while the action footer remains visible and usable.
+
+The company certificate editor presents automatic student and training fields in plain language. Its body text still supports the documented placeholders, which are replaced with the selected student’s details when the certificate is issued.
 
 ## Roles and ownership
 

@@ -164,11 +164,21 @@ require_once __DIR__ . '/../includes/header.php';
       <?php endif; ?>
     </div>
 <div class="modal-overlay" id="templateModal">
-  <div class="modal modal-lg" style="max-height:90vh;overflow-y:auto">
-    <div class="modal-title">Editable Template</div>
-    <p class="modal-sub">Company template. Fields: {student_name}, {program}, {company_name}, {rendered_hours}, {coordinator_name}, {date}</p>
-    <div style="max-height:60vh;overflow-y:auto;padding-right:4px">
-      <form method="POST" enctype="multipart/form-data"><?= csrf_field() ?>
+  <div class="modal modal-lg certificate-template-modal">
+    <div class="certificate-template-header">
+      <div class="modal-title">Editable Template</div>
+      <p class="modal-sub">Customize the certificate layout. Student and training details are filled in automatically when you issue a certificate.</p>
+      <div class="certificate-template-fields" aria-label="Automatic certificate details">
+        <span>Student name</span>
+        <span>Program</span>
+        <span>Company</span>
+        <span>Rendered hours</span>
+        <span>Coordinator</span>
+        <span>Date</span>
+      </div>
+    </div>
+    <div class="certificate-template-body">
+      <form method="POST" enctype="multipart/form-data" id="certificateTemplateForm"><?= csrf_field() ?>
         <input type="hidden" name="action" value="save_template">
         <div class="form-group">
           <label class="form-label">Company Logo</label>
@@ -192,7 +202,8 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="text" name="cert_title" class="form-control" value="<?= e($template['cert_title']) ?>">
         </div>
         <div class="form-group">
-          <label class="form-label">Body Text</label>
+          <label class="form-label">Body Text <span class="certificate-template-help" title="Automatic details are inserted using the supported field placeholders.">ⓘ</span></label>
+          <p class="certificate-template-field-hint">You can keep the existing automatic details or edit the surrounding wording.</p>
           <textarea name="body_text" class="form-control" rows="4"><?= e($template['body_text']) ?></textarea>
         </div>
         <div class="form-row">
@@ -210,11 +221,11 @@ require_once __DIR__ . '/../includes/header.php';
           <label class="form-label">Footer Text</label>
           <textarea name="footer_text" class="form-control" rows="2"><?= e($template['footer_text']) ?></textarea>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('templateModal')">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Template</button>
-        </div>
       </form>
+    </div>
+    <div class="modal-footer certificate-template-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('templateModal')">Cancel</button>
+      <button type="submit" form="certificateTemplateForm" class="btn btn-primary">Save Template</button>
     </div>
   </div>
 </div>

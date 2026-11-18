@@ -151,6 +151,21 @@ if ($terms_ready) {
     }
 }
 
+// Keep the year fields editable while offering a compact native suggestion
+// list for common school years. Users can still type any year within the
+// server-validated range (1900–2198 for the start year).
+$year_suggestions = [];
+$current_year = (int)date('Y');
+for ($year = max(1900, $current_year - 10); $year <= min(2198, $current_year + 20); $year++) {
+    $year_suggestions[$year] = true;
+}
+foreach ($terms as $term) {
+    $year_suggestions[(int)$term['academic_year_start']] = true;
+    $year_suggestions[(int)$term['academic_year_end']] = true;
+}
+$year_suggestions = array_keys($year_suggestions);
+sort($year_suggestions, SORT_NUMERIC);
+
 $page_title = 'Academic Terms';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -254,12 +269,13 @@ require_once __DIR__ . '/../includes/header.php';
       <form method="POST" id="academicTermForm">
         <?= csrf_field() ?><input type="hidden" name="action" value="save_term"><input type="hidden" name="term_id" id="academicTermId" value="<?= (int)$form_values['id'] ?>">
         <div class="academic-term-fields">
-          <div class="form-group"><label class="form-label" for="academicYearStart">School year starts</label><input class="form-control" id="academicYearStart" name="academic_year_start" type="number" min="1900" max="2198" step="1" placeholder="2026" value="<?= e($form_values['academic_year_start']) ?>" <?= $form_identity_locked ? 'disabled' : '' ?> required></div>
-          <div class="form-group"><label class="form-label" for="academicYearEnd">School year ends</label><input class="form-control" id="academicYearEnd" name="academic_year_end" type="number" min="1901" max="2199" step="1" placeholder="2027" value="<?= e($form_values['academic_year_end']) ?>" <?= $form_identity_locked ? 'disabled' : '' ?> required></div>
+          <div class="form-group"><label class="form-label" for="academicYearStart">School year starts <span class="academic-term-year-hint">Type or choose</span></label><input class="form-control" id="academicYearStart" name="academic_year_start" type="number" list="academicYearOptions" min="1900" max="2198" step="1" inputmode="numeric" placeholder="2026" value="<?= e($form_values['academic_year_start']) ?>" <?= $form_identity_locked ? 'disabled' : '' ?> required></div>
+          <div class="form-group"><label class="form-label" for="academicYearEnd">School year ends <span class="academic-term-year-hint">Type or choose</span></label><input class="form-control" id="academicYearEnd" name="academic_year_end" type="number" list="academicYearOptions" min="1901" max="2199" step="1" inputmode="numeric" placeholder="2027" value="<?= e($form_values['academic_year_end']) ?>" <?= $form_identity_locked ? 'disabled' : '' ?> required></div>
           <div class="form-group academic-term-semester-field"><label class="form-label" for="academicSemester">Semester</label><select class="form-control" id="academicSemester" name="semester" <?= $form_identity_locked ? 'disabled' : '' ?> required><option value="">Choose semester</option><option value="1st" <?= $form_values['semester'] === '1st' ? 'selected' : '' ?>>1st Semester</option><option value="2nd" <?= $form_values['semester'] === '2nd' ? 'selected' : '' ?>>2nd Semester</option><option value="summer" <?= $form_values['semester'] === 'summer' ? 'selected' : '' ?>>Summer</option></select></div>
           <div class="form-group"><label class="form-label" for="academicTermStart">Term starts <span class="text-muted">(optional)</span></label><input class="form-control" id="academicTermStart" name="starts_on" type="date" value="<?= e($form_values['starts_on']) ?>"></div>
           <div class="form-group"><label class="form-label" for="academicTermEnd">Term ends <span class="text-muted">(optional)</span></label><input class="form-control" id="academicTermEnd" name="ends_on" type="date" value="<?= e($form_values['ends_on']) ?>"></div>
         </div>
+        <datalist id="academicYearOptions"><?php foreach ($year_suggestions as $year_option): ?><option value="<?= (int)$year_option ?>"></option><?php endforeach; ?></datalist>
         <p class="academic-term-form-note" id="academicTermFormNote">The start and end year must be consecutive, such as 2026–2027.</p>
         <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('addAcademicTermModal')">Cancel</button><button type="submit" class="btn btn-primary" id="academicTermSaveButton">Save term</button></div>
       </form>

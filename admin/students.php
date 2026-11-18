@@ -341,10 +341,11 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="modal-title">Add Student</div>
       <p>Enter the student’s academic details and profile information.</p>
     </div>
-    <?php if ($add_student_failed): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
-    <form class="student-form" method="POST" action="/ojtrack/admin/students.php">
+    <form class="student-form" id="addStudentForm" method="POST" action="/ojtrack/admin/students.php">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="add_student">
+      <div class="student-form-scroll">
+      <?php if ($add_student_failed): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
       <section class="student-form-section" aria-labelledby="newStudentAcademicHeading">
         <div class="student-form-section-heading" id="newStudentAcademicHeading">Academic details</div>
       <div class="form-group">
@@ -382,11 +383,12 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
       </section>
       <p class="text-sm text-muted">Student login and initial password: student ID.</p>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('addStudentModal')">Cancel</button>
-        <button type="submit" class="btn btn-primary student-form-submit">Add Student</button>
       </div>
     </form>
+    <div class="modal-footer student-form-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('addStudentModal')">Cancel</button>
+      <button type="submit" form="addStudentForm" class="btn btn-primary student-form-submit">Add Student</button>
+    </div>
   </div>
 </div>
 
@@ -396,10 +398,11 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="modal-title">Edit Student Information</div>
       <p>Update the student’s academic details and profile information.</p>
     </div>
-    <?php if ($edit_student_failed): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
-    <form class="student-form" method="POST" action="/ojtrack/admin/students.php"><?= csrf_field() ?>
+    <form class="student-form" id="editStudentForm" method="POST" action="/ojtrack/admin/students.php"><?= csrf_field() ?>
       <input type="hidden" name="action" value="edit_student">
       <input type="hidden" name="student_id" id="editStudentId" value="<?= e($edit_values['student_id'] ?? '') ?>">
+      <div class="student-form-scroll">
+    <?php if ($edit_student_failed): ?><div class="alert alert-error" role="alert"><?= e($error) ?></div><?php endif; ?>
       <section class="student-form-section" aria-labelledby="editStudentAcademicHeading">
         <div class="student-form-section-heading" id="editStudentAcademicHeading">Academic details</div>
       <div class="form-group"><label class="form-label" for="editStudentNo">Student ID <span class="text-danger">*</span></label><input class="form-control" id="editStudentNo" name="student_id_no" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9-]{0,19}" value="<?= e($edit_values['student_id_no'] ?? '') ?>" required><div class="text-xs text-muted mt-1">If the initial password is still the old student ID, it will be updated to match this ID.</div></div>
@@ -421,8 +424,9 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="form-group"><label class="form-label" for="editStudentPhone">Contact Number</label><input class="form-control" id="editStudentPhone" name="contact_number" maxlength="20" value="<?= e($edit_values['contact_number'] ?? '') ?>" placeholder="e.g. 0917-123-4567"></div>
       </div>
       </section>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('editStudentModal')">Cancel</button><button type="submit" class="btn btn-primary student-form-submit">Save Changes</button></div>
+      </div>
     </form>
+    <div class="modal-footer student-form-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('editStudentModal')">Cancel</button><button type="submit" form="editStudentForm" class="btn btn-primary student-form-submit">Save Changes</button></div>
   </div>
 </div>
 

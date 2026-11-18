@@ -402,11 +402,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Send Requirements to Students Modal -->
 <div class="modal-overlay" id="sendReqModal">
-  <div class="modal modal-lg send-requirements-modal">
-    <div class="modal-title">Send Requirements to Students</div>
-    <p class="modal-sub">Each selected student receives the selected requirements. Existing assignments are skipped.</p>
-    <form method="POST" class="send-requirements-form"><?= csrf_field() ?>
+  <div class="modal modal-lg send-requirements-modal long-form-modal">
+    <div class="long-form-modal-header">
+      <div class="modal-title">Send Requirements to Students</div>
+      <p class="modal-sub">Each selected student receives the selected requirements. Existing assignments are skipped.</p>
+    </div>
+    <form method="POST" class="send-requirements-form" id="sendRequirementsForm"><?= csrf_field() ?>
       <input type="hidden" name="action" value="send_requirements">
+      <div class="long-form-modal-body">
       <div class="form-group">
         <div class="send-requirements-group-heading">
           <div class="form-label" id="sendRequirementsLabel">Requirements <span class="text-danger">*</span></div>
@@ -484,6 +487,7 @@ require_once __DIR__ . '/../includes/header.php';
       <div class="form-group">
         <label class="form-label">Deadline (optional)</label>
         <input type="date" name="deadline" class="form-control">
+      </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('sendReqModal')">Cancel</button>

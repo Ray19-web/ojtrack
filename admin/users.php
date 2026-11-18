@@ -6,7 +6,6 @@ require_login(['admin']);
 
 $user = current_user();
 $success = ''; $error = '';
-$year_level_options = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'Graduate', 'Other'];
 $student_term_enrollment_created = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -262,15 +261,6 @@ foreach (['student', 'coordinator', 'company', 'admin'] as $r) {
 }
 $archived_count = (int)(query_one("SELECT COUNT(*) AS c FROM users WHERE status='archived'")['c'] ?? 0);
 
-$programs_list = query("SELECT id, code, name FROM programs WHERE status='active' ORDER BY code ASC");
-$add_user_failed = ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_user' && $error !== '');
-$add_values = $add_user_failed ? array_filter($_POST, 'is_scalar') : [];
-$add_values['name_extension_type'] = $add_user_failed && is_array($_POST['name_extension_type'] ?? null) ? $_POST['name_extension_type'] : [];
-$add_values['name_extension_value'] = $add_user_failed && is_array($_POST['name_extension_value'] ?? null) ? $_POST['name_extension_value'] : [];
-$add_values['supervisor_name_extension_type'] = $add_user_failed && is_array($_POST['supervisor_name_extension_type'] ?? null) ? $_POST['supervisor_name_extension_type'] : [];
-$add_values['supervisor_name_extension_value'] = $add_user_failed && is_array($_POST['supervisor_name_extension_value'] ?? null) ? $_POST['supervisor_name_extension_value'] : [];
-$add_role = $add_values['role'] ?? (in_array($role_filter, ['student','coordinator','company','admin'], true) ? $role_filter : '');
-
 $page_title = 'User Accounts';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -282,7 +272,6 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
   <div class="page-heading-actions">
     <a href="/ojtrack/admin/archived-users.php" class="btn btn-secondary">Archived Accounts (<?= $archived_count ?>)</a>
-    <button class="btn btn-primary" onclick="openModal('addUserModal')">+ Add New User</button>
   </div>
 </div>
 
@@ -374,7 +363,8 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<!-- Add User Modal -->
+<?php if (false): /* Account creation is intentionally unavailable on User Accounts. */ ?>
+<!-- Add User Modal (disabled) -->
 <div class="modal-overlay" id="addUserModal">
   <div class="modal modal-name-form">
     <div class="modal-title">Add New User Account</div>
@@ -499,5 +489,6 @@ document.addEventListener('DOMContentLoaded', function () {
   <?php if ($add_user_failed): ?>openModal('addUserModal');<?php endif; ?>
 });
 </script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

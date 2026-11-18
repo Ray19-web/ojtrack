@@ -1,5 +1,20 @@
 # Web release notes - 1 November 2026
 
+## Shared web UI refinements - 18 November 2026
+
+- Replaced delayed native browser title bubbles with a shared fast tooltip popover for explicit control hints across administrator, coordinator, company, and student pages.
+- Added hover, keyboard-focus, and touch support, viewport-aware positioning, Escape/scroll/resize dismissal, and accessible `role="tooltip"`/`aria-describedby` behavior.
+- Tooltips now dismiss immediately when a control or table row is clicked, even when the clicked element remains focused.
+- Profile modal action buttons now remain visible at the bottom while the profile content is scrolled.
+- Applied the same fixed-footer modal layout to the company certificate template editor.
+- Standardized fixed action footers for long student, requirement-sending, evaluation-sending, and bulk-attendance forms so their content scrolls independently without hiding the form actions.
+- Clarified the certificate template editor with plain-language automatic-field labels while preserving placeholder substitution during certificate generation.
+- Covered controls inserted after page load, including generated table tools, filters, and modal actions, without exposing screen-reader-only `aria-label` text as visible tooltips.
+- Added the same fast tooltip treatment to multi-select checkboxes, using their accessible labels or nearby option text for select-all and row-selection guidance across role pages.
+- Protected open forms from accidental dismissal when a pointer drag starts inside the modal and ends on the backdrop.
+- Added native year suggestions to the academic-term school-year fields while keeping manual entry available and preserving consecutive-year validation.
+- Removed the account-creation button and modal from the User Accounts page; existing account status, archive, restore, and bulk-management actions remain available.
+
 ## Authentication recovery - 18 November 2026
 
 - Added secure 30-day Remember Me sessions backed by rotated, hashed server tokens.

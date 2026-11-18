@@ -265,12 +265,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Bulk Time In/Out Modal -->
 <div class="modal-overlay" id="bulkTimeModal">
-  <div class="modal">
-    <div class="modal-title">Bulk Time In / Time Out</div>
-    <p class="modal-sub">Records the current time for the selected trainees — <span id="bulkTimeLive"></span></p>
-    <form method="POST"><?= csrf_field() ?>
+  <div class="modal bulk-time-modal long-form-modal">
+    <div class="long-form-modal-header">
+      <div class="modal-title">Bulk Time In / Time Out</div>
+      <p class="modal-sub">Records the current time for the selected trainees — <span id="bulkTimeLive"></span></p>
+    </div>
+    <form method="POST" id="bulkTimeForm"><?= csrf_field() ?>
       <input type="hidden" name="action" value="bulk_time">
       <input type="hidden" name="client_time" id="clientTime" value="">
+      <div class="long-form-modal-body">
       <div class="form-group">
         <label class="form-label">Session (auto-detected — read only)</label>
         <input type="text" class="form-control" value="Auto-detected: <?= date('A') === 'AM' ? 'Morning' : 'Afternoon' ?> session, based on each trainee's existing records" readonly style="background:var(--bg);color:var(--text-500)">
@@ -297,6 +300,7 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
           <p class="bulk-trainee-no-results" data-bulk-trainee-no-results hidden>No trainees match that search.</p>
         </div>
+      </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('bulkTimeModal')">Cancel</button>

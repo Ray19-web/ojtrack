@@ -90,6 +90,30 @@ h1,h2,h3,h4,h5,h6 { font-family: var(--font-display); }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Shared fast tooltip popover. Text comes only from explicit title/data-tooltip
+   attributes, while aria-label remains available to assistive technology. */
+.ojtrack-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(320px, calc(100vw - 20px));
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 9px;
+  color: #fff;
+  background: var(--primary-dark);
+  box-shadow: 0 10px 28px rgba(10, 42, 86, .25), 0 2px 7px rgba(10, 42, 86, .16);
+  font: 600 11px/1.4 var(--font-body);
+  letter-spacing: .005em;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-3px) scale(.98);
+  transition: opacity .11s ease, transform .11s ease;
+}
+.ojtrack-tooltip.is-visible { opacity: 1; transform: translateY(0) scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .ojtrack-tooltip { transition: none; }
+}
+
 /* ── Layout ─────────────────────────────────────────────── */
 .layout {
   display: flex;
@@ -414,7 +438,7 @@ html.sidebar-collapsed .nav-link {
 }
 
 /* Keep icon-only link names accessible without extending the scroll area.
-   The link title supplies the native hover tooltip. */
+   The shared tooltip layer turns explicit titles into fast popovers. */
 html.sidebar-collapsed .nav-label {
   position: absolute;
   left: 0;
@@ -1706,6 +1730,89 @@ select.form-control { cursor: pointer; }
 .modal-lg { max-width: 680px; }
 .modal-name-form { max-width: 640px; }
 
+/* Certificate template editor: keep the form body scrollable while its
+   actions remain visible at the bottom of the modal. */
+.modal.certificate-template-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  height: min(90dvh, 820px);
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+.certificate-template-header {
+  flex: 0 0 auto;
+  padding: 28px 28px 8px;
+}
+.certificate-template-header .modal-title { margin: 0; }
+.certificate-template-header .modal-sub { margin-bottom: 0; }
+.certificate-template-fields { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.certificate-template-fields span { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 9px; border: 1px solid #dce6f2; border-radius: 999px; background: #f5f9fe; color: var(--text-600); font-size: 10.5px; font-weight: 700; }
+.certificate-template-help { display: inline-grid; width: 17px; height: 17px; place-items: center; margin-left: 4px; border: 1px solid #b8cbe3; border-radius: 50%; color: var(--primary); font-size: 10px; line-height: 1; cursor: help; vertical-align: middle; }
+.certificate-template-field-hint { margin: -2px 0 7px; color: var(--text-500); font-size: 11px; line-height: 1.45; }
+.certificate-template-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 28px 24px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.certificate-template-modal > .certificate-template-footer {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 28px 20px;
+  border-top: 1px solid var(--border-light);
+  background: var(--card);
+}
+
+/* Long forms use one scroll region and a separate action bar so actions stay
+   visible even when the form content is taller than the viewport. */
+.modal.long-form-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  height: min(900px, calc(100dvh - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+.long-form-modal-header {
+  flex: 0 0 auto;
+  padding: 24px 28px 17px;
+  border-bottom: 1px solid rgba(16, 59, 120, .10);
+  background: #fff;
+}
+.long-form-modal-header .modal-title { margin: 0; }
+.long-form-modal-header .modal-sub { margin: 5px 0 0; }
+.long-form-modal > form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.long-form-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 28px 24px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.long-form-modal-body > .form-group:last-child { margin-bottom: 0; }
+.long-form-modal > form > .modal-footer {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 16px 28px 20px;
+  border-top: 1px solid rgba(16, 59, 120, .10);
+  background: #fff;
+}
+.bulk-time-modal { max-width: 680px; }
+
 /* Keep the coordinator editor usable when the form is taller than the
    viewport.  The action bar stays available, while the last extension row
    can scroll fully above it instead of being hidden underneath it. */
@@ -2008,20 +2115,41 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
 /* Focused layout for the admin student create and edit dialogs. */
 .modal.student-form-modal {
   max-width: 640px;
-  padding: 0 32px 24px;
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  height: min(900px, calc(100dvh - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
   border: 1px solid rgba(16, 59, 120, .10);
+  overflow: hidden;
 }
 .student-form-intro {
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  margin: 0 -32px 22px;
+  flex: 0 0 auto;
+  margin: 0;
   padding: 24px 32px 18px;
   border-bottom: 1px solid rgba(16, 59, 120, .10);
   background: #fff;
 }
 .student-form-intro .modal-title { margin: 0; font-size: 23px; letter-spacing: -.025em; }
 .student-form-intro p { margin: 5px 0 0; color: var(--text-500); font-size: 13px; line-height: 1.5; }
+.student-form-modal > .student-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.student-form-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 32px 24px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.student-form-scroll > .alert { margin: 0 0 16px; }
 .student-form-section { min-width: 0; margin: 0 0 18px; }
 .student-form-section + .student-form-section { padding-top: 16px; border-top: 1px solid rgba(16, 59, 120, .09); }
 .student-form .form-row,
@@ -2034,9 +2162,9 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
 .student-form .name-extension-row .form-group { min-width: 0; margin-bottom: 14px; }
 .student-form .name-extension-remove { align-self: end; margin: 0 0 14px; }
 .student-form [data-add-name-extension] { margin: 0 0 4px; }
-.student-form > .text-sm.text-muted { padding: 12px 14px; border: 1px solid rgba(16, 59, 120, .10); border-radius: 10px; background: #f7f9fc; line-height: 1.5; }
-.student-form .modal-footer { position: sticky; bottom: -24px; z-index: 7; margin: 20px -32px -24px; padding: 16px 32px 20px; border-top: 1px solid rgba(16, 59, 120, .10); background: #fff; }
-.student-form .modal-footer .btn { min-width: 112px; min-height: 44px; }
+.student-form-scroll > .text-sm.text-muted { padding: 12px 14px; border: 1px solid rgba(16, 59, 120, .10); border-radius: 10px; background: #f7f9fc; line-height: 1.5; }
+.student-form-modal > .student-form-footer { position: static; flex: 0 0 auto; z-index: 1; margin: 0; padding: 16px 32px 20px; border-top: 1px solid rgba(16, 59, 120, .10); background: #fff; }
+.student-form-footer .btn { min-width: 112px; min-height: 44px; }
 .student-form .student-form-submit { color: #F5A623; }
 
 /* Shared help guide for name extensions, used by every web form that edits a person's name. */
@@ -2064,6 +2192,16 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
 
 @media screen and (max-width: 520px) {
   .modal.has-form-sticky-header { max-width: 100%; }
+  .modal.certificate-template-modal { width: 100%; height: calc(100dvh - 20px); max-height: calc(100vh - 20px); padding: 0; }
+  .certificate-template-header { padding: 20px 20px 8px; }
+  .certificate-template-body { padding: 12px 20px 18px; }
+  .certificate-template-modal > .certificate-template-footer { padding: 14px 20px max(16px, env(safe-area-inset-bottom)); }
+  .certificate-template-modal > .certificate-template-footer .btn { flex: 1 1 auto; }
+  .modal.long-form-modal { width: 100%; height: calc(100dvh - 20px); max-height: calc(100vh - 20px); }
+  .long-form-modal-header { padding: 20px 20px 14px; }
+  .long-form-modal-body { padding: 17px 20px 20px; }
+  .long-form-modal > form > .modal-footer { padding: 14px 20px max(16px, env(safe-area-inset-bottom)); }
+  .long-form-modal > form > .modal-footer .btn { flex: 1 1 auto; }
   .form-modal-sticky-header { padding: 20px 20px 14px; }
   .form-modal-sticky-header .modal-title { font-size: 19px; }
   .modal.has-form-sticky-header > .alert { margin: 14px 20px 0; }
@@ -2099,11 +2237,13 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
   .name-extension-help-list { grid-template-columns: 1fr; gap: 9px; padding: 16px 20px; }
   .name-extension-help-item { padding: 13px; }
   .name-extension-help-footer { align-items: flex-start; padding: 14px 20px 18px; }
-  .modal.student-form-modal { padding: 0 20px 20px; }
-  .student-form-intro { margin: 0 -20px 18px; padding: 20px 20px 16px; }
+  .modal.student-form-modal { width: 100%; height: calc(100dvh - 20px); max-height: calc(100vh - 20px); padding: 0; }
+  .student-form-intro { padding: 20px 20px 16px; }
+  .student-form-scroll { padding: 17px 20px 20px; }
+  .student-form-modal > .student-form-footer { padding: 14px 20px max(16px, env(safe-area-inset-bottom)); }
   .student-form .form-row.name-extension-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 10px; }
   .student-form .name-extension-remove { grid-column: 1 / -1; justify-self: start; margin: -4px 0 12px; }
-  .student-form .modal-footer { bottom: -20px; margin: 18px -20px -20px; padding: 14px 20px 16px; }
+  .student-form-footer .btn { flex: 1 1 auto; }
 }
 
 @keyframes modal-in {
@@ -2128,11 +2268,35 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
 
 /* Shared profile settings modal */
 .profile-modal {
+  position: relative;
   max-width: 720px;
   padding: 0;
   overflow-y: auto;
   border: 1px solid rgba(15, 23, 42, .08);
   border-radius: 20px;
+}
+
+/* Keep the profile form body as the only scrolling region. The header and
+   action row therefore remain visible without allowing content to pass under
+   the buttons. */
+.modal-overlay#profileModal > .profile-edit-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  height: min(900px, calc(100dvh - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+.profile-edit-modal .profile-modal-header {
+  position: relative;
+  flex: 0 0 auto;
+}
+.profile-modal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .profile-modal-header {
@@ -2349,11 +2513,11 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
 }
 .profile-section-actions .btn-primary { color: #F5A623; }
 .profile-section-actions-split {
-  position: sticky;
-  bottom: 0;
+  position: static;
+  flex: 0 0 auto;
   z-index: 6;
   justify-content: flex-end;
-  margin: 24px -24px 0;
+  margin: 0;
   padding: 14px 24px 18px;
   border-top: 1px solid var(--border-light);
   background: rgba(255, 255, 255, .98);
@@ -2381,6 +2545,11 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
 }
 
 @media (max-width: 640px) {
+  .modal-overlay#profileModal > .profile-edit-modal {
+    height: calc(100dvh - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
   .profile-modal-header {
     padding: 20px 20px 16px;
   }
@@ -2420,8 +2589,6 @@ tbody tr.coordinator-student-row:focus-visible { outline: 2px solid var(--primar
   .profile-section-actions-split {
     flex-direction: column;
     align-items: stretch;
-    margin-right: -18px;
-    margin-left: -18px;
     padding-right: 18px;
     padding-left: 18px;
   }
@@ -5888,6 +6055,7 @@ body .announcement-modal .announcement-upload svg{width:24px;height:24px;margin:
 .academic-term-modal .modal-sub{margin:4px 0 20px;color:var(--text-500);font-size:12px}
 .academic-term-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
 .academic-term-fields .form-control{min-width:0;min-height:43px}
+.academic-term-year-hint{margin-left:4px;color:var(--text-400);font-size:10px;font-weight:600;letter-spacing:0;text-transform:none}
 .academic-term-semester-field{grid-column:1/-1}
 .academic-term-form-note{margin:0;color:var(--text-500);font-size:11px;line-height:1.5}
 .academic-term-modal .modal-footer{padding-top:15px;border-top:1px solid #edf0f4}
@@ -6024,6 +6192,11 @@ body .announcement-modal .announcement-upload svg{width:24px;height:24px;margin:
 .report-student-selection{border-top:1px solid #edf1f5;color:var(--primary);font-weight:700}
 .form-error{margin:6px 0 0;color:#b42318;font-size:11px;font-weight:650}
 .form-error[hidden]{display:none!important}
+.form-control.field-invalid,
+input.field-invalid,
+select.field-invalid,
+textarea.field-invalid{border-color:#c53b3b!important;box-shadow:0 0 0 3px rgba(197,59,59,.12)!important}
+.form-error.field-error{display:block;margin:6px 0 0;color:#b42318;font-size:11px;font-weight:650;line-height:1.4}
 .report-submission-instructions{margin:-2px 0 15px;padding:12px 14px;border:1px solid #dce6f2;border-radius:11px;background:#f5f9fe}
 .report-submission-instructions[hidden]{display:none!important}
 .report-submission-instructions strong{display:block;margin-bottom:5px;color:var(--primary);font-size:11px}

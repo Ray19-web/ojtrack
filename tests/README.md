@@ -47,6 +47,8 @@ With Playwright and an installed Chromium/Edge available, run:
 
 The tests use synthetic browser forms/pages, not real messages or submissions. Configure normal Node module resolution or `NODE_PATH` to the test dependency directory; browser test dependencies are not deployment dependencies. Repeat authenticated workflow and real-device acceptance before deployment.
 
+For cross-engine compatibility checks, install the Playwright browser builds once with `npx playwright install chromium firefox webkit`. Use Chromium/Edge, Firefox, and WebKit for automated layout and interaction checks, then perform final Safari/iOS and Android acceptance on a real device or a cloud device service. The application may remain on XAMPP/`localhost`; do not use production records for browser tests.
+
 ## Legacy migration coverage
 
 `tests/run-ci.sh` and the staged `phase*` fixtures exercise the historical schema/migration path on a separately provisioned Linux test server. They require MariaDB/Apache/PHP/Python/Node, create disposable resources, and must not run against real data. They are retained for existing-installation maintenance and were not claimed as rerun in the Windows web release checks. A new release installation uses `database/install.sql`, not the legacy test seed or schema.

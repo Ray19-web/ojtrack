@@ -790,11 +790,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Send Form Modal -->
 <div class="modal-overlay" id="sendFormModal">
-  <div class="modal modal-lg evaluation-assignment-modal">
-    <div class="modal-title">Send Form to Company</div>
-    <p class="modal-sub">Choose an active evaluation form and one or more companies related to your students.</p>
+  <div class="modal modal-lg evaluation-assignment-modal long-form-modal">
+    <div class="long-form-modal-header">
+      <div class="modal-title">Send Form to Company</div>
+      <p class="modal-sub">Choose an active evaluation form and one or more companies related to your students.</p>
+    </div>
     <form method="POST" action="" id="evaluationAssignmentForm"><?= csrf_field() ?>
       <input type="hidden" name="action" value="send_form">
+      <div class="long-form-modal-body">
       <div class="form-group">
         <div class="send-requirements-group-heading">
           <label class="form-label" id="evaluationFormsLabel">Evaluation Forms <span class="text-danger">*</span></label>
@@ -867,6 +870,7 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="evaluation-company-empty evaluation-company-empty-static">No companies are currently connected to your students in the active term.</div>
         <?php endif; ?>
         <div class="text-danger evaluation-company-error" id="evaluationCompanyError" role="alert" hidden>Select at least one company.</div>
+      </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('sendFormModal')">Cancel</button>

@@ -53,7 +53,7 @@
 
 <!-- Profile Modal -->
 <div class="modal-overlay" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
-  <div class="modal modal-lg profile-modal">
+  <div class="modal modal-lg profile-modal profile-edit-modal">
     <div class="profile-modal-header">
       <div>
         <div class="modal-title" id="profileModalTitle"><?= e($profile_title) ?></div>
@@ -62,6 +62,7 @@
       <button type="button" class="profile-modal-close" onclick="closeModal('profileModal')" aria-label="Close profile settings">×</button>
     </div>
 
+    <div class="profile-modal-scroll">
     <?php if ($flash_success): ?>
       <div class="alert alert-success profile-modal-alert"><div class="alert-body"><p><?= e($flash_success) ?></p></div></div>
     <?php endif; ?>
@@ -127,7 +128,7 @@
         </div>
       </div>
 
-      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php"><?= csrf_field() ?>
+      <form method="POST" action="/ojtrack/<?= e($role) ?>/profile.php" id="profileDetailsForm"><?= csrf_field() ?>
         <input type="hidden" name="action" value="update_profile">
         <input type="hidden" name="redirect" value="<?= e($redirect_back) ?>">
         <div class="form-row">
@@ -176,15 +177,16 @@
         </div>
       </div>
       <?php endif; ?>
-        <div class="profile-section-actions profile-section-actions-split">
-          <button type="button" class="btn btn-secondary" onclick="openModal('passwordModal')">Update Password</button>
-          <div class="profile-section-action-group">
-            <button type="button" class="btn btn-secondary" onclick="closeModal('profileModal')">Close</button>
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-          </div>
-        </div>
       </form>
     </section>
+    </div>
+    <div class="profile-section-actions profile-section-actions-split">
+      <button type="button" class="btn btn-secondary" onclick="openModal('passwordModal')">Update Password</button>
+      <div class="profile-section-action-group">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('profileModal')">Close</button>
+        <button type="submit" form="profileDetailsForm" class="btn btn-primary">Save Changes</button>
+      </div>
+    </div>
   </div>
 </div>
 
